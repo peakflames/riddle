@@ -6,6 +6,10 @@ using Riddle.Web.Components.Account;
 using Riddle.Web.Data;
 using Riddle.Web.Models;
 using Flowbite.Services;
+using DotNetEnv;
+
+// Load .env file if it exists (for local development secrets)
+Env.TraversePath().Load();
 
 var builder = WebApplication.CreateBuilder(args);
 
