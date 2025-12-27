@@ -7,6 +7,7 @@ using Riddle.Web.Components;
 using Riddle.Web.Components.Account;
 using Riddle.Web.Data;
 using Riddle.Web.Models;
+using Riddle.Web.Services;
 using Flowbite.Services;
 using DotNetEnv;
 
@@ -97,6 +98,9 @@ builder.Services.AddCascadingAuthenticationState();
 
 // Flowbite
 builder.Services.AddFlowbite();
+
+// Application Services
+builder.Services.AddScoped<ISessionService, SessionService>();
 
 var app = builder.Build();
 

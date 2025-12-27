@@ -1,184 +1,258 @@
 @page "/"
 @rendermode InteractiveServer
+@using Microsoft.AspNetCore.Components.Authorization
+@using Riddle.Web.Services
+@using Riddle.Web.Models
+@inject ISessionService SessionService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
 
 <PageTitle>Dashboard - Riddle</PageTitle>
 
-<div class="mt-px space-y-4">
-    <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <Card Size="CardSize.ExtraLarge" class="max-w-none">
-            <div class="flex items-center justify-between p-4">
-                <div>
-                    <h5 class="text-2xl font-bold leading-none text-gray-900 dark:text-white">Active Sessions</h5>
-                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Your ongoing D&D campaigns</p>
-                </div>
-                <div class="flex items-center justify-center w-12 h-12 rounded-lg bg-primary-100 dark:bg-primary-900">
-                    <LayersIcon Class="w-6 h-6 text-primary-600 dark:text-primary-400" />
-                </div>
-            </div>
-            <div class="p-4 pt-0">
-                <p class="text-3xl font-bold text-gray-900 dark:text-white">3</p>
-                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    <span class="text-green-500 dark:text-green-400">+2</span> from last month
-                </p>
-            </div>
-        </Card>
-
-        <Card Size="CardSize.ExtraLarge" class="max-w-none">
-            <div class="flex items-center justify-between p-4">
-                <div>
-                    <h5 class="text-2xl font-bold leading-none text-gray-900 dark:text-white">Characters</h5>
-                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Party members across all campaigns</p>
-                </div>
-                <div class="flex items-center justify-center w-12 h-12 rounded-lg bg-purple-100 dark:bg-purple-900">
-                    <UsersIcon Class="w-6 h-6 text-purple-600 dark:text-purple-400" />
-                </div>
-            </div>
-            <div class="p-4 pt-0">
-                <p class="text-3xl font-bold text-gray-900 dark:text-white">12</p>
-                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    <span class="text-green-500 dark:text-green-400">+4</span> new this week
-                </p>
-            </div>
-        </Card>
-
-        <Card Size="CardSize.ExtraLarge" class="max-w-none">
-            <div class="flex items-center justify-between p-4">
-                <div>
-                    <h5 class="text-2xl font-bold leading-none text-gray-900 dark:text-white">Game Hours</h5>
-                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Total time spent adventuring</p>
-                </div>
-                <div class="flex items-center justify-center w-12 h-12 rounded-lg bg-green-100 dark:bg-green-900">
-                    <ClockIcon Class="w-6 h-6 text-green-600 dark:text-green-400" />
-                </div>
-            </div>
-            <div class="p-4 pt-0">
-                <p class="text-3xl font-bold text-gray-900 dark:text-white">47h</p>
-                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    This month
-                </p>
-            </div>
-        </Card>
-    </section>
-
-    <section>
-        <Card Size="CardSize.ExtraLarge" class="max-w-none">
-            <div class="p-4 sm:p-6">
-                <div class="flex items-center justify-between mb-4">
-                    <h5 class="text-xl font-bold leading-none text-gray-900 dark:text-white">Recent Sessions</h5>
-                    <a href="/sessions" class="text-sm font-medium text-primary-600 hover:underline dark:text-primary-500">
-                        View all
-                    </a>
-                </div>
-                
-                @if (recentSessions.Any())
-                {
-                    <div class="flow-root">
-                        <ul class="divide-y divide-gray-200 dark:divide-gray-700">
-                            @foreach (var session in recentSessions)
-                            {
-                                <li class="py-3 sm:py-4">
-                                    <div class="flex items-center space-x-4">
-                                        <div class="flex-shrink-0">
-                                            <div class="flex items-center justify-center w-10 h-10 rounded-lg bg-primary-100 dark:bg-primary-900">
-                                                <BookOpenIcon Class="w-5 h-5 text-primary-600 dark:text-primary-400" />
-                                            </div>
-                                        </div>
-                                        <div class="flex-1 min-w-0">
-                                            <p class="text-sm font-medium text-gray-900 truncate dark:text-white">
-                                                @session.Name
-                                            </p>
-                                            <p class="text-sm text-gray-500 truncate dark:text-gray-400">
-                                                @session.Description
-                                            </p>
-                                        </div>
-                                        <div class="inline-flex items-center text-base font-semibold text-gray-900 dark:text-white">
-                                            <Button Href="@($"/sessions/{session.Id}")" Color="ButtonColor.Light" Size="ButtonSize.Small">
-                                                View
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </li>
-                            }
-                        </ul>
+<AuthorizeView>
+    <Authorized>
+        <div class="mt-px space-y-4">
+            <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <Card Size="CardSize.ExtraLarge" class="max-w-none">
+                    <div class="flex items-center justify-between p-4">
+                        <div>
+                            <h5 class="text-2xl font-bold leading-none text-gray-900 dark:text-white">Active Sessions</h5>
+                            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Your ongoing D&D campaigns</p>
+                        </div>
+                        <div class="flex items-center justify-center w-12 h-12 rounded-lg bg-primary-100 dark:bg-primary-900">
+                            <LayersIcon Class="w-6 h-6 text-primary-600 dark:text-primary-400" />
+                        </div>
                     </div>
-                }
-                else
-                {
-                    <div class="text-center py-8">
-                        <BookOpenIcon Class="mx-auto h-12 w-12 text-gray-400" />
-                        <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">No sessions</h3>
-                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Get started by creating a new session.</p>
-                        <div class="mt-6">
-                            <Button Href="/sessions/new" Color="ButtonColor.Primary">
-                                <PlusIcon Class="mr-2 h-4 w-4" />
-                                New Session
+                    <div class="p-4 pt-0">
+                        <p class="text-3xl font-bold text-gray-900 dark:text-white">@sessionCount</p>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                            campaigns
+                        </p>
+                    </div>
+                </Card>
+
+                <Card Size="CardSize.ExtraLarge" class="max-w-none">
+                    <div class="flex items-center justify-between p-4">
+                        <div>
+                            <h5 class="text-2xl font-bold leading-none text-gray-900 dark:text-white">Characters</h5>
+                            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Party members across all campaigns</p>
+                        </div>
+                        <div class="flex items-center justify-center w-12 h-12 rounded-lg bg-purple-100 dark:bg-purple-900">
+                            <UsersIcon Class="w-6 h-6 text-purple-600 dark:text-purple-400" />
+                        </div>
+                    </div>
+                    <div class="p-4 pt-0">
+                        <p class="text-3xl font-bold text-gray-900 dark:text-white">@characterCount</p>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                            total characters
+                        </p>
+                    </div>
+                </Card>
+
+                <Card Size="CardSize.ExtraLarge" class="max-w-none">
+                    <div class="flex items-center justify-between p-4">
+                        <div>
+                            <h5 class="text-2xl font-bold leading-none text-gray-900 dark:text-white">Last Activity</h5>
+                            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Most recent session activity</p>
+                        </div>
+                        <div class="flex items-center justify-center w-12 h-12 rounded-lg bg-green-100 dark:bg-green-900">
+                            <ClockIcon Class="w-6 h-6 text-green-600 dark:text-green-400" />
+                        </div>
+                    </div>
+                    <div class="p-4 pt-0">
+                        <p class="text-xl font-bold text-gray-900 dark:text-white">@lastActivityText</p>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                            @lastSessionName
+                        </p>
+                    </div>
+                </Card>
+            </section>
+
+            <section>
+                <Card Size="CardSize.ExtraLarge" class="max-w-none">
+                    <div class="p-4 sm:p-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h5 class="text-xl font-bold leading-none text-gray-900 dark:text-white">Recent Sessions</h5>
+                            @if (sessions.Any())
+                            {
+                                <span class="text-sm text-gray-500 dark:text-gray-400">
+                                    @sessions.Count session(s)
+                                </span>
+                            }
+                        </div>
+                        
+                        @if (isLoading)
+                        {
+                            <div class="flex items-center justify-center py-8">
+                                <Spinner Size="SpinnerSize.Lg" />
+                            </div>
+                        }
+                        else if (sessions.Any())
+                        {
+                            <div class="flow-root">
+                                <ul class="divide-y divide-gray-200 dark:divide-gray-700">
+                                    @foreach (var session in sessions)
+                                    {
+                                        <li class="py-3 sm:py-4">
+                                            <div class="flex items-center space-x-4">
+                                                <div class="flex-shrink-0">
+                                                    <div class="flex items-center justify-center w-10 h-10 rounded-lg bg-primary-100 dark:bg-primary-900">
+                                                        <BookOpenIcon Class="w-5 h-5 text-primary-600 dark:text-primary-400" />
+                                                    </div>
+                                                </div>
+                                                <div class="flex-1 min-w-0">
+                                                    <p class="text-sm font-medium text-gray-900 truncate dark:text-white">
+                                                        @session.CampaignName
+                                                    </p>
+                                                    <p class="text-sm text-gray-500 truncate dark:text-gray-400">
+                                                        @GetLocationDisplay(session) • @GetTimeAgo(session.LastActivityAt)
+                                                    </p>
+                                                </div>
+                                    <div class="flex items-center gap-2">
+                                                    @if (session.PartyState.Any())
+                                                    {
+                                                        <Badge Color="BadgeColor.Indigo">@session.PartyState.Count PCs</Badge>
+                                                    }
+                                                    <Button Href="@($"/dm/{session.Id}")" Color="ButtonColor.Primary" Size="ButtonSize.Small">
+                                                        Play
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </li>
+                                    }
+                                </ul>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="text-center py-8">
+                                <BookOpenIcon Class="mx-auto h-12 w-12 text-gray-400" />
+                                <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">No sessions yet</h3>
+                                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Get started by creating a new session.</p>
+                                <div class="mt-6">
+                                    <Button Href="/sessions/new" Color="ButtonColor.Primary">
+                                        <PlusIcon Class="mr-2 h-4 w-4" />
+                                        New Session
+                                    </Button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </Card>
+            </section>
+
+            <section>
+                <Card Size="CardSize.ExtraLarge" class="max-w-none">
+                    <div class="p-4 sm:p-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h5 class="text-xl font-bold leading-none text-gray-900 dark:text-white">Quick Actions</h5>
+                        </div>
+                        
+                        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                            <Button Href="/sessions/new" Color="ButtonColor.Primary" Class="w-full justify-center">
+                                <PlusIcon Class="mr-2 h-5 w-5" />
+                                Start New Session
+                            </Button>
+                            <Button Href="/test/data-model" Color="ButtonColor.Light" Class="w-full justify-center">
+                                <ClipboardIcon Class="mr-2 h-5 w-5" />
+                                Data Model Test
+                            </Button>
+                            <Button Color="ButtonColor.Light" Class="w-full justify-center" Disabled>
+                                <UsersIcon Class="mr-2 h-5 w-5" />
+                                Manage Characters (Coming Soon)
                             </Button>
                         </div>
                     </div>
-                }
+                </Card>
+            </section>
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        <div class="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
+            <div class="max-w-md">
+                <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-4">
+                    Welcome to Riddle
+                </h1>
+                <p class="text-lg text-gray-600 dark:text-gray-400 mb-8">
+                    Your AI-powered Dungeon Master assistant for D&D 5th Edition. 
+                    Sign in to start your adventure.
+                </p>
+                <Button Href="/Account/Login" Color="ButtonColor.Primary" Size="ButtonSize.Large" Class="w-full sm:w-auto">
+                    Sign in with Google
+                </Button>
             </div>
-        </Card>
-    </section>
-
-    <section>
-        <Card Size="CardSize.ExtraLarge" class="max-w-none">
-            <div class="p-4 sm:p-6">
-                <div class="flex items-center justify-between mb-4">
-                    <h5 class="text-xl font-bold leading-none text-gray-900 dark:text-white">Quick Actions</h5>
-                </div>
-                
-                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    <Button Href="/sessions/new" Color="ButtonColor.Primary" Class="w-full justify-center">
-                        <PlusIcon Class="mr-2 h-5 w-5" />
-                        Start New Session
-                    </Button>
-                    <Button Href="/characters" Color="ButtonColor.Light" Class="w-full justify-center">
-                        <UsersIcon Class="mr-2 h-5 w-5" />
-                        Manage Characters
-                    </Button>
-                    <Button Href="/rules" Color="ButtonColor.Light" Class="w-full justify-center">
-                        <ClipboardIcon Class="mr-2 h-5 w-5" />
-                        Rules Reference
-                    </Button>
-                </div>
-            </div>
-        </Card>
-    </section>
-</div>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
 
 @code {
-    private List<SessionSummary> recentSessions = new();
+    private List<RiddleSession> sessions = new();
+    private bool isLoading = true;
+    private int sessionCount = 0;
+    private int characterCount = 0;
+    private string lastActivityText = "No activity";
+    private string lastSessionName = "";
+    private string? currentUserId;
 
     protected override async Task OnInitializedAsync()
     {
-        // TODO: Load actual sessions from database
-        recentSessions = new List<SessionSummary>
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        
+        if (user.Identity?.IsAuthenticated == true)
         {
-            new SessionSummary 
-            { 
-                Id = 1, 
-                Name = "Lost Mines of Phandelver", 
-                Description = "A classic D&D adventure for beginners" 
-            },
-            new SessionSummary 
-            { 
-                Id = 2, 
-                Name = "Curse of Strahd", 
-                Description = "Gothic horror in the land of Barovia" 
-            },
-            new SessionSummary 
-            { 
-                Id = 3, 
-                Name = "Waterdeep: Dragon Heist", 
-                Description = "Urban adventure in the City of Splendors" 
+            currentUserId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            
+            if (!string.IsNullOrEmpty(currentUserId))
+            {
+                await LoadSessionsAsync();
             }
+        }
+        
+        isLoading = false;
+    }
+
+    private async Task LoadSessionsAsync()
+    {
+        if (string.IsNullOrEmpty(currentUserId)) return;
+        
+        sessions = await SessionService.GetSessionsForUserAsync(currentUserId);
+        sessionCount = sessions.Count;
+        characterCount = sessions.Sum(s => s.PartyState.Count);
+        
+        var mostRecent = sessions.FirstOrDefault();
+        if (mostRecent != null)
+        {
+            lastActivityText = GetTimeAgo(mostRecent.LastActivityAt);
+            lastSessionName = mostRecent.CampaignName;
+        }
+    }
+
+    private string GetLocationDisplay(RiddleSession session)
+    {
+        // Convert location ID to human-readable format
+        return session.CurrentLocationId.Replace("_", " ").ToUpperInvariant() switch
+        {
+            var x when x.Contains("GOBLIN") => "Goblin Ambush",
+            var x when x.Contains("PHANDALIN") => "Phandalin",
+            var x when x.Contains("CRAGMAW") => "Cragmaw Hideout",
+            var x when x.Contains("REDBRAND") => "Redbrand Hideout",
+            _ => session.CurrentLocationId.Replace("_", " ")
         };
     }
 
-    private class SessionSummary
+    private string GetTimeAgo(DateTime dateTime)
     {
-        public int Id { get; set; }
-        public string Name { get; set; } = string.Empty;
-        public string Description { get; set; } = string.Empty;
+        var timeSpan = DateTime.UtcNow - dateTime;
+        
+        return timeSpan switch
+        {
+            { TotalMinutes: < 1 } => "Just now",
+            { TotalMinutes: < 60 } => $"{(int)timeSpan.TotalMinutes}m ago",
+            { TotalHours: < 24 } => $"{(int)timeSpan.TotalHours}h ago",
+            { TotalDays: < 7 } => $"{(int)timeSpan.TotalDays}d ago",
+            { TotalDays: < 30 } => $"{(int)(timeSpan.TotalDays / 7)}w ago",
+            _ => $"{(int)(timeSpan.TotalDays / 30)}mo ago"
+        };
     }
 }
