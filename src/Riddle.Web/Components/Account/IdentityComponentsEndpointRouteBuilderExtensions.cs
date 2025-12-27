@@ -43,7 +43,7 @@ internal static class IdentityComponentsEndpointRouteBuilderExtensions
             return TypedResults.Challenge(properties, [provider]);
         });
 
-        // POST endpoint to perform logout
+        // POST endpoint to perform logout (legacy support)
         accountGroup.MapPost("/Logout", async (
             ClaimsPrincipal user,
             SignInManager<ApplicationUser> signInManager,
@@ -51,6 +51,15 @@ internal static class IdentityComponentsEndpointRouteBuilderExtensions
         {
             await signInManager.SignOutAsync();
             return TypedResults.LocalRedirect($"~/{returnUrl}");
+        });
+
+        // GET endpoint to perform logout (for Blazor InteractiveServer mode)
+        accountGroup.MapGet("/PerformLogout", async (
+            SignInManager<ApplicationUser> signInManager,
+            [FromQuery] string? returnUrl) =>
+        {
+            await signInManager.SignOutAsync();
+            return TypedResults.LocalRedirect($"~/{returnUrl ?? "Account/Login"}");
         });
 
         // GET endpoint for external login callback (processes the OAuth response)
@@ -75,6 +84,9 @@ internal static class IdentityComponentsEndpointRouteBuilderExtensions
                 return Results.Redirect("/Account/Login?error=Error+loading+external+login+information");
             }
 
+            // Get the picture URL from the external provider
+            var pictureUrl = info.Principal.FindFirstValue("picture");
+
             // Sign in the user with this external login provider if the user already has a login
             var result = await signInManager.ExternalLoginSignInAsync(
                 info.LoginProvider,
@@ -86,6 +98,14 @@ internal static class IdentityComponentsEndpointRouteBuilderExtensions
             {
                 // Update any authentication tokens if they've changed
                 await signInManager.UpdateExternalAuthenticationTokensAsync(info);
+                
+                // Update picture claim for returning user
+                var user = await userManager.FindByLoginAsync(info.LoginProvider, info.ProviderKey);
+                if (user is not null && !string.IsNullOrEmpty(pictureUrl))
+                {
+                    await UpdatePictureClaimAsync(userManager, signInManager, user, pictureUrl);
+                }
+                
                 return Results.LocalRedirect(returnUrl);
             }
 
@@ -136,6 +156,12 @@ internal static class IdentityComponentsEndpointRouteBuilderExtensions
                 var addLoginResult = await userManager.AddLoginAsync(newUser, info);
                 if (addLoginResult.Succeeded)
                 {
+                    // Add picture claim for new user
+                    if (!string.IsNullOrEmpty(pictureUrl))
+                    {
+                        await userManager.AddClaimAsync(newUser, new Claim("picture", pictureUrl));
+                    }
+                    
                     await signInManager.SignInAsync(newUser, isPersistent: true);
                     await signInManager.UpdateExternalAuthenticationTokensAsync(info);
                     return Results.LocalRedirect(returnUrl);
@@ -147,5 +173,35 @@ internal static class IdentityComponentsEndpointRouteBuilderExtensions
         });
 
         return accountGroup;
+    }
+
+    /// <summary>
+    /// Updates the picture claim for a user, replacing any existing picture claim
+    /// and re-signing them in so the new claim is included in the cookie.
+    /// </summary>
+    private static async Task UpdatePictureClaimAsync(
+        UserManager<ApplicationUser> userManager,
+        SignInManager<ApplicationUser> signInManager,
+        ApplicationUser user,
+        string pictureUrl)
+    {
+        // Get existing claims and check if picture needs updating
+        var existingClaims = await userManager.GetClaimsAsync(user);
+        var existingPictureClaim = existingClaims.FirstOrDefault(c => c.Type == "picture");
+        
+        if (existingPictureClaim?.Value != pictureUrl)
+        {
+            // Remove old picture claim if it exists
+            if (existingPictureClaim is not null)
+            {
+                await userManager.RemoveClaimAsync(user, existingPictureClaim);
+            }
+            
+            // Add updated picture claim
+            await userManager.AddClaimAsync(user, new Claim("picture", pictureUrl));
+        }
+        
+        // Re-sign in the user to refresh their cookie with the updated claims
+        await signInManager.RefreshSignInAsync(user);
     }
 }
