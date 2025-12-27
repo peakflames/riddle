@@ -5,6 +5,20 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
+    <script>
+        // Apply dark mode immediately to prevent flash of wrong theme (FOWT)
+        // Must run synchronously in <head> before page renders
+        (function() {
+            try {
+                var theme = localStorage.getItem('color-theme');
+                if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                    document.documentElement.classList.add('dark');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                }
+            } catch (e) {}
+        })();
+    </script>
     <ResourcePreloader />
     <link rel="stylesheet" href="@Assets["css/app.min.css"]" />
     <ImportMap />

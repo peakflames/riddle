@@ -45,31 +45,63 @@
             
             <AuthorizeView>
                 <Authorized>
-                    <Dropdown Placement="DropdownPlacement.BottomEnd">
-                        <CustomTrigger>
-                            <button class="flex items-center gap-2 p-2 text-sm text-gray-700 rounded-lg hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">
-                                <Avatar Size="AvatarSize.Small" Alt="@context.User.Identity?.Name" />
-                                <span class="hidden md:block">@context.User.Identity?.Name</span>
-                            </button>
-                        </CustomTrigger>
-                        <ChildContent>
-                            <DropdownHeader>
-                                <span class="block text-sm font-medium text-gray-900 dark:text-white">@context.User.Identity?.Name</span>
-                                <span class="block text-sm text-gray-500 truncate dark:text-gray-400">@context.User.FindFirst("email")?.Value</span>
-                            </DropdownHeader>
-                            <DropdownItem Href="/Account/Manage">
-                                <CogIcon Class="mr-2 h-4 w-4" />
-                                Settings
-                            </DropdownItem>
-                            <DropdownDivider />
-                            <form action="/Account/Logout" method="post">
-                                <DropdownItem OnClick="HandleLogout">
-                                    <ArrowLeftOnRectangleIcon Class="mr-2 h-4 w-4" />
-                                    Sign out
-                                </DropdownItem>
-                            </form>
-                        </ChildContent>
-                    </Dropdown>
+                    @{
+                        var pictureUrl = context.User.FindFirst("picture")?.Value;
+                        var userName = context.User.Identity?.Name ?? "User";
+                        var userEmail = context.User.FindFirst("email")?.Value ?? context.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+                    }
+                    <div class="relative">
+                        <button type="button" @onclick="ToggleUserMenu" @onclick:stopPropagation="true"
+                            class="flex items-center gap-2 p-1.5 text-sm text-gray-700 rounded-lg hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">
+                            @if (!string.IsNullOrEmpty(pictureUrl))
+                            {
+                                <img src="@pictureUrl" alt="@userName" class="h-8 w-8 rounded-full object-cover" referrerpolicy="no-referrer" />
+                            }
+                            else
+                            {
+                                <div class="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                                    <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                                        <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"></path>
+                                    </svg>
+                                </div>
+                            }
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </button>
+                        
+                        @if (_userMenuOpen)
+                        {
+                            <div class="absolute right-0 z-50 mt-2 w-56 rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-700">
+                                <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-600">
+                                    <span class="block text-sm font-medium text-gray-900 dark:text-white">@userName</span>
+                                    @if (!string.IsNullOrEmpty(userEmail))
+                                    {
+                                        <span class="block text-sm text-gray-500 truncate dark:text-gray-400">@userEmail</span>
+                                    }
+                                </div>
+                                <ul class="py-1">
+                                    <li>
+                                        <a href="/Account/Manage" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-600">
+                                            <svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                            </svg>
+                                            Settings
+                                        </a>
+                                    </li>
+                                </ul>
+                                <div class="border-t border-gray-200 dark:border-gray-600">
+                                    <a href="/Account/Logout" class="flex items-center px-4 py-2 text-sm text-red-600 hover:bg-gray-100 dark:text-red-400 dark:hover:bg-gray-600">
+                                        <svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                                        </svg>
+                                        Sign out
+                                    </a>
+                                </div>
+                            </div>
+                        }
+                    </div>
                 </Authorized>
                 <NotAuthorized>
                     <Button Href="/Account/Login" Color="ButtonColor.Primary" Size="ButtonSize.Small">
@@ -110,6 +142,13 @@
     /// </summary>
     [Parameter]
     public bool ShowSidebarToggle { get; set; } = true;
+
+    private bool _userMenuOpen = false;
+
+    private void ToggleUserMenu()
+    {
+        _userMenuOpen = !_userMenuOpen;
+    }
 
     private void HandleLogout()
     {
