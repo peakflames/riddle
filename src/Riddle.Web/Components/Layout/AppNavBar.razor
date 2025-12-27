@@ -45,17 +45,36 @@
             
             <AuthorizeView>
                 <Authorized>
+                    @{
+                        var pictureUrl = context.User.FindFirst("picture")?.Value;
+                        var userName = context.User.Identity?.Name ?? "User";
+                        var userEmail = context.User.FindFirst("email")?.Value ?? context.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+                    }
                     <Dropdown Placement="DropdownPlacement.BottomEnd">
                         <CustomTrigger>
-                            <button class="flex items-center gap-2 p-2 text-sm text-gray-700 rounded-lg hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">
-                                <Avatar Size="AvatarSize.Small" Alt="@context.User.Identity?.Name" />
-                                <span class="hidden md:block">@context.User.Identity?.Name</span>
+                            <button type="button" class="flex items-center gap-2 p-1.5 text-sm text-gray-700 rounded-lg hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">
+                                @if (!string.IsNullOrEmpty(pictureUrl))
+                                {
+                                    <img src="@pictureUrl" alt="@userName" class="h-8 w-8 rounded-full object-cover" referrerpolicy="no-referrer" />
+                                }
+                                else
+                                {
+                                    <div class="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                                        <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                                            <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"></path>
+                                        </svg>
+                                    </div>
+                                }
+                                <span class="hidden md:block">@userName</span>
                             </button>
                         </CustomTrigger>
                         <ChildContent>
                             <DropdownHeader>
-                                <span class="block text-sm font-medium text-gray-900 dark:text-white">@context.User.Identity?.Name</span>
-                                <span class="block text-sm text-gray-500 truncate dark:text-gray-400">@context.User.FindFirst("email")?.Value</span>
+                                <span class="block text-sm font-medium text-gray-900 dark:text-white">@userName</span>
+                                @if (!string.IsNullOrEmpty(userEmail))
+                                {
+                                    <span class="block text-sm text-gray-500 truncate dark:text-gray-400">@userEmail</span>
+                                }
                             </DropdownHeader>
                             <DropdownItem Href="/Account/Manage">
                                 <CogIcon Class="mr-2 h-4 w-4" />
@@ -64,7 +83,9 @@
                             <DropdownDivider />
                             <form action="/Account/Logout" method="post">
                                 <DropdownItem OnClick="HandleLogout">
-                                    <ArrowLeftOnRectangleIcon Class="mr-2 h-4 w-4" />
+                                    <svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                                    </svg>
                                     Sign out
                                 </DropdownItem>
                             </form>

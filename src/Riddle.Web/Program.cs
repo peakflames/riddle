@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.OAuth.Claims;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -77,6 +79,10 @@ if (!string.IsNullOrEmpty(googleClientId) && !string.IsNullOrEmpty(googleClientS
             options.ClientId = googleClientId;
             options.ClientSecret = googleClientSecret;
             options.CallbackPath = "/signin-google";
+            
+            // Request profile picture claim
+            options.Scope.Add("profile");
+            options.ClaimActions.MapJsonKey("picture", "picture");
         });
 }
 else
