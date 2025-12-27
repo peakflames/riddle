@@ -4,17 +4,16 @@
 Project Riddle is a LLM-driven Dungeon Master assistant for D&D 5th Edition built with ASP.NET Core 9.0, Blazor Server, SignalR, and Flowbite Blazor UI components.
 
 ## Technology Stack
-- **Backend**: ASP.NET Core 9.0 (Blazor Server)
+- **Backend**: ASP.NET Core 10.0 (Blazor Server with InteractiveServer)
 - **LLM Provider**: OpenRouter via LLM Tornado SDK
 - **Real-time**: SignalR (all-in architecture)
 - **UI Framework**: Flowbite Blazor + Tailwind CSS
-- **Database**: Entity Framework Core with SQLite (dev) / PostgreSQL (prod)
+- **Database**: Entity Framework Core 10 with SQLite (dev) / PostgreSQL (prod)
 - **Authentication**: ASP.NET Identity + Google OAuth
 
 ## Essential Project Repositories
 - **LLM Tornado SDK**: `C:\Users\tschavey\projects\github\LlmTornado`
-- **Flowbite Blazor**: `C:\Users\tschavey\projects\themesberg\flowbite-blazor`
-- **Current Project**: `C:\Users\tschavey\projects\peakflames\riddle`
+- **Flowbite Blazor Admin Dashboard (WASM Standalone)**: `C:\Users\tschavey\projects\peakflames\flowbite-blazor-admin-dashboard`
 
 ## Project Structure Guidelines
 
@@ -60,50 +59,6 @@ Riddle.sln
 - **Razor Components**: PascalCase matching filename
 - **Methods**: Async methods should end with `Async`
 
-### ASP.NET Core Best Practices
-- Register services with appropriate lifetime (Singleton, Scoped, Transient)
-- Use `IConfiguration` for settings, never hardcode
-- Implement proper error handling and logging
-- Use strongly-typed configuration with Options pattern
-- Follow the Repository pattern for data access
-
-### Blazor Server Specific
-- Use `@inject` for service injection in components
-- Implement `IDisposable`/`IAsyncDisposable` for cleanup
-- Use `StateHasChanged()` only when necessary
-- Avoid long-running operations on UI thread
-- Use SignalR circuit events for connection management
-
-### SignalR Guidelines
-- Use groups for multi-client scenarios (DM vs Players)
-- Implement connection lifetime management
-- Handle reconnection scenarios gracefully
-- Use strongly-typed hub methods
-- Broadcast state changes from server, not client
-
-### LLM Tornado Integration
-- Always use `OpenRouter` provider: `LLmProviders.OpenRouter`
-- Define tools with proper JSON schemas
-- Use `StreamResponseRich` with `ChatStreamEventHandler` for tool handling
-- Implement tool results with `FunctionResult`
-- Handle tool calls in `FunctionCallHandler` callback
-- Continue conversation in `AfterFunctionCallsResolvedHandler`
-
-### Entity Framework Core
-- Use fluent API in `OnModelCreating` for complex configurations
-- Store complex types (Lists, nested objects) as JSON columns
-- Use migrations for all schema changes
-- Implement proper indexes for query performance
-- Use `AsNoTracking()` for read-only queries
-
-## Security Considerations
-- Store API keys in `appsettings.json` (not committed)
-- Use User Secrets for local development
-- Implement authorization policies for DM vs Player access
-- Validate all user inputs
-- Sanitize LLM outputs before display
-- Use HTTPS in production
-- Implement CSRF protection
 
 ## Documentation Requirements
 - Update `docs/implementation_plan.md` when architecture changes
@@ -113,59 +68,72 @@ Riddle.sln
 - Document SignalR events and message formats
 
 ## Testing Guidelines
-- Write unit tests for services and tools
-- Test SignalR hubs with mock clients
-- Integration test LLM service with real OpenRouter calls
-- Test authentication flows
-- Validate EF Core migrations
+- No automated test project ships yet. Before submitting, smoke-test dashboards with `dotnet build` and confirm Tailwind rebuilds cleanly.
+- Ensure `src/WebApp/wwwroot/css/app.min.css` is regenerated as part of builds and committed whenever component styles change.
 
-## Git Practices
-- Never commit `appsettings.json` with real API keys
-- Use `.gitignore` for build artifacts, user secrets
-- Commit migrations with descriptive names
-- Write clear commit messages referencing issues/features
 
-## Performance Optimization
-- Use caching for static game data (D&D rules, modules)
-- Implement database connection pooling
-- Minimize SignalR payload sizes
-- Use compression for large responses
-- Lazy-load Blazor components where appropriate
+## Build, Test, and Development Commands
+Use the Python automation:
+- `python build.py` — restore dependencies and build
+- `python build.py run` — start the app (foreground)
+- `python build.py start` — start in background (writes to riddle.log)
+- `python build.py stop` — stop background process
+- `python build.py status` — check if running
+- `python build.py watch` — hot reload .NET and Tailwind
 
-## Error Handling
-- Use structured logging with categories
-- Implement global exception handler
-- Return user-friendly error messages
-- Log LLM API errors with context
-- Handle SignalR disconnections gracefully
-
-## When Creating New Features
-1. Define models in `Models/` with proper EF Core attributes
-2. Create service interface and implementation
-3. Register service in `Program.cs`
-4. Implement SignalR hub methods if real-time needed
-5. Create Blazor components using Flowbite primitives
-6. Add routing in `Pages/` if routable
-7. Write tests
-8. Update documentation
-
-## Common Commands
-- `dotnet build` - Build solution
-- `dotnet run --project src/Riddle.Web` - Run application
+## DB Migration Commands
 - `dotnet ef migrations add {Name} --project src/Riddle.Web` - Add migration
 - `dotnet ef database update --project src/Riddle.Web` - Update database
-- `dotnet test` - Run tests
 
-## Reference Documentation Locations
-- Software Design: `docs/software_design.md`
-- Implementation Plan: `docs/implementation_plan.md`
-- System Prompts: `docs/candidate_system_prompts.md`
-- Game Rules: `src/GameReferenceData/`
+## UI Assets & Theming Tips
+Tailwind config lives in `src/Riddle.Web/tailwind.config.js`; PostCSS in `src/Riddle.Web/postcss.config.js`. Place new icons, fonts, or sample data in `wwwroot` and reference them relatively. Bundle third-party JS or CSS through `wwwroot` and document new dependencies in the PR rationale.
 
-## Important Notes
-- The LLM is stateless - all state must be persisted to database
-- Use `get_game_state` tool at conversation start for state recovery
-- SignalR is the ONLY way to push updates to clients
-- All tool calls must broadcast relevant updates via SignalR
-- DM and Player interfaces have separate SignalR groups
-- Use Flowbite Blazor components - don't reinvent UI primitives
+It is ULTRA IMPORTATNT to adhere to the Flowbite Design Style System as it is a Mobile first and good looking.
+
+PREFER to leverage components and pages already create over at `- **Flowbite Blazor Admin Dashboard (WASM Standalone)**: `C:\Users\tschavey\projects\peakflames\flowbite-blazor-admin-dashboard`
+
+## Problem-Solving Approach
+1. Analyze and form a hypothesis before modifying code.
+2. Implement a focused fix and verify it.
+3. If the hypothesis fails, stop and surface findings instead of pivoting blindly.
+
+
+## Lessons Learned (Memory Aid)
+
+### Blazor Server vs WASM
+- This project uses **Blazor Server** with `InteractiveServer` render mode, NOT WASM
+- The Flowbite Blazor Admin Dashboard reference is WASM - don't blindly copy App.razor/Program.cs
+- Interactive pages need `@rendermode InteractiveServer` directive
+
+### .NET 10 Blazor Server Setup
+- Use `blazor.web.js` (not `blazor.server.js`) with `@Assets["_framework/blazor.web.js"]` syntax
+- App.razor needs: `<ResourcePreloader />`, `<ImportMap />`, `<ReconnectModal />`
+- Program.cs: Use `MapStaticAssets()` instead of `UseStaticFiles()`
+- For non-development runs: Add `builder.WebHost.UseStaticWebAssets()` before building
+- Generate reference: `dotnet new blazor -int Server` in tmp/ folder for correct patterns
+
+### Package Management
+- For .NET 10 preview packages: `dotnet add package {Name} --prerelease`
+- Use `--version 10.0.1` for specific versions
+
+### Database Issues
+- If migrations fail due to existing tables not matching, delete `riddle.db` and re-run `dotnet ef database update`
+- Always use `dotnet ef` commands from the repo root with `--project src/Riddle.Web`
+
+### Testing Approach
+- User prefers functional/integration tests over unit tests
+- Use Playwright MCP for browser-based verification
+- Create API endpoints for testing when Blazor interactivity has issues
+
+### Windows Shell Commands
+- Don't use Unix commands like `find /i` - use PowerShell: `Select-String -Pattern "error"`
+- `sqlite3` may not be installed - verify database via EF Core or migration files
+
+### UUID/GUID
+- Use `Guid.CreateVersion7()` for time-sortable IDs (requires .NET 9+)
+
+## Git Workflow
+- Branch from `develop`: `git checkout develop && git pull origin develop`.
+- Naming: `fix/issue-{id}-description`, `feature/issue-{id}-description`, or `enhancement/issue-{id}-description`.
+- Commit format: `{type}({scope}): {description}` (types: fix, feat, docs, style, refactor, test, chore). Reference issues with `Fixes #{number}` when applicable.
+- Ensure `src/WebApp/wwwroot/css/app.min.css` is committed if it has changed. It auto-generate by the WebApp.csproj build instructions.

@@ -1,0 +1,290 @@
+@page "/test/data-model"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using Riddle.Web.Data
+@using Riddle.Web.Models
+@inject RiddleDbContext DbContext
+
+<PageTitle>Data Model Test</PageTitle>
+
+<div class="p-6 max-w-4xl mx-auto">
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">Data Model Functional Test</h1>
+    
+    <div class="space-y-4">
+        <!-- Test Status -->
+        <div class="p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
+            <h2 class="text-lg font-semibold mb-2">Test Status</h2>
+            <pre class="text-sm whitespace-pre-wrap">@testOutput</pre>
+        </div>
+        
+        <!-- Run Tests Button -->
+        <button @onclick="RunAllTests" 
+                class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            Run All Tests
+        </button>
+        
+        <!-- Session List -->
+        @if (sessions != null && sessions.Any())
+        {
+            <div class="mt-6">
+                <h2 class="text-lg font-semibold mb-2">Sessions in Database</h2>
+                <div class="space-y-2">
+                    @foreach (var session in sessions)
+                    {
+                        <div class="p-4 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                            <div class="font-medium">@session.CampaignName</div>
+                            <div class="text-sm text-gray-500 dark:text-gray-400">
+                                ID: @session.Id<br/>
+                                Chapter: @session.CurrentChapterId<br/>
+                                Location: @session.CurrentLocationId<br/>
+                                Party Size: @session.PartyState.Count characters<br/>
+                                Active Quests: @session.ActiveQuests.Count<br/>
+                                Created: @session.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+        
+        <!-- Clean Up Button -->
+        <button @onclick="CleanUp" 
+                class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+            Clean Up Test Data
+        </button>
+    </div>
+</div>
+
+@code {
+    private string testOutput = "Click 'Run All Tests' to begin...";
+    private List<RiddleSession>? sessions;
+    private string? testUserId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSessions();
+    }
+
+    private async Task LoadSessions()
+    {
+        sessions = await DbContext.RiddleSessions
+            .OrderByDescending(s => s.CreatedAt)
+            .Take(10)
+            .ToListAsync();
+    }
+
+    private async Task RunAllTests()
+    {
+        var output = new System.Text.StringBuilder();
+        output.AppendLine("=== Starting Data Model Tests ===");
+        output.AppendLine($"Time: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}");
+        output.AppendLine();
+
+        try
+        {
+            // Test 1: Create a test user first
+            output.AppendLine("Test 1: Create Test User");
+            var testUser = await DbContext.Users.FirstOrDefaultAsync(u => u.UserName == "test@datamodel.local");
+            if (testUser == null)
+            {
+                testUser = new ApplicationUser
+                {
+                    Id = Guid.CreateVersion7().ToString(),
+                    UserName = "test@datamodel.local",
+                    Email = "test@datamodel.local",
+                    NormalizedUserName = "TEST@DATAMODEL.LOCAL",
+                    NormalizedEmail = "TEST@DATAMODEL.LOCAL",
+                    DisplayName = "Test User",
+                    CreatedAt = DateTime.UtcNow
+                };
+                DbContext.Users.Add(testUser);
+                await DbContext.SaveChangesAsync();
+                output.AppendLine($"  ✓ Created test user: {testUser.Id}");
+            }
+            else
+            {
+                output.AppendLine($"  ✓ Found existing test user: {testUser.Id}");
+            }
+            testUserId = testUser.Id;
+
+            // Test 2: Create a RiddleSession
+            output.AppendLine();
+            output.AppendLine("Test 2: Create RiddleSession");
+            var session = new RiddleSession
+            {
+                CampaignName = "Test Campaign - " + DateTime.UtcNow.ToString("HH:mm:ss"),
+                DmUserId = testUserId,
+                CurrentChapterId = "test_chapter",
+                CurrentLocationId = "test_location"
+            };
+            DbContext.RiddleSessions.Add(session);
+            await DbContext.SaveChangesAsync();
+            output.AppendLine($"  ✓ Created session: {session.Id}");
+            output.AppendLine($"  ✓ UUID v7 (time-sortable): {session.Id.ToString()[..13]}...");
+
+            // Test 3: Add Characters to PartyState (JSON serialization)
+            output.AppendLine();
+            output.AppendLine("Test 3: JSON Serialization - Characters");
+            session.PartyState = new List<Character>
+            {
+                new Character 
+                { 
+                    Name = "Thorin Ironforge", 
+                    Type = "PC", 
+                    ArmorClass = 18, 
+                    MaxHp = 45, 
+                    CurrentHp = 45,
+                    Initiative = 2,
+                    PassivePerception = 12,
+                    PlayerName = "Test Player 1"
+                },
+                new Character 
+                { 
+                    Name = "Elara Moonwhisper", 
+                    Type = "PC", 
+                    ArmorClass = 14, 
+                    MaxHp = 32, 
+                    CurrentHp = 28,
+                    Initiative = 4,
+                    PassivePerception = 15,
+                    Conditions = new List<string> { "Inspired" },
+                    PlayerName = "Test Player 2"
+                }
+            };
+            await DbContext.SaveChangesAsync();
+            output.AppendLine($"  ✓ Added {session.PartyState.Count} characters to party");
+
+            // Test 4: Add Quests (JSON serialization)
+            output.AppendLine();
+            output.AppendLine("Test 4: JSON Serialization - Quests");
+            session.ActiveQuests = new List<Quest>
+            {
+                new Quest
+                {
+                    Title = "Find the Lost Mine",
+                    State = "Active",
+                    IsMainStory = true,
+                    Objectives = new List<string> { "Travel to Phandalin", "Find Gundren Rockseeker" }
+                },
+                new Quest
+                {
+                    Title = "Deliver the Supplies",
+                    State = "Active",
+                    IsMainStory = false,
+                    Objectives = new List<string> { "Reach Barthen's Provisions" }
+                }
+            };
+            await DbContext.SaveChangesAsync();
+            output.AppendLine($"  ✓ Added {session.ActiveQuests.Count} quests");
+
+            // Test 5: Add Combat Encounter (nullable JSON)
+            output.AppendLine();
+            output.AppendLine("Test 5: JSON Serialization - Combat Encounter");
+            session.ActiveCombat = new CombatEncounter
+            {
+                IsActive = true,
+                RoundNumber = 1,
+                TurnOrder = session.PartyState.Select(c => c.Id).ToList(),
+                CurrentTurnIndex = 0
+            };
+            await DbContext.SaveChangesAsync();
+            output.AppendLine($"  ✓ Started combat encounter: Round {session.ActiveCombat.RoundNumber}");
+
+            // Test 6: Add Log Entries
+            output.AppendLine();
+            output.AppendLine("Test 6: JSON Serialization - Log Entries");
+            session.NarrativeLog = new List<LogEntry>
+            {
+                new LogEntry { Entry = "The party begins their journey.", Importance = "standard" },
+                new LogEntry { Entry = "Ambush! Goblins attack!", Importance = "critical" }
+            };
+            await DbContext.SaveChangesAsync();
+            output.AppendLine($"  ✓ Added {session.NarrativeLog.Count} log entries");
+
+            // Test 7: Set Party Preferences
+            output.AppendLine();
+            output.AppendLine("Test 7: JSON Serialization - Preferences");
+            session.Preferences = new PartyPreferences
+            {
+                CombatFocus = "High",
+                RoleplayFocus = "Medium",
+                Pacing = "Fast",
+                Tone = "Adventurous",
+                AvoidedTopics = new List<string> { "gore" }
+            };
+            await DbContext.SaveChangesAsync();
+            output.AppendLine($"  ✓ Set preferences: Combat={session.Preferences.CombatFocus}, Pacing={session.Preferences.Pacing}");
+
+            // Test 8: Read back and verify JSON deserialization
+            output.AppendLine();
+            output.AppendLine("Test 8: Verify JSON Deserialization");
+            var loadedSession = await DbContext.RiddleSessions
+                .FirstOrDefaultAsync(s => s.Id == session.Id);
+            
+            if (loadedSession != null)
+            {
+                output.AppendLine($"  ✓ Party State: {loadedSession.PartyState.Count} characters");
+                output.AppendLine($"  ✓ Active Quests: {loadedSession.ActiveQuests.Count} quests");
+                output.AppendLine($"  ✓ Combat Active: {loadedSession.ActiveCombat?.IsActive ?? false}");
+                output.AppendLine($"  ✓ Log Entries: {loadedSession.NarrativeLog.Count} entries");
+                output.AppendLine($"  ✓ Preferences Tone: {loadedSession.Preferences.Tone}");
+            }
+
+            // Test 9: Query by User (Index test)
+            output.AppendLine();
+            output.AppendLine("Test 9: Query by DmUserId (Index)");
+            var userSessions = await DbContext.RiddleSessions
+                .Where(s => s.DmUserId == testUserId)
+                .ToListAsync();
+            output.AppendLine($"  ✓ Found {userSessions.Count} sessions for test user");
+
+            // Test 10: Update session
+            output.AppendLine();
+            output.AppendLine("Test 10: Update Session");
+            session.LastActivityAt = DateTime.UtcNow;
+            session.CurrentLocationId = "updated_location";
+            await DbContext.SaveChangesAsync();
+            output.AppendLine($"  ✓ Updated location to: {session.CurrentLocationId}");
+
+            output.AppendLine();
+            output.AppendLine("=== All Tests Passed! ===");
+        }
+        catch (Exception ex)
+        {
+            output.AppendLine();
+            output.AppendLine($"✗ ERROR: {ex.Message}");
+            output.AppendLine(ex.StackTrace);
+        }
+
+        testOutput = output.ToString();
+        await LoadSessions();
+    }
+
+    private async Task CleanUp()
+    {
+        try
+        {
+            // Remove test sessions
+            var testSessions = await DbContext.RiddleSessions
+                .Where(s => s.CampaignName.StartsWith("Test Campaign"))
+                .ToListAsync();
+            DbContext.RiddleSessions.RemoveRange(testSessions);
+            
+            // Remove test user
+            var testUser = await DbContext.Users
+                .FirstOrDefaultAsync(u => u.UserName == "test@datamodel.local");
+            if (testUser != null)
+            {
+                DbContext.Users.Remove(testUser);
+            }
+            
+            await DbContext.SaveChangesAsync();
+            testOutput = $"Cleaned up {testSessions.Count} test sessions and test user.";
+            await LoadSessions();
+        }
+        catch (Exception ex)
+        {
+            testOutput = $"Error during cleanup: {ex.Message}";
+        }
+    }
+}

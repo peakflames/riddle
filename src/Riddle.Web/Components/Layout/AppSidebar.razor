@@ -1,0 +1,74 @@
+@using Microsoft.AspNetCore.Components.Routing
+
+<div id="riddle-sidebar-outlet" class="h-full">
+    <Sidebar class="h-full">
+
+        <SidebarItem
+            Href="/"
+            Icon="@(new HomeIcon())">
+            Dashboard
+        </SidebarItem>
+
+        <SidebarItem
+            Href="/sessions"
+            Icon="@(new LayersIcon())">
+            My Sessions
+        </SidebarItem>
+
+        <SidebarItem
+            Href="/sessions/new"
+            Icon="@(new PlusIcon())">
+            New Session
+        </SidebarItem>
+
+        <SidebarItemGroup AdditionalClasses="mt-4 mb-4">
+            <SidebarItem
+                Href="/characters"
+                Icon="@(new UsersIcon())">
+                Characters
+            </SidebarItem>
+
+            <SidebarItem
+                Href="/campaigns"
+                Icon="@(new BookOpenIcon())">
+                Campaigns
+            </SidebarItem>
+
+            <SidebarItem
+                Href="/rules"
+                Icon="@(new ClipboardIcon())">
+                Rules Reference
+            </SidebarItem>
+        </SidebarItemGroup>
+
+        <AuthorizeView>
+            <Authorized>
+                <SidebarItemGroup AdditionalClasses="mb-4">
+                    <SidebarItem
+                        Href="/Account/Manage"
+                        Icon="@(new CogIcon())">
+                        Settings
+                    </SidebarItem>
+                </SidebarItemGroup>
+            </Authorized>
+        </AuthorizeView>
+
+        <SidebarItemGroup>
+            <SidebarItem
+                Href="https://github.com/peakflames/riddle"
+                Icon="@(new GithubIcon())">
+                Github Repository
+            </SidebarItem>
+            <SidebarItem
+                Href="https://flowbite-blazor.org"
+                Icon="@(new StarIcon())">
+                Flowbite Blazor
+            </SidebarItem>
+            <SidebarItem
+                Href="https://github.com/peakflames/riddle/issues"
+                Icon="@(new LifeSaverIcon())">
+                Support
+            </SidebarItem>
+        </SidebarItemGroup>
+    </Sidebar>
+</div>

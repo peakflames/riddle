@@ -1,0 +1,37 @@
+@inherits LayoutBase
+
+<div class="antialiased h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+    <AppNavBar ResponsiveMenuEnabled="true"
+               OnResponsiveMenuToggle="ToggleMobileMenu"
+               IsOpen="IsMobileMenuOpen" />
+
+    <div class="flex flex-col justify-between flex-auto overflow-y-auto">
+        <section class="flex-auto flex overflow-y-auto">
+
+            @* Mobile backdrop overlay *@
+            @if (IsMobileMenuOpen)
+            {
+                <div class="fixed inset-0 z-30 bg-gray-900/50 dark:bg-gray-900/80 lg:hidden"
+                     @onclick="ToggleMobileMenu"
+                     aria-label="Close sidebar"></div>
+            }
+
+            <aside id="riddle-sidebar"
+                   class="z-40 h-full min-w-max fixed lg:relative overflow-auto transition-transform left-0 @(IsMobileMenuOpen ? "" : "-translate-x-full") bg-white border-r border-gray-200 lg:translate-x-0 dark:bg-gray-800 dark:border-gray-700"
+                   aria-label="sidenav">
+                <AppSidebar />
+            </aside>
+
+            <main class="p-4 overflow-auto w-full">
+                @Body
+            </main>
+
+        </section>
+    </div>
+</div>
+
+<div id="blazor-error-ui">
+    An unhandled error has occurred.
+    <a href="" class="reload">Reload</a>
+    <a class="dismiss">🗙</a>
+</div>
