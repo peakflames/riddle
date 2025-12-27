@@ -59,9 +59,11 @@ builder.Services.AddAuthentication(options =>
         });
     });
 
-// Google OAuth - only add if configured
-var googleClientId = builder.Configuration["Authentication:Google:ClientId"];
-var googleClientSecret = builder.Configuration["Authentication:Google:ClientSecret"];
+// Google OAuth - environment variables take precedence over configuration
+var googleClientId = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_ID") 
+    ?? builder.Configuration["Authentication:Google:ClientId"];
+var googleClientSecret = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_SECRET")
+    ?? builder.Configuration["Authentication:Google:ClientSecret"];
 
 if (!string.IsNullOrEmpty(googleClientId) && !string.IsNullOrEmpty(googleClientSecret))
 {
@@ -76,7 +78,7 @@ if (!string.IsNullOrEmpty(googleClientId) && !string.IsNullOrEmpty(googleClientS
 else
 {
     // Log warning if Google OAuth not configured
-    Console.WriteLine("WARNING: Google OAuth not configured. Add Authentication:Google:ClientId and ClientSecret to appsettings or user secrets.");
+    Console.WriteLine("WARNING: Google OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables.");
 }
 
 // Authorization

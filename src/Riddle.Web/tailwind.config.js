@@ -6,6 +6,7 @@ module.exports = {
     ],
     darkMode: 'class',
     safelist: [
+        "min-h-screen",
         "md:bg-transparent",
         "md:block",
         "md:border-0",
