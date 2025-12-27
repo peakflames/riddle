@@ -2,7 +2,6 @@
 @layout Riddle.Web.Components.Layout.AuthLayout
 @using Microsoft.AspNetCore.Identity
 @using Riddle.Web.Models
-@using Flowbite.Components
 @inject SignInManager<ApplicationUser> SignInManager
 @inject NavigationManager NavigationManager
 
@@ -31,9 +30,9 @@
                 <AntiforgeryToken />
                 <input type="hidden" name="returnUrl" value="" />
                 
-                <Button Type="ButtonType.Submit" Size="ButtonSize.Large" Color="ButtonColor.Red" Class="w-full">
+                <button type="submit" class="w-full rounded-lg bg-red-600 px-5 py-3 text-center text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-4 focus:ring-red-300 dark:bg-red-500 dark:hover:bg-red-600 dark:focus:ring-red-900">
                     Sign out
-                </Button>
+                </button>
             </form>
 
             <div class="mt-4 text-sm font-medium text-gray-500 dark:text-gray-300">
