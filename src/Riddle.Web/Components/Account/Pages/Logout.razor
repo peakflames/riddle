@@ -1,0 +1,48 @@
+@page "/Account/Logout"
+@using Microsoft.AspNetCore.Identity
+@using Riddle.Web.Models
+@inject SignInManager<ApplicationUser> SignInManager
+@inject NavigationManager NavigationManager
+
+<PageTitle>Sign Out - Riddle</PageTitle>
+
+<div class="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900 px-4 py-12 sm:px-6 lg:px-8">
+    <div class="w-full max-w-md space-y-8">
+        <div class="text-center">
+            <h1 class="text-4xl font-bold tracking-tight text-gray-900 dark:text-white">
+                🎲 Riddle
+            </h1>
+            <h2 class="mt-6 text-2xl font-semibold text-gray-900 dark:text-white">
+                Sign out
+            </h2>
+        </div>
+
+        <div class="mt-8 bg-white dark:bg-gray-800 shadow-lg rounded-xl p-8">
+            <div class="text-center space-y-6">
+                <div class="mx-auto h-16 w-16 text-gray-400 dark:text-gray-500">
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                </div>
+                
+                <p class="text-gray-600 dark:text-gray-400">
+                    Are you sure you want to sign out?
+                </p>
+
+                <form action="/Account/Logout" method="post" class="space-y-4">
+                    <AntiforgeryToken />
+                    <input type="hidden" name="returnUrl" value="" />
+                    
+                    <button type="submit" 
+                            class="w-full rounded-lg bg-red-600 px-4 py-3 text-sm font-medium text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors">
+                        Sign out
+                    </button>
+                </form>
+
+                <a href="/" class="block text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300">
+                    ← Back to Home
+                </a>
+            </div>
+        </div>
+    </div>
+</div>

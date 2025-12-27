@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Riddle.Web.Components;
+using Riddle.Web.Components.Account;
 using Riddle.Web.Data;
 using Riddle.Web.Models;
 using Flowbite.Services;
@@ -24,7 +25,12 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddDbContext<RiddleDbContext>(options =>
     options.UseSqlite(connectionString));
 
-// Identity
+// Identity helper services
+builder.Services.AddScoped<IdentityUserAccessor>();
+builder.Services.AddScoped<IdentityRedirectManager>();
+builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
+
+// Identity configuration
 builder.Services.AddIdentityCore<ApplicationUser>(options =>
 {
     options.SignIn.RequireConfirmedAccount = false;
@@ -37,13 +43,41 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
     .AddSignInManager()
     .AddDefaultTokenProviders();
 
-// Authentication
+// Authentication with Google OAuth
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultScheme = IdentityConstants.ApplicationScheme;
     options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
 })
-    .AddIdentityCookies();
+    .AddIdentityCookies(options =>
+    {
+        // Configure persistent cookies (30-day expiration for "remember me")
+        options.ApplicationCookie?.Configure(cookie =>
+        {
+            cookie.ExpireTimeSpan = TimeSpan.FromDays(30);
+            cookie.SlidingExpiration = true;
+        });
+    });
+
+// Google OAuth - only add if configured
+var googleClientId = builder.Configuration["Authentication:Google:ClientId"];
+var googleClientSecret = builder.Configuration["Authentication:Google:ClientSecret"];
+
+if (!string.IsNullOrEmpty(googleClientId) && !string.IsNullOrEmpty(googleClientSecret))
+{
+    builder.Services.AddAuthentication()
+        .AddGoogle(options =>
+        {
+            options.ClientId = googleClientId;
+            options.ClientSecret = googleClientSecret;
+            options.CallbackPath = "/signin-google";
+        });
+}
+else
+{
+    // Log warning if Google OAuth not configured
+    Console.WriteLine("WARNING: Google OAuth not configured. Add Authentication:Google:ClientId and ClientSecret to appsettings or user secrets.");
+}
 
 // Authorization
 builder.Services.AddAuthorization();
@@ -71,6 +105,9 @@ app.UseAuthorization();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+// Map additional identity endpoints (external login callback, etc.)
+app.MapGroup("/Account").MapAdditionalIdentityEndpoints();
 
 // Ensure database is created
 using (var scope = app.Services.CreateScope())
