@@ -13,6 +13,8 @@ public class GameStateService : IGameStateService
     private readonly RiddleDbContext _dbContext;
     private readonly ILogger<GameStateService> _logger;
 
+    public event Action<CampaignChangedEventArgs>? OnCampaignChanged;
+
     public GameStateService(RiddleDbContext dbContext, ILogger<GameStateService> logger)
     {
         _dbContext = dbContext;
@@ -99,6 +101,14 @@ public class GameStateService : IGameStateService
 
         campaign.CurrentReadAloudText = text;
         await UpdateCampaignAsync(campaign, ct);
+        
+        // Notify subscribers of the change
+        OnCampaignChanged?.Invoke(new CampaignChangedEventArgs
+        {
+            CampaignId = campaignId,
+            ChangedProperty = "CurrentReadAloudText",
+            NewValue = text
+        });
     }
 
     public async Task SetPlayerChoicesAsync(Guid campaignId, List<string> choices, CancellationToken ct = default)
@@ -113,6 +123,14 @@ public class GameStateService : IGameStateService
 
         campaign.ActivePlayerChoices = choices;
         await UpdateCampaignAsync(campaign, ct);
+        
+        // Notify subscribers of the change
+        OnCampaignChanged?.Invoke(new CampaignChangedEventArgs
+        {
+            CampaignId = campaignId,
+            ChangedProperty = "ActivePlayerChoices",
+            NewValue = choices
+        });
     }
 
     public async Task SetSceneImageAsync(Guid campaignId, string imageUri, CancellationToken ct = default)
@@ -127,5 +145,13 @@ public class GameStateService : IGameStateService
 
         campaign.CurrentSceneImageUri = imageUri;
         await UpdateCampaignAsync(campaign, ct);
+        
+        // Notify subscribers of the change
+        OnCampaignChanged?.Invoke(new CampaignChangedEventArgs
+        {
+            CampaignId = campaignId,
+            ChangedProperty = "CurrentSceneImageUri",
+            NewValue = imageUri
+        });
     }
 }

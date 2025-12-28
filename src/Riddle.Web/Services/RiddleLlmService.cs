@@ -17,6 +17,7 @@ public class RiddleLlmService : IRiddleLlmService
     private readonly TornadoApi _api;
     private readonly IToolExecutor _toolExecutor;
     private readonly IGameStateService _stateService;
+    private readonly IAppEventService _appEventService;
     private readonly ILogger<RiddleLlmService> _logger;
     private readonly string _defaultModel;
 
@@ -24,6 +25,7 @@ public class RiddleLlmService : IRiddleLlmService
         IConfiguration config,
         IToolExecutor toolExecutor,
         IGameStateService stateService,
+        IAppEventService appEventService,
         ILogger<RiddleLlmService> logger)
     {
         var apiKey = config["OpenRouter:ApiKey"] 
@@ -39,6 +41,7 @@ public class RiddleLlmService : IRiddleLlmService
         
         _toolExecutor = toolExecutor;
         _stateService = stateService;
+        _appEventService = appEventService;
         _logger = logger;
         
         _logger.LogInformation("RiddleLlmService initialized with model: {Model}", _defaultModel);
@@ -73,21 +76,55 @@ public class RiddleLlmService : IRiddleLlmService
         _logger.LogInformation("Processing DM input for campaign {CampaignId}: {Message}", 
             campaignId, dmMessage.Length > 100 ? dmMessage[..100] + "..." : dmMessage);
 
+        // Emit LLM request event
+        _appEventService.AddEvent(
+            AppEventType.LlmRequest, 
+            "LLM", 
+            $"Processing DM input ({dmMessage.Length} chars)",
+            dmMessage.Length > 500 ? dmMessage[..500] + "..." : dmMessage);
+
+        var tokenCount = 0;
         await chat.StreamResponseRich(new ChatStreamEventHandler
         {
             MessageTokenHandler = async token =>
             {
                 if (token != null)
+                {
+                    tokenCount++;
                     await onStreamToken(token);
+                    
+                    // Emit batched token events (every 50 tokens)
+                    if (tokenCount % 50 == 0)
+                    {
+                        _appEventService.AddEvent(
+                            AppEventType.LlmResponse, 
+                            "LLM", 
+                            $"Streaming response ({tokenCount} tokens)");
+                    }
+                }
             },
             FunctionCallHandler = async calls =>
             {
                 _logger.LogInformation("LLM requested {Count} tool call(s)", calls.Count);
                 
+                // Emit tool call event
+                _appEventService.AddEvent(
+                    AppEventType.ToolCall, 
+                    "LLM", 
+                    $"LLM requested {calls.Count} tool call(s)",
+                    string.Join("\n", calls.Select(c => $"• {c.Name}")));
+                
                 foreach (var call in calls)
                 {
                     _logger.LogInformation("Executing tool: {Tool} with args: {Args}", 
                         call.Name, call.Arguments?.Length > 200 ? call.Arguments[..200] + "..." : call.Arguments);
+                    
+                    // Emit individual tool execution event
+                    _appEventService.AddEvent(
+                        AppEventType.ToolCall, 
+                        call.Name, 
+                        $"Executing tool: {call.Name}",
+                        call.Arguments);
                     
                     try
                     {
@@ -99,20 +136,48 @@ public class RiddleLlmService : IRiddleLlmService
                         
                         call.Result = new FunctionResult(call, result, null);
                         _logger.LogDebug("Tool {Tool} completed successfully", call.Name);
+                        
+                        // Emit tool result event
+                        _appEventService.AddEvent(
+                            AppEventType.ToolResult, 
+                            call.Name, 
+                            $"Tool completed: {call.Name}",
+                            result.Length > 500 ? result[..500] + "..." : result);
                     }
                     catch (Exception ex)
                     {
                         _logger.LogError(ex, "Tool {Tool} failed", call.Name);
                         call.Result = new FunctionResult(call, $"{{\"error\": \"{ex.Message}\"}}", null);
+                        
+                        // Emit error event
+                        _appEventService.AddEvent(
+                            AppEventType.Error, 
+                            call.Name, 
+                            $"Tool failed: {call.Name}",
+                            ex.Message,
+                            isError: true);
                     }
                 }
             },
             AfterFunctionCallsResolvedHandler = async (results, handler) =>
             {
                 _logger.LogInformation("Continuing conversation after tool execution");
+                _appEventService.AddEvent(
+                    AppEventType.LlmResponse, 
+                    "LLM", 
+                    "Continuing after tool execution");
                 await chat.StreamResponseRich(handler);
             }
         });
+
+        // Emit final response event
+        if (tokenCount > 0)
+        {
+            _appEventService.AddEvent(
+                AppEventType.LlmResponse, 
+                "LLM", 
+                $"Response complete ({tokenCount} tokens)");
+        }
     }
 
     private string BuildSystemPrompt(CampaignInstance campaign)

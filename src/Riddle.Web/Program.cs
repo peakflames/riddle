@@ -100,6 +100,7 @@ builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddFlowbite();
 
 // Application Services
+builder.Services.AddScoped<IAppEventService, AppEventService>();
 builder.Services.AddScoped<ICampaignService, CampaignService>();
 builder.Services.AddScoped<IGameStateService, GameStateService>();
 builder.Services.AddScoped<IToolExecutor, ToolExecutor>();

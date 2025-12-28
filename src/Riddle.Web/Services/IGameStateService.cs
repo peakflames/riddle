@@ -3,11 +3,26 @@ using Riddle.Web.Models;
 namespace Riddle.Web.Services;
 
 /// <summary>
+/// Event args for campaign state changes
+/// </summary>
+public class CampaignChangedEventArgs : EventArgs
+{
+    public required Guid CampaignId { get; init; }
+    public required string ChangedProperty { get; init; }
+    public object? NewValue { get; init; }
+}
+
+/// <summary>
 /// Service for game state operations used by LLM tools.
 /// Provides a simplified interface for reading and updating campaign state.
 /// </summary>
 public interface IGameStateService
 {
+    /// <summary>
+    /// Event fired when campaign state changes (for real-time UI updates)
+    /// </summary>
+    event Action<CampaignChangedEventArgs>? OnCampaignChanged;
+
     /// <summary>
     /// Get a campaign by ID with all related data
     /// </summary>

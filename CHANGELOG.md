@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2025-12-28
+
+### Added
+- **Application Event Log Panel**
+  - Debug panel in Campaign sidebar for real-time LLM activity visibility
+  - `AppEvent` model with `AppEventType` enum (LlmRequest, LlmResponse, ToolCall, ToolResult, StateUpdate, Error)
+  - `IAppEventService`/`AppEventService` scoped service with 100-event circular buffer
+  - `AppEventLog.razor` collapsible UI component with color-coded badges
+  - Event emissions in `RiddleLlmService` for LLM requests, streaming, tool calls, and errors
+  - Expandable details section for viewing full payloads
+
+- **Real-time UI Updates for Campaign State**
+  - `OnCampaignChanged` event in `IGameStateService` for reactive UI updates
+  - Campaign.razor subscribes to state changes for Read-Aloud Text, Player Choices, and Scene Image
+  - Instant UI refresh when LLM tools modify campaign state (no page refresh needed)
+
+### Technical
+- Session-only in-memory event log (clears on browser refresh)
+- Event-driven architecture with `Action<T>` event subscriptions
+- Proper `IDisposable` implementation for cleanup
+
 ## [0.3.0] - 2025-12-28
 
 ### Added
@@ -77,7 +98,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flowbite Blazor component library reference documentation
 - Incremental phase implementation workflow for development
 
-[Unreleased]: https://github.com/peakflames/riddle/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/peakflames/riddle/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/peakflames/riddle/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/peakflames/riddle/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/peakflames/riddle/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/peakflames/riddle/releases/tag/v0.1.0

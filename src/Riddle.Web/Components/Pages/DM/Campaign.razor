@@ -4,7 +4,10 @@
 @using Riddle.Web.Services
 @using Riddle.Web.Models
 @using Riddle.Web.Components.Chat
+@using Riddle.Web.Components.Debug
+@implements IDisposable
 @inject ICampaignService CampaignService
+@inject IGameStateService GameStateService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
 
@@ -186,6 +189,9 @@
                                 }
                             </div>
                         </Card>
+                        
+                        <!-- Event Log (Debug Panel) -->
+                        <AppEventLog />
                     </div>
                 </div>
             </div>
@@ -206,6 +212,9 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Subscribe to campaign state changes for real-time updates
+        GameStateService.OnCampaignChanged += HandleCampaignChanged;
+        
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
         
@@ -216,6 +225,35 @@
         }
         
         isLoading = false;
+    }
+
+    private void HandleCampaignChanged(CampaignChangedEventArgs args)
+    {
+        // Only process changes for the current campaign
+        if (campaign == null || args.CampaignId != CampaignId) return;
+        
+        InvokeAsync(() =>
+        {
+            switch (args.ChangedProperty)
+            {
+                case "CurrentReadAloudText":
+                    campaign.CurrentReadAloudText = args.NewValue as string ?? "";
+                    break;
+                case "ActivePlayerChoices":
+                    if (args.NewValue is List<string> choices)
+                        campaign.ActivePlayerChoices = choices;
+                    break;
+                case "CurrentSceneImageUri":
+                    campaign.CurrentSceneImageUri = args.NewValue as string;
+                    break;
+            }
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        GameStateService.OnCampaignChanged -= HandleCampaignChanged;
     }
 
     private async Task LoadCampaignAsync()
