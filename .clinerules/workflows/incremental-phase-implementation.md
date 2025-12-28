@@ -6,6 +6,154 @@ This workflow provides a repeatable process for implementing project phases incr
 
 ---
 
+## No Task Specified Protocol
+
+<no_task_protocol>
+**When the user does not specify a task** (e.g., empty message, "continue", "what's next?"), Cline must proactively assess the project state and propose next steps.
+
+### Step 1: Assess Current State
+
+1. **Check Git Status**
+   ```bash
+   git status
+   git branch -a
+   git log --oneline -5
+   ```
+
+2. **Identify Current Phase and Version**
+   - Read `CHANGELOG.md` for current version
+   - Read `src/Riddle.Web/Riddle.Web.csproj` for `<Version>` tag
+   - Identify what phase the project is in based on recent commits
+
+3. **Check for Existing Implementation Plans**
+   - Look for `docs/phase{N}_implementation_plan.md`
+   - Look for `docs/phase{N}_objectives_assessment.md`
+   - Read the relevant plan to understand current objectives
+
+4. **Check for Incomplete Work**
+   - Review `docs/verification/` for any incomplete checklists
+   - Check for uncommitted changes or unmerged feature branches
+
+### Step 2: Determine Next Action
+
+Based on the assessment, recommend ONE of the following:
+
+| State | Recommended Action |
+|-------|-------------------|
+| Uncommitted changes exist | Complete current work, commit, await approval |
+| Feature branch exists but not merged | Complete objective, await approval for merge |
+| Phase plan exists with incomplete objectives | Propose starting next objective |
+| Current phase complete, no next phase plan | Propose creating next phase implementation plan |
+| All phases complete | Propose maintenance, enhancements, or Phase N+1 planning |
+
+### Step 3: Present Proposal to User
+
+Format the proposal clearly:
+
+```markdown
+## Project State Assessment
+
+**Current Version:** {version}
+**Current Branch:** {branch}
+**Last Commit:** {hash} - {message}
+
+## Recommendation
+
+{One of the following:}
+
+**Option A: Continue Current Work**
+- Objective: {objective description}
+- Status: {status}
+- Next Steps: {specific steps}
+
+**Option B: Start New Objective**
+- Phase {N} Objective {M}: {title}
+- Dependencies: {met/unmet}
+- Estimated scope: {small/medium/large}
+
+**Option C: Create Phase {N+1} Implementation Plan**
+- Current phase status: Complete
+- Suggested next phase focus: {area}
+- Would you like me to draft the implementation plan?
+```
+
+### Step 4: Phase Plan Development (Simulated PLAN Mode)
+
+If the next step is creating a new phase implementation plan, follow this process:
+
+1. **Gather Context**
+   - Read `docs/implementation_plan.md` (master plan)
+   - Read `docs/software_design.md`
+   - Read completed phase plans for patterns
+   - Review current codebase structure
+
+2. **Draft the Phase Plan**
+   
+   Create `docs/phase{N}_implementation_plan.md` with:
+   - Overview and objectives
+   - Type definitions (models, entities)
+   - Files to create/modify
+   - Functions/services to implement
+   - Dependencies (NuGet packages, external)
+   - Testing approach
+   - Implementation order
+   - Completion checklist
+
+3. **Present Draft for Review**
+   
+   Show the user:
+   - Summary of proposed objectives
+   - Key technical decisions
+   - Estimated complexity
+   - Request: "Would you like me to create this implementation plan?"
+
+4. **Await Approval Before Creating File**
+   
+   Only after user approves:
+   - Create the `docs/phase{N}_implementation_plan.md` file
+   - Commit with message: `docs(planning): add phase {N} implementation plan`
+
+### Example: No Task Response
+
+```
+I notice no specific task was provided. Let me assess the project state...
+
+## Project State Assessment
+
+**Current Version:** 0.2.0
+**Current Branch:** develop
+**Last Commit:** 1410f75 - Merge branch 'feature/refactor-data-model...'
+
+**Phase 1 Status:** Complete (Objectives 1-5 implemented)
+- ✅ Project structure
+- ✅ Data models with EF Core
+- ✅ Google OAuth authentication  
+- ✅ UI foundation with Flowbite
+- ✅ CampaignInstance refactoring
+
+**Next Phase:** Phase 2 - LLM Integration
+
+## Recommendation
+
+The Phase 1 foundation is complete. I recommend creating the Phase 2 implementation plan.
+
+**Phase 2 Focus Areas (from master plan):**
+- LLM Tornado service integration
+- Tool handler implementations
+- GameStateService
+- Basic chat flow with OpenRouter
+
+Would you like me to:
+1. **Draft Phase 2 Implementation Plan** - I'll analyze the requirements and create a detailed plan
+2. **Start Phase 2 Implementation** - If a plan already exists
+3. **Something else** - Please specify
+
+Please confirm your preference.
+```
+</no_task_protocol>
+
+---
+
 ## Prerequisites
 
 Before starting any objective:
