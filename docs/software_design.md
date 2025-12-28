@@ -105,6 +105,9 @@ class CampaignInstance:
     dm_user_id: str                   # Owner/DM's user ID
     created_at: datetime
     
+    # Multiplayer Invite
+    invite_code: str                  # e.g., "ABC123" - persistent join link
+    
     # Progression (persistent across all play sessions)
     current_chapter_id: str
     current_location_id: str
@@ -125,6 +128,10 @@ class CampaignInstance:
     
     # Preferences
     party_preferences: PartyPreferences
+    
+    # World State (for Player Dashboard display)
+    time_of_day: str                  # e.g., "Morning", "Dusk", "Midnight"
+    weather: str                      # e.g., "Clear", "Raining", "Foggy"
     
     # UI Transients (current display state)
     current_read_aloud_text: str
@@ -207,20 +214,70 @@ class PartyPreferences:
     avoided_topics: List[str]
 ```
 
-### 3.5 Character & Combat
+### 3.5 Character (Full D&D 5e Sheet)
+
+The Character model supports full D&D 5th Edition character sheets, enabling both manual entry and LLM-assisted parsing from uploaded PDFs/images.
 
 ```python
 class Character:
-    id: str
+    # Identity
+    id: str                           # UUID v7 for time-ordered sorting
     name: str
-    type: str               # "PC" or "NPC"
+    avatar_image_uri: str             # Character portrait
+    type: str                         # "PC" or "NPC"
+    
+    # Player Link (for multiplayer)
+    player_id: str                    # Google user ID (null until claimed)
+    player_name: str                  # Display name of the player
+    
+    # Core Identity
+    race: str                         # e.g., "Hill Dwarf"
+    character_class: str              # e.g., "Fighter"
+    level: int                        # Current level
+    experience_points: int            # XP total
+    background: str                   # e.g., "Soldier"
+    
+    # Ability Scores
+    strength: int
+    dexterity: int
+    constitution: int
+    intelligence: int
+    wisdom: int
+    charisma: int
+    
+    # Combat Stats
     armor_class: int
     max_hp: int
     current_hp: int
-    initiative: int
-    perception_passive: int
-    conditions: List[str]
-    status_notes: str       # e.g. "Hidden Enemies Spotted"
+    temp_hp: int                      # Temporary hit points
+    initiative: int                   # Initiative modifier
+    speed: str                        # e.g., "30 ft"
+    
+    # Skills & Senses
+    passive_perception: int
+    proficiencies: List[str]          # Skills, tools, weapons, armor
+    saving_throws: List[str]          # Proficient saving throws
+    
+    # Features & Spellcasting
+    features: List[str]               # Class features, racial traits
+    spells: List[str]                 # Known/prepared spells
+    spellcasting_ability: str         # e.g., "Intelligence"
+    spell_save_dc: int
+    spell_attack_bonus: int
+    
+    # Equipment
+    equipment: List[str]              # Weapons, armor, items
+    currency: str                     # e.g., "15 GP, 3 SP"
+    
+    # Status (mutable during play)
+    conditions: List[str]             # e.g., ["Poisoned", "Prone"]
+    status_notes: str                 # DM notes, e.g., "Has secret map"
+    
+    # Roleplay (optional)
+    personality_traits: str
+    ideals: str
+    bonds: str
+    flaws: str
 
 class CombatEncounter:
     encounter_id: str

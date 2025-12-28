@@ -1548,7 +1548,51 @@ app.Run();
 
 ---
 
-### Phase 3: SignalR & Real-time (Week 3)
+### Phase 3: Party Management & Character Creation (Week 3)
+
+**Objectives:**
+- Build character creation flow (DM adds party members)
+- Implement full D&D 5e character model
+- Create invite link system for remote players
+- Player join and character claim flow
+
+**Tasks:**
+1. [ ] Expand Character model with full D&D 5e fields:
+   - [ ] Ability scores (STR, DEX, CON, INT, WIS, CHA)
+   - [ ] Race, class, level, background
+   - [ ] Proficiencies, saving throws, skills
+   - [ ] Spellcasting fields (if applicable)
+   - [ ] Equipment and currency
+   - [ ] Personality traits, ideals, bonds, flaws
+2. [ ] Add `InviteCode` to CampaignInstance model
+3. [ ] Create character management UI:
+   - [ ] `CharacterList.razor` - party roster on DM Dashboard
+   - [ ] `CharacterForm.razor` - add/edit character modal
+   - [ ] `CharacterCard.razor` - display component
+4. [ ] Implement character creation options:
+   - [ ] Manual entry form (all fields)
+   - [ ] Quick entry (name, class, HP, AC only)
+   - [ ] LLM-assisted parsing (upload character sheet image - future)
+5. [ ] Create invite link system:
+   - [ ] Generate unique invite code on campaign creation
+   - [ ] `/join/{code}` route for players
+   - [ ] Invite link copy button in DM Dashboard
+6. [ ] Build player join flow:
+   - [ ] `JoinCampaign.razor` page
+   - [ ] Display unclaimed characters in campaign
+   - [ ] Character claim links user ID to character
+   - [ ] Redirect to Player Dashboard after claim
+7. [ ] Update EF Core migrations for new Character fields
+
+**Deliverables:**
+- Full character creation/editing UI
+- Working invite link generation and sharing
+- Player join and character claim flow
+- Characters linked to player accounts
+
+---
+
+### Phase 4: SignalR & Real-time (Week 4)
 
 **Objectives:**
 - Implement SignalR hub
@@ -1577,7 +1621,7 @@ app.Run();
 
 ---
 
-### Phase 4: UI Polish (Week 4)
+### Phase 5: UI Polish (Week 5)
 
 **Objectives:**
 - Build all UI components with Flowbite
@@ -1769,8 +1813,9 @@ tests/
 |-------|------------|--------------------------|
 | **Phase 1: Foundation** | Auth, Data Models, Campaign CRUD | `01_CampaignManagement.feature` |
 | **Phase 2: LLM Integration** | LLM Tornado, Tools, State Recovery | `02_DungeonMasterChat.feature`, `03_ReadAloudNarration.feature`, `06_StateRecovery.feature` |
-| **Phase 3: SignalR & Real-time** | Event Broadcasting, Combat Sync | `04_CombatEncounter.feature`, `05_PlayerDashboard.feature` (partial) |
-| **Phase 4: UI Polish** | All UI Components, Full Workflow | `05_PlayerDashboard.feature` (complete), `07_GameStateDashboard.feature` |
+| **Phase 3: Party Management** | Character Creation, Invite Links, Player Join | `01_CampaignManagement.feature` (party scenarios), `08_PartyManagement.feature` |
+| **Phase 4: SignalR & Real-time** | Event Broadcasting, Combat Sync | `04_CombatEncounter.feature`, `05_PlayerDashboard.feature` (partial) |
+| **Phase 5: UI Polish** | All UI Components, Full Workflow | `05_PlayerDashboard.feature` (complete), `07_GameStateDashboard.feature` |
 
 ### 15.3 Tag Conventions
 

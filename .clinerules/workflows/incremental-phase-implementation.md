@@ -223,12 +223,37 @@ git checkout -b feature/phase{N}-obj{M}-{short-description}
    read_file docs/phase{N}_objectives_assessment.md
    ```
 
-2. **Read Relevant Source Files**
+2. **Read BDD Feature File for Scope Definition**
+   
+   BDD feature files define the expected behavior and acceptance criteria for each feature. **Read the relevant feature file(s) BEFORE implementation** to understand:
+   - What scenarios the feature must support
+   - Edge cases and error handling expectations
+   - User interaction flows
+   - Business rules and constraints
+   
+   ```
+   read_file tests/Riddle.Specs/Features/{relevant-feature}.feature
+   ```
+   
+   **Feature File to Phase Mapping** (from `docs/implementation_plan.md`):
+   | Phase | Feature Files |
+   |-------|--------------|
+   | Phase 1 | `01_CampaignManagement.feature` |
+   | Phase 2 | `02_DungeonMasterChat.feature`, `03_ReadAloudNarration.feature`, `06_StateRecovery.feature` |
+   | Phase 3 | `01_CampaignManagement.feature` (party scenarios), `08_PartyManagement.feature` |
+   | Phase 4 | `04_CombatEncounter.feature`, `05_PlayerDashboard.feature` |
+   | Phase 5 | `05_PlayerDashboard.feature`, `07_GameStateDashboard.feature` |
+   
+   **IMPORTANT:** Feature files are **specification documents only**. They define WHAT behavior to implement, not HOW to implement it.
+   
+   ⚠️ **DO NOT implement the underlying test step definitions or test automation code.** The `.feature` files serve as executable specifications for manual verification and future automated testing, but writing test harness code (step definitions, hooks, test fixtures) is OUT OF SCOPE.
+
+3. **Read Relevant Source Files**
    - Use `list_files` to understand current structure
    - Use `read_file` on files you plan to modify
    - Use `search_files` to find existing patterns
 
-3. **Verify Current State via Git**
+4. **Verify Current State via Git**
    ```bash
    git status
    git log --oneline -10

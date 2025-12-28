@@ -7,6 +7,38 @@ Dungeons & Dragons (D&D) is a game of limitless imagination, but it is often gat
 
 **"Riddle"** is a software assistant designed to solve this problem. It acts as an expert co-pilot, leveraging a Large Language Model (LLM) to serve as the game's engine. The LLM possesses deep knowledge of specific campaigns (like *Lost Mine of Phandelver*) and D&D rules, while the software handles the presentation and state management. The goal is to allow a Human DM to focus on storytelling and social interaction, offloading math, rules arbitration, and content retrieval to the system.
 
+### Target Play Environment: Remote Multiplayer
+
+Riddle is designed for **remote multiplayer sessions** where:
+
+- **The DM** runs Riddle on their computer, accessing the DM Dashboard
+- **Players** (typically 3-5) each access Riddle from their own computers via their browser
+- **Voice communication** happens through a separate channel (Discord, etc.)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Discord Voice Chat                        │
+├─────────────────────────────────────────────────────────────┤
+│   DM (Computer 1)     Player 1      Player 2      Player 3  │
+│   ┌─────────────┐     ┌────────┐    ┌────────┐   ┌────────┐ │
+│   │ Riddle DM   │     │ Riddle │    │ Riddle │   │ Riddle │ │
+│   │ Dashboard   │     │ Player │    │ Player │   │ Player │ │
+│   │             │     │ View   │    │ View   │   │ View   │ │
+│   └─────────────┘     └────────┘    └────────┘   └────────┘ │
+│         ↓                  ↓             ↓            ↓     │
+│   ┌─────────────────────────────────────────────────────┐   │
+│   │              Riddle SignalR Hub                     │   │
+│   │         (Real-time state sync)                      │   │
+│   └─────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+This architecture means:
+- All game state is synchronized in real-time across all connected clients
+- Players see their own character card, scene images, and choice buttons
+- The DM sees everything and controls the narrative through Riddle
+- Voice chat remains separate, keeping the social experience intact
+
 ### Campaign Instance vs Play Session Hierarchy
 
 A critical distinction in Riddle's data model is the separation between **Campaign Instances** and **Play Sessions**:
@@ -72,6 +104,43 @@ To support a system where the "Brain" (LLM) is stateless and the "Body" (Softwar
     *   **Purpose:** To support immersion without bloating the LLM prompt with raw image data.
     *   **Contents:** References to generated scene images and ambient audio tracks selected by the DM.
 
+### Player Onboarding Flow
+
+When starting a new campaign with remote players, the following flow establishes the multiplayer session:
+
+#### Step 1: DM Creates Campaign & Characters
+```
+1. DM logs in via Google OAuth
+2. DM creates a new Campaign Instance (e.g., "Tuesday Night Group")
+3. DM adds player characters to the campaign:
+   - Option A: Upload character sheet (PDF/image) → LLM parses → DM reviews/corrects
+   - Option B: Manual entry via form
+4. Campaign generates a persistent invite link (e.g., /join/ABC123)
+5. DM shares link in Discord
+```
+
+#### Step 2: Players Join & Claim Characters
+```
+1. Player receives link from DM via Discord
+2. Player clicks link → Lands on Join page
+3. Player logs in via Google OAuth (if not already)
+4. Player sees list of unclaimed characters in the campaign
+5. Player selects their character (e.g., "I'm playing Thorin")
+6. Character is linked to player's account
+7. Player is redirected to Player Dashboard
+```
+
+#### Step 3: Session Play
+```
+- DM sees full DM Dashboard (chat with Riddle, all stats, full control)
+- Players see limited Player Dashboard:
+  - Their character card only
+  - Scene image (pushed from DM)
+  - Read-aloud text (synced in real-time)
+  - Choice buttons (when Riddle asks for decisions)
+  - Quest summary, time of day, location
+```
+
 ### User Interface (UI) Elements
 
 The UI is bifurcated to support two distinct user types: the Human DM (Operator) and the Players (Participants).
@@ -80,12 +149,58 @@ The UI is bifurcated to support two distinct user types: the Human DM (Operator)
 *   **DM/LLM Chat:** A conversational interface where the DM types intent ("The players want to attack") and receives strategic advice, rule clarifications, and secret information (e.g., "The Goblin rolled 18 Stealth").
 *   **Read Aloud Text Box (RATB):** A large, read-only display that presents the exact prose the DM should read to the players to ensure high-quality, atmospheric narration.
 *   **GameState Dashboard:** A "God Mode" view displaying all player stats, enemy HP (hidden from players), and active conditions. It allows the DM to manually override data if necessary.
+*   **Party Management:** Character creation, editing, and invite link generation for remote players.
 *   **Input Controls:** Quick-entry forms for the DM to input raw dice rolls provided by players (e.g., "Rogue rolled 15").
 
 #### B. Player UI (The Immersive Dashboard)
-*   **GameState View (Public):** A limited view showing only relevant character information (Current HP, active effects) and the generated scene image.
-*   **Choice Pad:** A dynamic area displaying buttons for narrative choices (e.g., [A] Sneak, [B] Attack). This reduces table talk and speeds up decision making.
-*   **Ambient Integrator:** Displays the currently selected background audio and visual atmosphere.
+
+The Player Dashboard provides an immersive, focused view for remote players:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  RIDDLE - Player Dashboard               [Elara] [Logout]   │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌─────────────────────┐  ┌─────────────────────────────┐   │
+│  │  🖼️ Scene Image    │  │  📜 Read-Aloud Text        │   │
+│  │                     │  │  "The goblin cave looms    │   │
+│  │  [Dark cave        │  │   before you, the stench   │   │
+│  │   entrance]        │  │   of wet fur and rot..."   │   │
+│  │                     │  │                             │   │
+│  └─────────────────────┘  └─────────────────────────────┘   │
+│                                                              │
+│  ┌─────────────────────┐  ┌─────────────────────────────┐   │
+│  │  ⚔️ My Character    │  │  📋 Quest Summary          │   │
+│  │  Elara (Wizard L3) │  │  • Deliver goods to Phan.  │   │
+│  │  HP: 18/22         │  │  • Rescue Sildar           │   │
+│  │  AC: 12            │  │                             │   │
+│  │  [Poisoned] ❌     │  ├─────────────────────────────┤   │
+│  │                     │  │  🌤️ Time: Afternoon        │   │
+│  │  Spell Slots: 2/4  │  │  📍 Loc: Goblin Cave       │   │
+│  └─────────────────────┘  └─────────────────────────────┘   │
+│                                                              │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │  🎯 What do you do?                                  │   │
+│  │  ┌───────────┐ ┌───────────┐ ┌─────────────────────┐ │   │
+│  │  │  Attack   │ │  Sneak    │ │  Cast Detect Magic  │ │   │
+│  │  └───────────┘ └───────────┘ └─────────────────────┘ │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**Key Components:**
+*   **Scene Image:** The current visual scene (pushed by DM/Riddle)
+*   **Read-Aloud Text:** Atmospheric narration synced from DM's RATB
+*   **Character Card:** Only the player's own character (HP, AC, conditions, spell slots)
+*   **Quest Summary:** Active quests (abbreviated view)
+*   **World State:** Time of day, current location, weather
+*   **Choice Pad:** Dynamic buttons for player decisions (sent via `present_player_choices`)
+
+**Information Restrictions:**
+*   Players CANNOT see enemy HP (only descriptive health states like "bloodied")
+*   Players CANNOT see DM chat with Riddle
+*   Players CANNOT see other players' character details (unless DM enables it)
 
 ---
 
