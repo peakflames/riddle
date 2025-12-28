@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Riddle.Web.Data;
 
@@ -10,9 +11,11 @@ using Riddle.Web.Data;
 namespace Riddle.Web.Migrations
 {
     [DbContext(typeof(RiddleDbContext))]
-    partial class RiddleDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251228140935_AddInviteCodeToCampaign")]
+    partial class AddInviteCodeToCampaign
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.1");

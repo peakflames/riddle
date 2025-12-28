@@ -41,4 +41,15 @@ public interface ICampaignService
     /// Get total character count across all campaigns for a user
     /// </summary>
     Task<int> GetCharacterCountAsync(string userId, CancellationToken ct = default);
+    
+    /// <summary>
+    /// Get a campaign by its invite code
+    /// </summary>
+    Task<CampaignInstance?> GetByInviteCodeAsync(string inviteCode, CancellationToken ct = default);
+    
+    /// <summary>
+    /// Regenerate the invite code for a campaign
+    /// </summary>
+    /// <returns>The new invite code</returns>
+    Task<string> RegenerateInviteCodeAsync(Guid campaignId, CancellationToken ct = default);
 }
