@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2025-12-28
+
+### Added
+- **Phase 3: Party Management & Character Creation (Objectives 3-4)**
+  - Character Management UI components:
+    - `CharacterCard.razor` - Individual character display with HP bar, stats, claimed status
+    - `CharacterList.razor` - Party roster with Add/Invite buttons, empty state handling
+    - `CharacterFormModal.razor` - Add/Edit character modal with quick entry form
+  - Invite Link Modal (`InviteLinkModal.razor`):
+    - Displays shareable invite URL for campaign joining
+    - Copy to clipboard button with JS interop
+    - Regenerate invite code with confirmation alert
+    - Integrated into Campaign DM page Party panel
+
+### Changed
+- Moved "Invite Players" button from campaign header to Party card (next to Add button)
+- `build.py` enhanced with smart automation:
+  - `build` command auto-stops running instance before building (prevents file lock errors)
+  - `start` command auto-builds before launching (always runs latest code)
+
+### Technical
+- Flowbite Blazor Alert `CustomContent` parameter used for complex confirmation dialogs
+- JS interop for `navigator.clipboard.writeText()` API
+
 ## [0.5.0] - 2025-12-28
 
 ### Added
@@ -177,7 +201,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flowbite Blazor component library reference documentation
 - Incremental phase implementation workflow for development
 
-[Unreleased]: https://github.com/peakflames/riddle/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/peakflames/riddle/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/peakflames/riddle/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/peakflames/riddle/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/peakflames/riddle/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/peakflames/riddle/compare/v0.3.2...v0.4.0
