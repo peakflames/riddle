@@ -382,7 +382,7 @@ Create or update the objective-specific verification checklist:
 ## Tests Performed
 - [ ] Build passes (`python build.py`)
 - [ ] Application starts (`python build.py start`)
-- [ ] Functional test: {description} NOTE: The Test performed should verify the acceptance criteira is fully achieved.
+- [ ] Functional test: {description} NOTE: The Test performed should verify the acceptance criteira is fully achieved and use playwright MCP to perform them where possible.
 - [ ] No console errors
 
 ## Commits
