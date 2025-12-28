@@ -98,7 +98,8 @@ See `tests/Riddle.Specs/Features/02_DungeonMasterChat.feature`
 
 ## User Approval
 - [x] Integration testing verified
-- [ ] Version bump to 0.3.0 approved
-- [ ] Changes reviewed by user
-- [ ] Approved for push to origin
-- [ ] Merged to develop
+- [x] Version bump to 0.3.0 approved
+- [x] Changes reviewed by user
+- [x] Approved for push to origin
+- [x] Merged to develop (fdee680)
+- [x] Tag v0.3.0 created and pushed
