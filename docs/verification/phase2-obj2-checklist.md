@@ -59,6 +59,6 @@ Implement `IGameStateService` and `GameStateService` for game state operations u
 | None | - |
 
 ## User Approval
-- [ ] Changes reviewed by user
-- [ ] Approved for push to origin
+- [x] Changes reviewed by user
+- [x] Approved for push to origin
 - [ ] Merged to develop
