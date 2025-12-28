@@ -49,7 +49,8 @@ Task<CampaignInstance?> RegenerateInviteCodeAsync(Guid campaignId, string userId
 ## Commits
 | Hash | Message |
 |------|---------|
-| (pending) | feat(party): add invite code system for campaign sharing |
+| `322d02d` | feat(party): add invite code system for campaign sharing |
+| `4528fe1` | docs(readme): add gameplay guide for DMs and players |
 
 ## Issues Encountered
 None - implementation went smoothly.
@@ -59,4 +60,4 @@ None - implementation went smoothly.
 - [x] Approved for push to origin
 - [x] Ensured Application is stopped
 - [x] Merged to develop
-- [ ] Feature branch deleted
+- [x] Feature branch deleted
