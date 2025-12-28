@@ -59,8 +59,7 @@
                  Text="@_inputText"
                  TextChanged="HandleTextChanged">
         <PromptInputBody>
-            <PromptInputTextarea Placeholder="Describe the action or ask Riddle for advice..."
-                                 Disabled="_isBusy" />
+            <PromptInputTextarea Placeholder="Describe the action or ask Riddle for advice..." />
         </PromptInputBody>
         <PromptInputFooter Class="flex items-center justify-between">
             <span class="text-xs text-gray-400 dark:text-gray-500">
@@ -68,9 +67,10 @@
             </span>
             <PromptInputSubmit Status="@_submissionStatus"
                                Disabled="@(string.IsNullOrWhiteSpace(_inputText) || _isBusy)"
-                               Label="Send"
-                               SubmittingLabel="Connecting..."
-                               StreamingLabel="Streaming..." />
+                               Label=""
+                               SubmittingLabel=""
+                               StreamingLabel=""
+                               ErrorLabel="" />
         </PromptInputFooter>
     </PromptInput>
 </div>

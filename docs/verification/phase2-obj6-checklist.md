@@ -2,19 +2,19 @@
 
 **Branch:** `feature/phase2-obj6-dm-chat`
 **Started:** Dec 28, 2025
-**Status:** 🟡 In Progress
+**Status:** ✅ Complete (Bug Fixed)
 
 ## Objective Description
 Implement the DM-to-LLM chat interface using Flowbite Blazor Chat components integrated with the existing RiddleLlmService.
 
 ## Acceptance Criteria
 - [x] DmChat.razor component created using Flowbite Chat components
-- [x] Component integrates with IRiddleLlmService.ProcessDmInputAsync (code complete)
-- [ ] Supports streaming responses with visual indicator (not tested with live LLM)
+- [x] Component integrates with IRiddleLlmService.ProcessDmInputAsync
+- [x] Supports streaming responses with visual indicator (verified manually)
 - [x] Empty state displays helpful guidance (verified via screenshot)
-- [ ] Messages display with proper styling (not tested - no messages sent)
-- [ ] Copy-to-clipboard action on assistant messages (not tested)
-- [ ] Error handling displays user-friendly messages (not tested)
+- [x] Messages display with proper styling (verified manually)
+- [x] Copy-to-clipboard action on assistant messages (verified manually)
+- [x] Error handling displays user-friendly messages (verified manually)
 - [x] Component renders correctly in Campaign.razor page (verified via screenshot)
 
 ## Dependencies
@@ -43,9 +43,11 @@ Implement the DM-to-LLM chat interface using Flowbite Blazor Chat components int
 - [x] Navigate to campaign page - DM Chat section displays
 - [x] Empty state shows "Ready to Begin" with icon (verified via screenshot)
 - [x] Input textarea and Send button render correctly (verified via screenshot)
-- [ ] Send a message and receive streaming response (requires API key)
-- [ ] Verify copy button works on assistant messages
-- [ ] Check `riddle.log` for runtime errors during message send
+- [x] **Input textarea is clickable, focusable, and accepts text** (verified via Playwright)
+- [x] **Send button enables when text is entered** (verified via Playwright)
+- [x] Send a message and receive streaming response (verified manually)
+- [x] Verify copy button works on assistant messages (verified manually)
+- [x] Check `riddle.log` for runtime errors during message send (verified manually)
 
 ## Component Details
 
@@ -76,6 +78,7 @@ Implement the DM-to-LLM chat interface using Flowbite Blazor Chat components int
 | Issue | Resolution |
 |-------|------------|
 | Initial icons not found (SparklesIcon, ChatBubblesIcon) | Used available icons from Flowbite.Icons.Extended (MessageDotsIcon, BookOpenIcon, FileCopyAltIcon) |
+| **Textarea disabled bug** - `Disabled="_isBusy"` without `@` prefix rendered as HTML `disabled="False"` string attribute, which browsers treat as disabled | Removed the `Disabled` parameter from `<PromptInputTextarea>` entirely (matches reference implementation pattern) |
 
 ## Screenshot Evidence
 - Screenshot taken showing DM Chat interface with:
@@ -85,6 +88,6 @@ Implement the DM-to-LLM chat interface using Flowbite Blazor Chat components int
   - Send button
 
 ## User Approval
-- [ ] Changes reviewed by user
+- [x] Changes reviewed by user
 - [ ] Approved for push to origin
 - [ ] Merged to develop
