@@ -62,13 +62,7 @@
                             </p>
                         </div>
                     </div>
-                    <div class="flex items-center gap-2">
-                        <Button Color="ButtonColor.Light" Size="ButtonSize.Small" OnClick="@OpenInviteModal">
-                            <ShareNodesIcon Class="w-4 h-4 mr-2" />
-                            Invite Players
-                        </Button>
-                        <Badge Color="BadgeColor.Success">Active</Badge>
-                    </div>
+                    <Badge Color="BadgeColor.Success">Active</Badge>
                 </div>
                 
                 <!-- Main Content Area -->
@@ -97,7 +91,9 @@
                                     Characters="@campaign.PartyState"
                                     OnAddClick="@OpenAddCharacterModal"
                                     OnEdit="@OpenEditCharacterModal"
-                                    OnRemove="@HandleRemoveCharacter" />
+                                    OnRemove="@HandleRemoveCharacter"
+                                    ShowInviteButton="true"
+                                    OnInviteClick="@OpenInviteModal" />
                             </div>
                         </Card>
                         

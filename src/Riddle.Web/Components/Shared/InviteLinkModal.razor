@@ -47,11 +47,13 @@
             @if (_showRegenerateConfirm)
             {
                 <Alert Color="AlertColor.Warning" WithBorderAccent="true">
-                    <div class="flex flex-col gap-3">
-                        <p class="text-sm font-medium">Are you sure you want to regenerate the invite code?</p>
-                        <p class="text-xs text-gray-600 dark:text-gray-400">
+                    <CustomContent>
+                        <span class="font-medium">Are you sure you want to regenerate the invite code?</span>
+                    </CustomContent>
+                    <AdditionalContent>
+                        <div class="mt-2 mb-3 text-sm">
                             This will invalidate the current invite link. Players using the old link will no longer be able to join.
-                        </p>
+                        </div>
                         <div class="flex gap-2">
                             <Button Size="ButtonSize.Small" Color="ButtonColor.Red" OnClick="@RegenerateInviteCode">
                                 Yes, Regenerate
@@ -60,7 +62,7 @@
                                 Cancel
                             </Button>
                         </div>
-                    </div>
+                    </AdditionalContent>
                 </Alert>
             }
             

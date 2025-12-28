@@ -30,12 +30,16 @@ Riddle.sln
 
 ## Build, Test, and Development Commands
 Use the Python automation:
-- `python build.py` — restore dependencies and build
-- `python build.py run` — start the app (foreground)
-- `python build.py start` — start in background (writes to riddle.log)
+- `python build.py` — auto-stops running app, then builds
+- `python build.py run` — run in foreground (Ctrl+C to stop)
+- `python build.py start` — auto-builds, then starts in background (writes to riddle.log)
 - `python build.py stop` — stop background process
 - `python build.py status` — check if running
 - `python build.py watch` — hot reload .NET and Tailwind
+
+**Key Behaviors:**
+- `build` auto-stops any running instance (prevents file lock errors)
+- `start` auto-builds before launching (always runs latest code)
 
 ### Log Commands (for debugging)
 - `python build.py log` — show last 50 lines of riddle.log

@@ -662,10 +662,12 @@ Copy this template when starting a new objective:
 |-------|------------|
 | | |
 
-## User Approval
+## Approvals
 - [ ] Changes reviewed by user
 - [ ] Approved for push to origin
+- [ ] Ensured Application is stopped
 - [ ] Merged to develop
+- [ ] Feature branch deleted
 ```
 </template>
 
