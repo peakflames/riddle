@@ -8,11 +8,16 @@
 Create character management UI components using Flowbite Blazor for adding, editing, and displaying party members.
 
 ## Acceptance Criteria
-- [x] CharacterCard component displays character with stats (HP, AC, class icon)
-- [x] CharacterList component shows party with Add button and empty state
-- [x] CharacterFormModal with Quick Entry and Full Entry tabs
-- [x] Integration with Campaign.razor sidebar
-- [x] Build passes successfully
+- [x] CharacterCard.razor created
+- [x] CharacterList.razor created
+- [x] QuickEntryForm.razor created (implemented inline in CharacterFormModal.razor)
+- [x] FullEntryForm.razor created (implemented inline in CharacterFormModal.razor)
+- [x] CharacterForm.razor wrapper created (implemented as CharacterFormModal.razor)
+- [x] Campaign.razor updated with party panel
+- [x] Add/Edit/Remove workflows complete
+  - [x] Add workflow verified
+  - [x] Edit workflow verified (Level 5→6, HP 45→52, saved and persisted)
+  - [x] Remove workflow verified (Elara removed, Party (1), PartyDataLen 2254→1131)
 
 ## Dependencies
 - [x] Phase 3 Objective 1 (Character model)
@@ -24,15 +29,25 @@ Create character management UI components using Flowbite Blazor for adding, edit
 - [x] Create CharacterFormModal.razor with tabbed interface
 - [x] Integrate components into Campaign.razor
 - [x] Build verification
+- [x] Test Edit workflow
+- [x] Test Remove workflow
 
 ## Files Created/Modified
 | File | Change Type | Description |
 |------|-------------|-------------|
 | `src/Riddle.Web/Components/Characters/CharacterCard.razor` | New | Character display card with HP, AC, class icons |
 | `src/Riddle.Web/Components/Characters/CharacterList.razor` | New | Party list with empty state |
-| `src/Riddle.Web/Components/Characters/CharacterFormModal.razor` | New | Modal with Quick/Full Entry tabs |
+| `src/Riddle.Web/Components/Characters/CharacterFormModal.razor` | New | Modal with Quick/Full Entry tabs (combines form logic) |
 | `src/Riddle.Web/Components/Pages/DM/Campaign.razor` | Modify | Integrate character components |
 | `src/Riddle.Web/wwwroot/css/app.min.css` | Auto | Tailwind rebuild |
+
+## Architecture Note
+The original plan called for separate `QuickEntryForm.razor`, `FullEntryForm.razor`, and `CharacterForm.razor` components. The implementation consolidated these into a single `CharacterFormModal.razor` component with:
+- Quick Entry tab (inline form)
+- Full Entry tab (inline form)
+- Modal wrapper with header/footer
+
+This design choice reduces file count and keeps form state management simpler.
 
 ## Verification Steps
 - [x] `python build.py` passes (verified: Build succeeded in 6.9s)
@@ -43,6 +58,9 @@ Create character management UI components using Flowbite Blazor for adding, edit
 - [x] Full Entry tab has Core Info, Ability Scores, Combat Stats, Spellcaster, Notes
 - [x] Ability score modifiers display correctly (+0 for 10)
 - [x] No console errors in browser
+- [x] Character Add workflow persists to database
+- [x] Character Edit workflow loads existing data and saves changes
+- [x] Character Remove workflow removes from database
 
 ## UI Components Implemented
 
@@ -72,14 +90,17 @@ Create character management UI components using Flowbite Blazor for adding, edit
 ## Commits
 | Hash | Message |
 |------|---------|
-| (pending) | feat(characters): add character management UI components |
+| 668cd57 | feat(characters): add Character Management UI components and build.py debugging tools |
 
 ## Issues Encountered
 | Issue | Resolution |
 |-------|------------|
-| None | Components built cleanly |
+| Level display bug `L@Character.Level` | Fixed with `L@(Character.Level)` syntax |
+| Missing spacing between race and level | Added `ml-1` CSS class |
 
 ## User Approval
+- [x] Edit workflow verified
+- [x] Remove workflow verified
 - [ ] Changes reviewed by user
 - [ ] Approved for push to origin
 - [ ] Merged to develop
