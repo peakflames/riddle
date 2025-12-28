@@ -425,6 +425,8 @@ Present to user:
 <push_merge>
 Only after user approval:
 
+0. **Stop the Running Application**
+
 1. **Push Feature Branch**
    ```bash
    git push origin feature/phase{N}-obj{M}-{desc}
