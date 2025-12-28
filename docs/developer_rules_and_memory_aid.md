@@ -51,11 +51,22 @@ Use the Python automation:
 ### Database Commands (for verification)
 - `python build.py db tables` — list all database tables
 - `python build.py db campaigns` — show campaign instances with party state preview
+- `python build.py db characters` — show characters from most recent campaign (with PlayerId claim status)
+- `python build.py db characters <campaign-id>` — show characters from specific campaign
+- `python build.py db party` — show full PartyStateJson (pretty-printed) from most recent campaign
+- `python build.py db party <campaign-id>` — show full PartyStateJson for specific campaign
+- `python build.py db update "<name>" <property> "<value>"` — update a character property directly
+- `python build.py db create-character "@file.json"` — create a character from JSON file
+- `python build.py db delete-character "<name>"` — delete a character by name
+- `python build.py db character-template` — show JSON template for creating characters
 - `python build.py db "SELECT * FROM CampaignInstances"` — execute custom SQL query
 
 **When to use these commands:**
 - **log commands**: Use when debugging runtime issues, checking if operations succeeded, or investigating errors
 - **db campaigns**: Use to verify database persistence after UI actions (e.g., after adding characters, check if PartyDataLen increased)
+- **db characters**: Use to verify character claims are persisted (PlayerId should show user GUID when claimed)
+- **db party**: Use to inspect full character data including roleplay fields (PersonalityTraits, Ideals, Bonds, Flaws, Backstory)
+- **db update**: Use to set character properties directly (bypasses UI for testing/automation)
 - **db "SQL"**: Use for detailed data inspection when verifying features work correctly
 
 ## Coding Standards
@@ -130,10 +141,48 @@ Use the Python automation:
 - **Icon Components**: Use Flowbite icon components (e.g., `<BookOpenIcon Class="w-5 h-5" />`) from Flowbite.Blazor.Icons namespace
 - Always check Flowbite Blazor docs or reference dashboard project for exact API signatures
 
+### CRITICAL: Flowbite Textarea Binding in TabPanels
+**Flowbite Blazor `<Textarea>` does NOT bind correctly** when placed inside `<TabPanel>` components. Both `@bind-Value` and explicit `Value`/`ValueChanged` patterns fail - the model values remain empty/null when the form submits.
+
+**Workaround:** Use native HTML `<textarea>` with `@bind` and Tailwind classes for styling:
+```razor
+<!-- ❌ BROKEN - Flowbite Textarea in TabPanel -->
+<Textarea Id="personality" @bind-Value="_model.PersonalityTraits" Rows="2" />
+
+<!-- ✅ WORKS - Native HTML textarea with @bind -->
+<textarea id="personality" @bind="_model.PersonalityTraits" rows="2" 
+  class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 
+         focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 
+         dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+</textarea>
+```
+
+Note: Flowbite Textarea works fine in non-TabPanel contexts (like simple modals or forms).
+
 ### EF Core Patterns
 - When creating services that use DbContext, inject `RiddleDbContext` directly
 - For computed properties on models (like `PartyState` backed by `PartyStateJson`), use `[NotMapped]` attribute
 - Always call `SaveChangesAsync()` after mutations
+
+### CRITICAL: JSON-Backed [NotMapped] Property Pattern
+When a model uses `[NotMapped]` properties that serialize/deserialize JSON (like `PartyState` backed by `PartyStateJson`), **each access to the getter deserializes JSON fresh** - modifications to a previous access are LOST!
+
+```csharp
+// ❌ WRONG - modifications lost because second access creates new list
+var character = campaign.PartyState.FirstOrDefault(c => c.Id == id);
+character.PlayerId = userId;  // Modifies object in list we'll discard
+campaign.PartyState = campaign.PartyState.ToList();  // Deserializes AGAIN - changes gone!
+```
+
+```csharp
+// ✅ CORRECT - get list ONCE, modify, set back
+var partyState = campaign.PartyState;  // Get once and hold reference
+var character = partyState.FirstOrDefault(c => c.Id == id);
+character.PlayerId = userId;  // Modifies object in our held reference
+campaign.PartyState = partyState;  // Set modified list back (triggers serialization)
+```
+
+**Rule:** Always capture JSON-backed list properties in a local variable before modifying.
 
 ### Blazor Server Authentication Patterns
 - Get current user ID via `AuthenticationStateProvider.GetAuthenticationStateAsync()`

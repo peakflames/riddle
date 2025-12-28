@@ -41,11 +41,22 @@ Use the Python automation:
 ### Database Commands (for verification)
 - `python build.py db tables` — list all database tables
 - `python build.py db campaigns` — show campaign instances with party state preview
+- `python build.py db characters` — show characters from most recent campaign (with PlayerId claim status)
+- `python build.py db characters <campaign-id>` — show characters from specific campaign
+- `python build.py db party` — show full PartyStateJson (pretty-printed) from most recent campaign
+- `python build.py db party <campaign-id>` — show full PartyStateJson for specific campaign
+- `python build.py db update "<name>" <property> "<value>"` — update a character property directly
+- `python build.py db create-character "@file.json"` — create a character from JSON file
+- `python build.py db delete-character "<name>"` — delete a character by name
+- `python build.py db character-template` — show JSON template for creating characters
 - `python build.py db "SELECT * FROM CampaignInstances"` — execute custom SQL query
 
 **When to use:**
 - Use `log` commands when debugging runtime issues or checking if operations succeeded
 - Use `db campaigns` to verify database persistence after UI actions (e.g., check PartyDataLen after adding characters)
+- Use `db characters` to verify character claims are persisted (PlayerId should show user GUID when claimed)
+- Use `db party` to inspect full character data including roleplay fields (PersonalityTraits, Ideals, Bonds, Flaws, Backstory)
+- Use `db update` to set character properties directly (bypasses UI for testing/automation)
 - Use `db "SQL"` for detailed data inspection when verifying features
 
 ## DB Migration Commands
@@ -63,7 +74,7 @@ PREFER to leverage components and pages already create over at `- **Flowbite Bla
 
 ## Development Rules and Memory Aid
 
-- You MUST IMMEDIATELY read `docs\developer_rules_and_memory_aid.md` and adhere to rules, guideance, and lessons learned
+- When starting a task, you MUST FIRST IMMEDIATELY read `docs\developer_rules_and_memory_aid.md` and adhere to rules, guideance, and lessons learned
 - You MUST EDIT the `docs\developer_rules_and_memory_aid.md` after learning a new pattern or rule.
 
 
@@ -108,3 +119,9 @@ PREFER to leverage components and pages already create over at `- **Flowbite Bla
 1.  **Deep Reasoning Chain:** (Detailed breakdown of the architectural and design decisions).
 2.  **Edge Case Analysis:** (What could go wrong and how we prevented it).
 3.  **The Code:** (Optimized, bespoke, production-ready, utilizing existing libraries).
+
+
+## Development Rules and Memory Aid Reminder
+
+- When starting a task, you MUST FIRST IMMEDIATELY read `docs\developer_rules_and_memory_aid.md` and adhere to rules, guideance, and lessons learned
+- You MUST EDIT the `docs\developer_rules_and_memory_aid.md` after learning a new pattern or rule.

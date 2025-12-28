@@ -31,8 +31,10 @@
                 <CharacterCard 
                     Character="@character"
                     ShowActions="true"
+                    AllowUnclaim="true"
                     OnEdit="@OnEdit"
-                    OnRemove="@OnRemove" />
+                    OnRemove="@OnRemove"
+                    OnUnclaim="@OnUnclaim" />
             }
         </div>
     }
@@ -69,4 +71,7 @@
     
     [Parameter]
     public EventCallback OnInviteClick { get; set; }
+    
+    [Parameter]
+    public EventCallback<Character> OnUnclaim { get; set; }
 }
