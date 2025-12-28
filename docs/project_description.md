@@ -7,16 +7,65 @@ Dungeons & Dragons (D&D) is a game of limitless imagination, but it is often gat
 
 **"Riddle"** is a software assistant designed to solve this problem. It acts as an expert co-pilot, leveraging a Large Language Model (LLM) to serve as the game's engine. The LLM possesses deep knowledge of specific campaigns (like *Lost Mine of Phandelver*) and D&D rules, while the software handles the presentation and state management. The goal is to allow a Human DM to focus on storytelling and social interaction, offloading math, rules arbitration, and content retrieval to the system.
 
+### Campaign Instance vs Play Session Hierarchy
+
+A critical distinction in Riddle's data model is the separation between **Campaign Instances** and **Play Sessions**:
+
+#### Campaign Instance (The Adventure)
+A **Campaign Instance** represents an entire playthrough of a campaign module with a specific party. It spans weeks or months and contains all persistent game state:
+- The party composition and character states
+- Quest progress and narrative history
+- Current location in the campaign
+- Preferences and accumulated context
+
+#### Play Session (A Game Night)
+A **Play Session** represents an individual game night within a Campaign Instance—a single sitting where players gather to play. Each Campaign Instance contains many Play Sessions over its lifetime.
+
+#### Why This Matters: The Parallel Campaign Example
+
+Consider this scenario: On September 1st, a DM wants to start a brand new campaign with 6 characters playing *Lost Mine of Phandelver*. Throughout this adventure, they will leverage multiple LLM conversations across many game nights, as the LLM has limited memory and cannot retain context between sessions.
+
+Now imagine the same DM runs a second group through *Lost Mine of Phandelver* in parallel—same campaign module, but different characters, different choices, different outcomes.
+
+**Each group requires its own Campaign Instance:**
+
+```
+Campaign Instance: "Tuesday Night Group"
+├── Module: Lost Mine of Phandelver
+├── Party: Thorin (Fighter), Luna (Wizard), Shade (Rogue)...
+├── Current State: Chapter 2, Cragmaw Hideout
+├── Narrative Log: "Defeated the goblin ambush, rescued Sildar..."
+└── Play Sessions:
+    ├── Session 1 (Sept 1) - Character creation, goblin ambush
+    ├── Session 2 (Sept 8) - Explored Cragmaw Hideout
+    └── Session 3 (Sept 15) - Rescued Sildar, traveled to Phandalin
+
+Campaign Instance: "Saturday Group"  
+├── Module: Lost Mine of Phandelver (same module!)
+├── Party: Grimm (Paladin), Whisper (Bard), Talon (Ranger)...
+├── Current State: Chapter 1, still on the road
+├── Narrative Log: "TPK'd by goblins, rerolled characters..."
+└── Play Sessions:
+    ├── Session 1 (Sept 3) - Original party died to goblins
+    └── Session 2 (Sept 10) - New characters, cautious approach
+```
+
+This structure allows Riddle to:
+- Maintain completely separate game states for each group
+- Inject the correct context when the LLM conversation resets
+- Track progress across individual game nights
+- Support a single DM running multiple parallel campaigns
+
 ### Key Datastores
 
 To support a system where the "Brain" (LLM) is stateless and the "Body" (Software) must maintain continuity, we require specialized datastores:
 
 1.  **The GameState Store (The "Single Source of Truth")**
-    *   **Purpose:** Since LLMs operate within finite context windows and often reset, we cannot rely on them to remember current Health Points (HP), player locations, or active inventory. This store persists the absolute current reality of the game session.
+    *   **Purpose:** Since LLMs operate within finite context windows and often reset, we cannot rely on them to remember current Health Points (HP), player locations, or active inventory. This store persists the absolute current reality of the Campaign Instance.
     *   **Contents:** Character stats, current HP, active conditions (Poisoned, Prone), current location ID, and the turn order tracker.
 
 2.  **The Narrative Log (The "Compressed Memory")**
-    *   **Purpose:** To handle the constraint of limited input context. When the Human DM resets the conversation or the session times out, the LLM loses all memory. This store acts as a journal of high-level events.
+    *   **Purpose:** To handle the constraint of limited input context. When the Human DM resets the conversation or the play session times out, the LLM loses all memory. This store acts as a journal of high-level events scoped to the Campaign Instance.
     *   **Contents:** Summaries of past events ("The party defeated the goblins and found a map"). When a new conversation starts, the system feeds this summary to the LLM so it can "catch up" instantly without needing the full chat history.
 
 3.  **The Media Library**

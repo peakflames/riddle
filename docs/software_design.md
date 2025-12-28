@@ -76,7 +76,7 @@ sequenceDiagram
     participant AI as LLM (Riddle)
 
     UI->>API: Trigger "New Chat"
-    API->>DB: Fetch RiddleSession (Full State)
+    API->>DB: Fetch CampaignInstance (Full State)
     DB-->>API: JSON Object
     
     API->>AI: System Prompt + State Payload
@@ -91,47 +91,106 @@ sequenceDiagram
 
 ## 3. Data Design (The State)
 
-The `RiddleSession` object is the Single Source of Truth. It is stored in a NoSQL document store (JSON) to allow flexible schema evolution.
+The data model is organized around two key concepts: **CampaignInstance** (the entire adventure) and **PlaySession** (an individual game night). This separation allows Riddle to maintain proper context across the LLM's stateless nature while tracking progress at both the campaign and session level.
 
-### 3.1 Root Object: `RiddleSession`
+### 3.1 Root Object: `CampaignInstance`
+
+The `CampaignInstance` is the Single Source of Truth for an entire adventure playthrough. It persists all game state across multiple play sessions.
 
 ```python
-class RiddleSession:
-    session_id: str
-    campaign_name: str
+class CampaignInstance:
+    id: str                           # Unique identifier (UUID v7)
+    name: str                         # e.g., "Tuesday Night Group"
+    campaign_module: str              # e.g., "Lost Mine of Phandelver"
+    dm_user_id: str                   # Owner/DM's user ID
     created_at: datetime
     
-    # Progression
-    campaign_progress: CampaignProgress
+    # Progression (persistent across all play sessions)
+    current_chapter_id: str
+    current_location_id: str
+    completed_milestones: List[str]
+    known_npc_ids: List[str]
+    discovered_locations: List[str]
+    
+    # Quests
     active_quests: List[Quest]
     
     # Entities
     party_state: List[Character]
     active_combat: Optional[CombatEncounter]
     
-    # Context/Meta
+    # Context/Memory (for LLM recovery)
     narrative_log: List[LogEntry]
+    last_narrative_summary: str       # Compressed memory for token efficiency
+    
+    # Preferences
     party_preferences: PartyPreferences
     
-    # UI Transients
-    active_player_choices: List[str]
+    # UI Transients (current display state)
+    current_read_aloud_text: str
     current_scene_image_uri: str
+    active_player_choices: List[str]
+    
+    # Navigation
+    play_sessions: List[PlaySession]
 ```
 
-### 3.2 Campaign Progression
+### 3.2 Child Object: `PlaySession`
+
+A `PlaySession` represents a single game night within a `CampaignInstance`. It tracks session-specific metadata and bookmarks.
 
 ```python
-class CampaignProgress:
-    current_chapter_id: str
-    current_location_id: str
+class PlaySession:
+    id: str                           # Unique identifier (UUID v7)
+    campaign_instance_id: str         # Foreign key to parent CampaignInstance
     
-    # State Machine Flags
-    completed_milestones: List[str] 
-    known_npc_ids: List[str]
-    discovered_locations: List[str]
+    session_number: int               # Sequential: "Session 3"
+    started_at: datetime
+    ended_at: Optional[datetime]
+    is_active: bool                   # Currently in progress?
+    
+    # Bookmarks (where we started/ended this session)
+    start_location_id: str
+    end_location_id: Optional[str]
+    
+    # Session-specific notes
+    dm_notes: str                     # Private DM notes for this session
+    key_events: List[str]             # Highlights: "Rescued Sildar", "Found the map"
 ```
 
-### 3.3 Quests & Preferences
+### 3.3 Entity Hierarchy Example
+
+```
+CampaignInstance: "Tuesday Night Group"
+│   id: "550e8400-e29b-41d4-a716-446655440000"
+│   campaign_module: "Lost Mine of Phandelver"
+│   current_chapter_id: "chapter_2"
+│   current_location_id: "cragmaw_hideout"
+│   party_state: [Thorin, Luna, Shade]
+│   narrative_log: [LogEntry, LogEntry, ...]
+│   last_narrative_summary: "The party defeated the goblin ambush..."
+│
+└── PlaySessions:
+    ├── PlaySession #1 (Sept 1)
+    │   session_number: 1
+    │   start_location_id: "triboar_trail"
+    │   end_location_id: "goblin_ambush_site"
+    │   key_events: ["Character creation", "Goblin ambush"]
+    │
+    ├── PlaySession #2 (Sept 8)
+    │   session_number: 2
+    │   start_location_id: "goblin_ambush_site"
+    │   end_location_id: "cragmaw_hideout_entrance"
+    │   key_events: ["Tracked goblins", "Found hideout"]
+    │
+    └── PlaySession #3 (Sept 15) [ACTIVE]
+        session_number: 3
+        is_active: true
+        start_location_id: "cragmaw_hideout_entrance"
+        key_events: ["Rescued Sildar"]
+```
+
+### 3.4 Quests & Preferences
 
 ```python
 class Quest:
@@ -148,7 +207,7 @@ class PartyPreferences:
     avoided_topics: List[str]
 ```
 
-### 3.4 Character & Combat
+### 3.5 Character & Combat
 
 ```python
 class Character:
@@ -172,6 +231,17 @@ class CombatEncounter:
     surprised_entities: List[str]
 ```
 
+### 3.6 Narrative Log Entry
+
+```python
+class LogEntry:
+    id: str
+    timestamp: datetime
+    entry_type: str         # "narrative", "combat", "decision", "milestone"
+    content: str
+    importance: str         # "minor", "standard", "major"
+```
+
 ---
 
 ## 4. LLM Tool Functions
@@ -184,7 +254,7 @@ The LLM interacts with the software exclusively through these tools.
 def get_game_state() -> dict:
     """
     CRITICAL: First call in any new conversation.
-    Retrieves the full RiddleSession JSON.
+    Retrieves the full CampaignInstance JSON for context recovery.
     """
     pass
 
@@ -244,7 +314,7 @@ def update_scene_image(description: str) -> void:
 To manage the LLM's token limit, we employ a **Compressed Memory** strategy.
 
 1.  **The Event Log (`LogEntry`):** Every time the LLM takes an action (e.g., "Combat started"), it calls `update_game_log`.
-2.  **The Summary (`last_narrative_summary`):** Periodically (or when the conversation approaches the token limit), a background process compresses the `LogEntry` list into a single text paragraph stored in `RiddleSession.last_narrative_summary`.
+2.  **The Summary (`last_narrative_summary`):** Periodically (or when the conversation approaches the token limit), a background process compresses the `LogEntry` list into a single text paragraph stored in `CampaignInstance.last_narrative_summary`.
 3.  **Recovery:** On `get_game_state()`, only the `last_narrative_summary` is sent to the LLM, not the full history of log entries, saving tokens while maintaining context.
 
 ---
@@ -281,9 +351,9 @@ The Player acts as a participant. This view is restricted.
 
 ## 7. Implementation Checklist
 
-1.  [ ] **Database Schema:** Implement `RiddleSession`, `Character`, and `CampaignProgress` models.
+1.  [ ] **Database Schema:** Implement `CampaignInstance`, `PlaySession`, `Character`, and related models.
 2.  [ ] **Event Channel:** Establish WebSocket/SignalR connection for real-time UI pushing.
-3.  [ ] **LLM Integration:** Build the Tool Router (maps LLM JSON function calls to Python/C# backend methods).
-4.  [ ] **State Recovery:** Implement the logic to inject `GameState` into the System Prompt on conversation reset.
+3.  [ ] **LLM Integration:** Build the Tool Router (maps LLM JSON function calls to C# backend methods).
+4.  [ ] **State Recovery:** Implement the logic to inject `CampaignInstance` state into the System Prompt on conversation reset.
 5.  [ ] **Frontend - DM:** Build RATB and Chat interface.
 6.  [ ] **Frontend - Player:** Build Character Card and Choice Pad.

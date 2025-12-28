@@ -132,7 +132,8 @@ Riddle.sln
 │       │   └── Migrations/              # EF Core migrations
 │       │
 │       ├── Models/
-│       │   ├── RiddleSession.cs         # Root entity
+│       │   ├── CampaignInstance.cs      # Root entity (campaign playthrough)
+│       │   ├── PlaySession.cs           # Individual game night
 │       │   ├── Character.cs             # PC/NPC data
 │       │   ├── Quest.cs                 # Quest tracking
 │       │   ├── PartyPreferences.cs      # Gameplay settings
@@ -203,7 +204,9 @@ Riddle.sln
 
 ## 4. Data Models
 
-### 4.1 RiddleSession (Root Entity)
+### 4.1 CampaignInstance (Root Entity)
+
+The `CampaignInstance` represents an entire playthrough of a campaign module with a specific party. It spans weeks or months and contains all persistent game state.
 
 ```csharp
 using System.ComponentModel.DataAnnotations;
@@ -213,12 +216,13 @@ using Microsoft.EntityFrameworkCore;
 namespace Riddle.Web.Models;
 
 [Index(nameof(DmUserId))]
-public class RiddleSession
+public class CampaignInstance
 {
     [Key]
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.CreateVersion7();
     
-    public string CampaignName { get; set; } = "Lost Mine of Phandelver";
+    public string Name { get; set; } = "My Campaign";           // e.g., "Tuesday Night Group"
+    public string CampaignModule { get; set; } = "Lost Mine of Phandelver";
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime LastActivityAt { get; set; } = DateTime.UtcNow;
     
@@ -229,7 +233,7 @@ public class RiddleSession
     [ForeignKey(nameof(DmUserId))]
     public ApplicationUser DmUser { get; set; } = null!;
     
-    // Progression
+    // Progression (persistent across all play sessions)
     public string CurrentChapterId { get; set; } = "chapter_1";
     public string CurrentLocationId { get; set; } = "goblin_ambush";
     
@@ -254,7 +258,7 @@ public class RiddleSession
     [Column(TypeName = "jsonb")]
     public CombatEncounter? ActiveCombat { get; set; }
     
-    // Context/Memory
+    // Context/Memory (for LLM recovery)
     [Column(TypeName = "jsonb")]
     public List<LogEntry> NarrativeLog { get; set; } = [];
     
@@ -263,16 +267,57 @@ public class RiddleSession
     [Column(TypeName = "jsonb")]
     public PartyPreferences Preferences { get; set; } = new();
     
-    // UI State
+    // UI State (current display state)
     [Column(TypeName = "jsonb")]
     public List<string> ActivePlayerChoices { get; set; } = [];
     
     public string? CurrentSceneImageUri { get; set; }
     public string? CurrentReadAloudText { get; set; }
+    
+    // Navigation
+    public List<PlaySession> PlaySessions { get; set; } = [];
 }
 ```
 
-### 4.2 Character
+### 4.2 PlaySession (Game Night)
+
+A `PlaySession` represents a single game night within a `CampaignInstance`. It tracks session-specific metadata and bookmarks.
+
+```csharp
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
+namespace Riddle.Web.Models;
+
+public class PlaySession
+{
+    [Key]
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+    
+    // Foreign key to parent CampaignInstance
+    public Guid CampaignInstanceId { get; set; }
+    
+    [ForeignKey(nameof(CampaignInstanceId))]
+    public CampaignInstance CampaignInstance { get; set; } = null!;
+    
+    public int SessionNumber { get; set; }              // Sequential: "Session 3"
+    public DateTime StartedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? EndedAt { get; set; }
+    public bool IsActive { get; set; } = true;          // Currently in progress?
+    
+    // Bookmarks (where we started/ended this session)
+    public string StartLocationId { get; set; } = "";
+    public string? EndLocationId { get; set; }
+    
+    // Session-specific notes
+    public string? DmNotes { get; set; }
+    
+    [Column(TypeName = "jsonb")]
+    public List<string> KeyEvents { get; set; } = [];   // Highlights: "Rescued Sildar", "Found the map"
+}
+```
+
+### 4.3 Character
 
 ```csharp
 namespace Riddle.Web.Models;
@@ -300,7 +345,7 @@ public class Character
 }
 ```
 
-### 4.3 Quest
+### 4.4 Quest
 
 ```csharp
 namespace Riddle.Web.Models;
@@ -316,7 +361,7 @@ public class Quest
 }
 ```
 
-### 4.4 PartyPreferences
+### 4.5 PartyPreferences
 
 ```csharp
 namespace Riddle.Web.Models;
@@ -331,7 +376,7 @@ public class PartyPreferences
 }
 ```
 
-### 4.5 CombatEncounter
+### 4.6 CombatEncounter
 
 ```csharp
 namespace Riddle.Web.Models;
@@ -349,7 +394,7 @@ public class CombatEncounter
 }
 ```
 
-### 4.6 LogEntry
+### 4.7 LogEntry
 
 ```csharp
 namespace Riddle.Web.Models;
@@ -475,7 +520,7 @@ public class RiddleLlmService : IRiddleLlmService
         });
     }
 
-    private string BuildSystemPrompt(RiddleSession session)
+    private string BuildSystemPrompt(CampaignInstance campaign)
     {
         return $"""
             <<role_definition>>
@@ -510,17 +555,17 @@ public class RiddleLlmService : IRiddleLlmService
             <</workflow_protocol>>
 
             <<current_game_state>>
-            **Location:** {session.CurrentLocationId}
-            **Chapter:** {session.CurrentChapterId}
-            **Party Size:** {session.PartyState.Count} characters
-            **Active Combat:** {(session.ActiveCombat?.IsActive == true ? "Yes (Round " + session.ActiveCombat.RoundNumber + ")" : "No")}
-            **Last Summary:** {session.LastNarrativeSummary ?? "No previous summary available."}
+            **Location:** {campaign.CurrentLocationId}
+            **Chapter:** {campaign.CurrentChapterId}
+            **Party Size:** {campaign.PartyState.Count} characters
+            **Active Combat:** {(campaign.ActiveCombat?.IsActive == true ? "Yes (Round " + campaign.ActiveCombat.RoundNumber + ")" : "No")}
+            **Last Summary:** {campaign.LastNarrativeSummary ?? "No previous summary available."}
             
             **Party Preferences:**
-            - Combat Focus: {session.Preferences.CombatFocus}
-            - Roleplay Focus: {session.Preferences.RoleplayFocus}
-            - Pacing: {session.Preferences.Pacing}
-            - Tone: {session.Preferences.Tone}
+            - Combat Focus: {campaign.Preferences.CombatFocus}
+            - Roleplay Focus: {campaign.Preferences.RoleplayFocus}
+            - Pacing: {campaign.Preferences.Pacing}
+            - Tone: {campaign.Preferences.Tone}
             <</current_game_state>>
 
             <<tone_and_style>>
@@ -724,25 +769,26 @@ public class ToolExecutor : IToolExecutor
         }
     }
 
-    private async Task<string> GetGameStateAsync(Guid sessionId, CancellationToken ct)
+    private async Task<string> GetGameStateAsync(Guid campaignId, CancellationToken ct)
     {
-        var session = await _stateService.GetSessionAsync(sessionId, ct);
-        if (session == null)
+        var campaign = await _stateService.GetCampaignAsync(campaignId, ct);
+        if (campaign == null)
         {
-            return JsonSerializer.Serialize(new { error = "Session not found" });
+            return JsonSerializer.Serialize(new { error = "Campaign instance not found" });
         }
 
         return JsonSerializer.Serialize(new
         {
-            session_id = session.Id,
-            campaign_name = session.CampaignName,
-            current_chapter_id = session.CurrentChapterId,
-            current_location_id = session.CurrentLocationId,
-            party_state = session.PartyState,
-            active_quests = session.ActiveQuests,
-            active_combat = session.ActiveCombat,
-            preferences = session.Preferences,
-            last_narrative_summary = session.LastNarrativeSummary
+            campaign_id = campaign.Id,
+            name = campaign.Name,
+            campaign_module = campaign.CampaignModule,
+            current_chapter_id = campaign.CurrentChapterId,
+            current_location_id = campaign.CurrentLocationId,
+            party_state = campaign.PartyState,
+            active_quests = campaign.ActiveQuests,
+            active_combat = campaign.ActiveCombat,
+            preferences = campaign.Preferences,
+            last_narrative_summary = campaign.LastNarrativeSummary
         });
     }
 
@@ -987,9 +1033,9 @@ public class GameHub : Hub
 @inject NavigationManager Navigation
 @implements IAsyncDisposable
 
-<PageTitle>DM Dashboard - @_session?.CampaignName</PageTitle>
+<PageTitle>DM Dashboard - @_campaign?.Name</PageTitle>
 
-@if (_session == null)
+@if (_campaign == null)
 {
     <div class="flex items-center justify-center h-screen">
         <p class="text-gray-500">Loading session...</p>
@@ -1054,19 +1100,19 @@ public class GameHub : Hub
 
     <!-- Center Panel: Read Aloud Text Box -->
     <div class="col-span-4 bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-        <ReadAloudTextBox Text="@_session.CurrentReadAloudText" />
+        <ReadAloudTextBox Text="@_campaign.CurrentReadAloudText" />
     </div>
 
     <!-- Right Panel: Game State -->
     <div class="col-span-3 space-y-4 overflow-y-auto">
-        <PartyTracker Characters="@_session.PartyState" />
+        <PartyTracker Characters="@_campaign.PartyState" />
         
-        @if (_session.ActiveCombat?.IsActive == true)
+        @if (_campaign.ActiveCombat?.IsActive == true)
         {
-            <CombatTracker Combat="@_session.ActiveCombat" PartyState="@_session.PartyState" />
+            <CombatTracker Combat="@_campaign.ActiveCombat" PartyState="@_campaign.PartyState" />
         }
         
-        <QuestLog Quests="@_session.ActiveQuests" />
+        <QuestLog Quests="@_campaign.ActiveQuests" />
     </div>
 </div>
 
@@ -1074,7 +1120,7 @@ public class GameHub : Hub
     [Parameter]
     public Guid SessionId { get; set; }
 
-    private RiddleSession? _session;
+    private CampaignInstance? _campaign;
     private HubConnection? _hubConnection;
     private List<ChatMessageModel> _chatMessages = new();
     private string _currentInput = "";
@@ -1083,9 +1129,9 @@ public class GameHub : Hub
 
     protected override async Task OnInitializedAsync()
     {
-        _session = await StateService.GetSessionAsync(SessionId);
+        _campaign = await StateService.GetCampaignAsync(SessionId);
         
-        if (_session == null)
+        if (_campaign == null)
         {
             Navigation.NavigateTo("/");
             return;
@@ -1103,18 +1149,18 @@ public class GameHub : Hub
 
         _hubConnection.On<string>("ReadAloudTextReceived", text =>
         {
-            if (_session != null)
+            if (_campaign != null)
             {
-                _session.CurrentReadAloudText = text;
+                _campaign.CurrentReadAloudText = text;
                 InvokeAsync(StateHasChanged);
             }
         });
 
         _hubConnection.On<string, string, string>("CharacterStateUpdated", (charId, key, value) =>
         {
-            if (_session != null)
+            if (_campaign != null)
             {
-                var character = _session.PartyState.FirstOrDefault(c => c.Id == charId);
+                var character = _campaign.PartyState.FirstOrDefault(c => c.Id == charId);
                 if (character != null)
                 {
                     // Update character based on key
@@ -1695,6 +1741,152 @@ This implementation plan provides a comprehensive roadmap for building Project R
 - **Entity Framework Core** for robust data persistence
 
 The 4-phase implementation schedule provides clear milestones and deliverables, ensuring steady progress toward a functional MVP.
+
+---
+
+## 15. BDD Acceptance Criteria
+
+This section defines the Behavior-Driven Development (BDD) feature files that serve as executable specifications and acceptance criteria for each implementation phase.
+
+### 15.1 Feature File Location
+
+```
+tests/
+└── Riddle.Specs/
+    └── Features/
+        ├── 01_CampaignManagement.feature    # Phase 1
+        ├── 02_DungeonMasterChat.feature     # Phase 2
+        ├── 03_ReadAloudNarration.feature    # Phase 2
+        ├── 04_CombatEncounter.feature       # Phase 2-3
+        ├── 05_PlayerDashboard.feature       # Phase 3-4
+        ├── 06_StateRecovery.feature         # Phase 2
+        └── 07_GameStateDashboard.feature    # Phase 4
+```
+
+### 15.2 Phase-to-Feature Mapping
+
+| Phase | Objectives | Acceptance Feature Files |
+|-------|------------|--------------------------|
+| **Phase 1: Foundation** | Auth, Data Models, Campaign CRUD | `01_CampaignManagement.feature` |
+| **Phase 2: LLM Integration** | LLM Tornado, Tools, State Recovery | `02_DungeonMasterChat.feature`, `03_ReadAloudNarration.feature`, `06_StateRecovery.feature` |
+| **Phase 3: SignalR & Real-time** | Event Broadcasting, Combat Sync | `04_CombatEncounter.feature`, `05_PlayerDashboard.feature` (partial) |
+| **Phase 4: UI Polish** | All UI Components, Full Workflow | `05_PlayerDashboard.feature` (complete), `07_GameStateDashboard.feature` |
+
+### 15.3 Tag Conventions
+
+Feature files use tags to enable filtering by phase or capability:
+
+| Tag | Description |
+|-----|-------------|
+| `@phase1` | Phase 1 acceptance criteria |
+| `@phase2` | Phase 2 acceptance criteria |
+| `@phase3` | Phase 3 acceptance criteria |
+| `@phase4` | Phase 4 acceptance criteria |
+| `@llm` | Scenarios involving LLM interaction |
+| `@signalr` | Scenarios requiring real-time updates |
+| `@combat` | Combat-specific scenarios |
+| `@session` | Session management scenarios |
+| `@player` | Player-facing functionality |
+| `@dm` | DM-facing functionality |
+| `@ui` | UI component scenarios |
+| `@state` | State recovery/persistence scenarios |
+| `@chat` | Chat/messaging scenarios |
+| `@ratb` | Read Aloud Text Box scenarios |
+
+### 15.4 Running Tests by Phase
+
+```bash
+# Run all Phase 1 tests
+dotnet test --filter "Category=phase1"
+
+# Run all LLM-related tests
+dotnet test --filter "Category=llm"
+
+# Run all SignalR-related tests
+dotnet test --filter "Category=signalr"
+```
+
+### 15.5 Feature File Summaries
+
+#### 01_SessionManagement.feature
+**Scope:** Session creation, player joining, session resumption  
+**Key Scenarios:**
+- DM creates a new session with campaign selection
+- DM generates a join link for players
+- Player joins via link and creates/selects character
+- DM resumes an existing session with preserved state
+
+#### 02_DungeonMasterChat.feature
+**Scope:** DM-to-LLM chat interaction, rules queries, dice roll input  
+**Key Scenarios:**
+- DM sends messages and receives streaming responses
+- Riddle provides rules explanations
+- Riddle uses party state for contextual answers
+- DM receives private tactical information
+
+#### 03_ReadAloudNarration.feature
+**Scope:** Read Aloud Text Box (RATB) display and narration generation  
+**Key Scenarios:**
+- Riddle generates atmospheric scene narration
+- RATB updates in real-time via SignalR
+- Narration adapts to party tone preferences (Dark, Comedic, etc.)
+- Scene transition narration
+
+#### 04_CombatEncounter.feature
+**Scope:** Combat initiation, turn order, attack resolution, damage tracking  
+**Key Scenarios:**
+- Combat starts from narrative trigger
+- Initiative rolls establish turn order
+- Attack hits/misses calculated against AC
+- Damage applied updates HP in real-time
+- Combat ends when enemies defeated or DM ends manually
+
+#### 05_PlayerDashboard.feature
+**Scope:** Player's view of their character and game interactions  
+**Key Scenarios:**
+- Player sees their character card with HP/conditions
+- Player receives and selects action choices
+- HP and conditions update in real-time
+- Player cannot see DM-only information (enemy HP)
+
+#### 06_StateRecovery.feature
+**Scope:** Context restoration when starting new conversations  
+**Key Scenarios:**
+- New conversation restores party HP, conditions, location
+- Riddle uses narrative summary for context
+- Combat state preserved across conversation resets
+- Session resumes after browser close or timeout
+
+#### 07_GameStateDashboard.feature
+**Scope:** DM's full-control dashboard panels  
+**Key Scenarios:**
+- Party Tracker shows all characters with HP bars
+- Manual HP override (heal/damage)
+- Combat Tracker displays turn order
+- Quest Log management (add, complete quests)
+- Real-time connection status indicator
+
+### 15.6 BDD Framework (Future Implementation)
+
+When ready to implement automated BDD tests, use:
+
+- **Reqnroll** (MIT-licensed SpecFlow successor)
+- **Playwright for .NET** (browser automation)
+- **Test Project:** `tests/Riddle.Specs/`
+
+```xml
+<!-- tests/Riddle.Specs/Riddle.Specs.csproj -->
+<PackageReference Include="Reqnroll" Version="2.*" />
+<PackageReference Include="Reqnroll.NUnit" Version="2.*" />
+<PackageReference Include="Microsoft.Playwright" Version="1.*" />
+```
+
+### 15.7 Acceptance Workflow
+
+1. **Before Phase Start:** Review relevant feature files
+2. **During Development:** Use scenarios as implementation guidance
+3. **Phase Completion:** Verify all scenarios pass (manual or automated)
+4. **Regression:** Run all feature tests before releases
 
 ---
 
