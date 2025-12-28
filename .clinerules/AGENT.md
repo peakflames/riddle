@@ -154,6 +154,12 @@ PREFER to leverage components and pages already create over at `- **Flowbite Bla
 - Always check `user.Identity?.IsAuthenticated == true` before accessing claims
 - Use `<AuthorizeView>` with `<Authorized>` and `<NotAuthorized>` sections for protected pages
 
+### Verification Checklist Discipline
+- **NEVER** ask for push/merge approval until ALL verification checklist items are `[x]`
+- Before asking "Ready to push?", first `read_file` the verification checklist
+- If any item shows `[ ]`, complete that step first (e.g., runtime testing, UI verification)
+- The commit is NOT the completion milestone - the full checklist is
+
 ## Git Workflow
 - Branch from `develop`: `git checkout develop && git pull origin develop`.
 - Naming: `fix/issue-{id}-description`, `feature/issue-{id}-description`, or `enhancement/issue-{id}-description`.
