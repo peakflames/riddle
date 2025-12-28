@@ -15,9 +15,14 @@ public class RiddleDbContext : IdentityDbContext<ApplicationUser>
     }
 
     /// <summary>
-    /// Game sessions
+    /// Campaign instances (root entities for campaigns)
     /// </summary>
-    public DbSet<RiddleSession> RiddleSessions => Set<RiddleSession>();
+    public DbSet<CampaignInstance> CampaignInstances => Set<CampaignInstance>();
+
+    /// <summary>
+    /// Play sessions (individual game nights)
+    /// </summary>
+    public DbSet<PlaySession> PlaySessions => Set<PlaySession>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -30,8 +35,8 @@ public class RiddleDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(e => e.CreatedAt).IsRequired();
         });
 
-        // Configure RiddleSession
-        builder.Entity<RiddleSession>(entity =>
+        // Configure CampaignInstance
+        builder.Entity<CampaignInstance>(entity =>
         {
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => e.DmUserId);
@@ -43,7 +48,8 @@ public class RiddleDbContext : IdentityDbContext<ApplicationUser>
                 .OnDelete(DeleteBehavior.Cascade);
 
             // String length constraints
-            entity.Property(e => e.CampaignName).HasMaxLength(200);
+            entity.Property(e => e.Name).HasMaxLength(200);
+            entity.Property(e => e.CampaignModule).HasMaxLength(200);
             entity.Property(e => e.CurrentChapterId).HasMaxLength(100);
             entity.Property(e => e.CurrentLocationId).HasMaxLength(100);
             entity.Property(e => e.LastNarrativeSummary).HasMaxLength(5000);
@@ -61,7 +67,7 @@ public class RiddleDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(e => e.PreferencesJson).HasColumnType("text");
             entity.Property(e => e.ActivePlayerChoicesJson).HasColumnType("text");
 
-            // Ignore NotMapped properties (they use the JSON columns)
+            // Ignore NotMapped properties (they use JSON columns)
             entity.Ignore(e => e.CompletedMilestones);
             entity.Ignore(e => e.KnownNpcIds);
             entity.Ignore(e => e.DiscoveredLocations);
@@ -71,6 +77,31 @@ public class RiddleDbContext : IdentityDbContext<ApplicationUser>
             entity.Ignore(e => e.NarrativeLog);
             entity.Ignore(e => e.Preferences);
             entity.Ignore(e => e.ActivePlayerChoices);
+        });
+
+        // Configure PlaySession
+        builder.Entity<PlaySession>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.CampaignInstanceId);
+            
+            // Foreign key relationship to CampaignInstance
+            entity.HasOne(e => e.CampaignInstance)
+                .WithMany(c => c.PlaySessions)
+                .HasForeignKey(e => e.CampaignInstanceId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // String length constraints
+            entity.Property(e => e.StartLocationId).HasMaxLength(100);
+            entity.Property(e => e.EndLocationId).HasMaxLength(100);
+            entity.Property(e => e.DmNotes).HasMaxLength(5000);
+            entity.Property(e => e.Title).HasMaxLength(200);
+
+            // JSON column (stored as text in SQLite)
+            entity.Property(e => e.KeyEventsJson).HasColumnType("text");
+
+            // Ignore NotMapped property (uses JSON column)
+            entity.Ignore(e => e.KeyEvents);
         });
     }
 }

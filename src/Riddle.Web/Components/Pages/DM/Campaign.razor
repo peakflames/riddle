@@ -1,13 +1,13 @@
-@page "/dm/{SessionId:guid}"
+@page "/dm/{CampaignId:guid}"
 @rendermode InteractiveServer
 @using Microsoft.AspNetCore.Components.Authorization
 @using Riddle.Web.Services
 @using Riddle.Web.Models
-@inject ISessionService SessionService
+@inject ICampaignService CampaignService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
 
-<PageTitle>@(session?.CampaignName ?? "Session") - Riddle</PageTitle>
+<PageTitle>@(campaign?.Name ?? "Campaign") - Riddle</PageTitle>
 
 <AuthorizeView>
     <Authorized>
@@ -16,20 +16,20 @@
             <div class="flex items-center justify-center min-h-[60vh]">
                 <div class="text-center">
                     <Spinner Size="SpinnerSize.Xl" class="mx-auto" />
-                    <p class="mt-4 text-gray-500 dark:text-gray-400">Loading session...</p>
+                    <p class="mt-4 text-gray-500 dark:text-gray-400">Loading campaign...</p>
                 </div>
             </div>
         }
-        else if (session == null)
+        else if (campaign == null)
         {
             <div class="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
                 <div class="max-w-md">
                     <ExclamationTriangleIcon Class="mx-auto h-16 w-16 text-yellow-500" />
                     <h1 class="text-2xl font-bold text-gray-900 dark:text-white mt-4 mb-2">
-                        Session Not Found
+                        Campaign Not Found
                     </h1>
                     <p class="text-gray-600 dark:text-gray-400 mb-6">
-                        The session you're looking for doesn't exist or you don't have access to it.
+                        The campaign you're looking for doesn't exist or you don't have access to it.
                     </p>
                     <Button Href="/" Color="ButtonColor.Primary">
                         <HomeIcon Class="mr-2 h-5 w-5" />
@@ -41,7 +41,7 @@
         else
         {
             <div class="space-y-4">
-                <!-- Session Header -->
+                <!-- Campaign Header -->
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-4">
                         <Button Href="/" Color="ButtonColor.Light" Size="ButtonSize.Small">
@@ -49,10 +49,10 @@
                         </Button>
                         <div>
                             <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
-                                @session.CampaignName
+                                @campaign.Name
                             </h1>
                             <p class="text-sm text-gray-500 dark:text-gray-400">
-                                @GetLocationDisplay() • Chapter @session.CurrentChapterId.Replace("chapter_", "")
+                                @GetLocationDisplay() • Chapter @campaign.CurrentChapterId.Replace("chapter_", "")
                             </p>
                         </div>
                     </div>
@@ -91,16 +91,16 @@
                                     <BookOpenIcon Class="inline-block w-5 h-5 mr-2" />
                                     Read-Aloud Text
                                 </h2>
-                                @if (!string.IsNullOrEmpty(session.CurrentReadAloudText))
+                                @if (!string.IsNullOrEmpty(campaign.CurrentReadAloudText))
                                 {
                                     <div class="bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-500 p-4 italic text-gray-700 dark:text-gray-300">
-                                        @session.CurrentReadAloudText
+                                        @campaign.CurrentReadAloudText
                                     </div>
                                 }
                                 else
                                 {
                                     <p class="text-gray-500 dark:text-gray-400">
-                                        No read-aloud text available. Start the session to generate narrative content.
+                                        No read-aloud text available. Start session to generate narrative content.
                                     </p>
                                 }
                             </div>
@@ -114,12 +114,12 @@
                             <div class="p-4">
                                 <h3 class="font-bold text-gray-900 dark:text-white mb-3">
                                     <UsersIcon Class="inline-block w-4 h-4 mr-2" />
-                                    Party (@session.PartyState.Count)
+                                    Party (@campaign.PartyState.Count)
                                 </h3>
-                                @if (session.PartyState.Any())
+                                @if (campaign.PartyState.Any())
                                 {
                                     <ul class="space-y-2">
-                                        @foreach (var character in session.PartyState)
+                                        @foreach (var character in campaign.PartyState)
                                         {
                                             <li class="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded">
                                                 <div>
@@ -148,12 +148,12 @@
                             <div class="p-4">
                                 <h3 class="font-bold text-gray-900 dark:text-white mb-3">
                                     <ClipboardIcon Class="inline-block w-4 h-4 mr-2" />
-                                    Active Quests (@session.ActiveQuests.Count)
+                                    Active Quests (@campaign.ActiveQuests.Count)
                                 </h3>
-                                @if (session.ActiveQuests.Any())
+                                @if (campaign.ActiveQuests.Any())
                                 {
                                     <ul class="space-y-2">
-                                        @foreach (var quest in session.ActiveQuests)
+                                        @foreach (var quest in campaign.ActiveQuests)
                                         {
                                             <li class="p-2 bg-gray-50 dark:bg-gray-800 rounded">
                                                 <p class="font-medium text-gray-900 dark:text-white text-sm">@quest.Title</p>
@@ -169,25 +169,25 @@
                             </div>
                         </Card>
                         
-                        <!-- Session Info -->
+                        <!-- Campaign Info -->
                         <Card Size="CardSize.ExtraLarge" class="max-w-none">
                             <div class="p-4">
                                 <h3 class="font-bold text-gray-900 dark:text-white mb-3">
                                     <InfoCircleIcon Class="inline-block w-4 h-4 mr-2" />
-                                    Session Info
+                                    Campaign Info
                                 </h3>
                                 <dl class="space-y-2 text-sm">
                                     <div class="flex justify-between">
                                         <dt class="text-gray-500 dark:text-gray-400">Created</dt>
-                                        <dd class="text-gray-900 dark:text-white">@session.CreatedAt.ToString("MMM d, yyyy")</dd>
+                                        <dd class="text-gray-900 dark:text-white">@campaign.CreatedAt.ToString("MMM d, yyyy")</dd>
                                     </div>
                                     <div class="flex justify-between">
                                         <dt class="text-gray-500 dark:text-gray-400">Last Activity</dt>
-                                        <dd class="text-gray-900 dark:text-white">@GetTimeAgo(session.LastActivityAt)</dd>
+                                        <dd class="text-gray-900 dark:text-white">@GetTimeAgo(campaign.LastActivityAt)</dd>
                                     </div>
                                     <div class="flex justify-between">
                                         <dt class="text-gray-500 dark:text-gray-400">Milestones</dt>
-                                        <dd class="text-gray-900 dark:text-white">@session.CompletedMilestones.Count completed</dd>
+                                        <dd class="text-gray-900 dark:text-white">@campaign.CompletedMilestones.Count completed</dd>
                                     </div>
                                 </dl>
                             </div>
@@ -204,9 +204,9 @@
 
 @code {
     [Parameter]
-    public Guid SessionId { get; set; }
+    public Guid CampaignId { get; set; }
     
-    private RiddleSession? session;
+    private CampaignInstance? campaign;
     private bool isLoading = true;
     private string? currentUserId;
 
@@ -218,34 +218,34 @@
         if (user.Identity?.IsAuthenticated == true)
         {
             currentUserId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            await LoadSessionAsync();
+            await LoadCampaignAsync();
         }
         
         isLoading = false;
     }
 
-    private async Task LoadSessionAsync()
+    private async Task LoadCampaignAsync()
     {
-        session = await SessionService.GetSessionAsync(SessionId);
+        campaign = await CampaignService.GetCampaignAsync(CampaignId);
         
-        // Verify the user owns this session
-        if (session != null && session.DmUserId != currentUserId)
+        // Verify user owns this campaign
+        if (campaign != null && campaign.DmUserId != currentUserId)
         {
-            session = null; // Don't show sessions the user doesn't own
+            campaign = null; // Don't show campaigns user doesn't own
         }
     }
 
     private string GetLocationDisplay()
     {
-        if (session == null) return "";
+        if (campaign == null) return "";
         
-        return session.CurrentLocationId.Replace("_", " ").ToUpperInvariant() switch
+        return campaign.CurrentLocationId.Replace("_", " ").ToUpperInvariant() switch
         {
             var x when x.Contains("GOBLIN") => "Goblin Ambush",
             var x when x.Contains("PHANDALIN") => "Phandalin",
             var x when x.Contains("CRAGMAW") => "Cragmaw Hideout",
             var x when x.Contains("REDBRAND") => "Redbrand Hideout",
-            _ => session.CurrentLocationId.Replace("_", " ")
+            _ => campaign.CurrentLocationId.Replace("_", " ")
         };
     }
 

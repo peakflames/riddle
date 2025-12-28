@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2025-12-28
+
+### Changed
+- **BREAKING**: Renamed `RiddleSession` entity to `CampaignInstance` to better model D&D campaigns vs individual play sessions
+- **BREAKING**: Renamed `ISessionService`/`SessionService` to `ICampaignService`/`CampaignService`
+- **BREAKING**: Updated routes from `/sessions/new` to `/campaigns/new` and `/dm/{SessionId}` to `/dm/{CampaignId}`
+- Replaced `DbSet<RiddleSessions>` with `DbSet<CampaignInstances>` in `RiddleDbContext`
+- Added new `PlaySession` entity to track individual sessions within campaigns
+- Updated Program.cs dependency injection to use `ICampaignService`
+- Recreated EF Core migration (InitialCreate) with new schema
+- Added `CampaignModule` property to `CampaignInstance` for tracking which campaign module is being played
+- Implemented UUID v7 (time-sortable IDs) for all entity primary keys
+
+### Added
+- `PlaySession` entity with properties: SessionNumber, StartedAt, EndedAt, IsActive, Summary, LocationJson
+- Support for tracking multiple play sessions within a single campaign
+- Session numbering and location history tracking per campaign
+
+### Fixed
+- Corrected data model to properly distinguish between long-running campaigns and individual play sessions
+
 ## [0.1.0] - 2025-12-27
 
 ### Added
@@ -30,5 +51,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flowbite Blazor component library reference documentation
 - Incremental phase implementation workflow for development
 
-[Unreleased]: https://github.com/peakflames/riddle/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/peakflames/riddle/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/peakflames/riddle/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/peakflames/riddle/releases/tag/v0.1.0

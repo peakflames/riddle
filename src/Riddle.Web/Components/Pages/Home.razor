@@ -3,7 +3,7 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Riddle.Web.Services
 @using Riddle.Web.Models
-@inject ISessionService SessionService
+@inject ICampaignService CampaignService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
 
@@ -16,7 +16,7 @@
                 <Card Size="CardSize.ExtraLarge" class="max-w-none">
                     <div class="flex items-center justify-between p-4">
                         <div>
-                            <h5 class="text-2xl font-bold leading-none text-gray-900 dark:text-white">Active Sessions</h5>
+                            <h5 class="text-2xl font-bold leading-none text-gray-900 dark:text-white">Active Campaigns</h5>
                             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Your ongoing D&D campaigns</p>
                         </div>
                         <div class="flex items-center justify-center w-12 h-12 rounded-lg bg-primary-100 dark:bg-primary-900">
@@ -24,7 +24,7 @@
                         </div>
                     </div>
                     <div class="p-4 pt-0">
-                        <p class="text-3xl font-bold text-gray-900 dark:text-white">@sessionCount</p>
+                        <p class="text-3xl font-bold text-gray-900 dark:text-white">@campaignCount</p>
                         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                             campaigns
                         </p>
@@ -53,7 +53,7 @@
                     <div class="flex items-center justify-between p-4">
                         <div>
                             <h5 class="text-2xl font-bold leading-none text-gray-900 dark:text-white">Last Activity</h5>
-                            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Most recent session activity</p>
+                            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Most recent campaign activity</p>
                         </div>
                         <div class="flex items-center justify-center w-12 h-12 rounded-lg bg-green-100 dark:bg-green-900">
                             <ClockIcon Class="w-6 h-6 text-green-600 dark:text-green-400" />
@@ -62,7 +62,7 @@
                     <div class="p-4 pt-0">
                         <p class="text-xl font-bold text-gray-900 dark:text-white">@lastActivityText</p>
                         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                            @lastSessionName
+                            @lastCampaignName
                         </p>
                     </div>
                 </Card>
@@ -72,11 +72,11 @@
                 <Card Size="CardSize.ExtraLarge" class="max-w-none">
                     <div class="p-4 sm:p-6">
                         <div class="flex items-center justify-between mb-4">
-                            <h5 class="text-xl font-bold leading-none text-gray-900 dark:text-white">Recent Sessions</h5>
-                            @if (sessions.Any())
+                            <h5 class="text-xl font-bold leading-none text-gray-900 dark:text-white">Recent Campaigns</h5>
+                            @if (campaigns.Any())
                             {
                                 <span class="text-sm text-gray-500 dark:text-gray-400">
-                                    @sessions.Count session(s)
+                                    @campaigns.Count campaign(s)
                                 </span>
                             }
                         </div>
@@ -87,11 +87,11 @@
                                 <Spinner Size="SpinnerSize.Lg" />
                             </div>
                         }
-                        else if (sessions.Any())
+                        else if (campaigns.Any())
                         {
                             <div class="flow-root">
                                 <ul class="divide-y divide-gray-200 dark:divide-gray-700">
-                                    @foreach (var session in sessions)
+                                    @foreach (var campaign in campaigns)
                                     {
                                         <li class="py-3 sm:py-4">
                                             <div class="flex items-center space-x-4">
@@ -102,18 +102,18 @@
                                                 </div>
                                                 <div class="flex-1 min-w-0">
                                                     <p class="text-sm font-medium text-gray-900 truncate dark:text-white">
-                                                        @session.CampaignName
+                                                        @campaign.Name
                                                     </p>
                                                     <p class="text-sm text-gray-500 truncate dark:text-gray-400">
-                                                        @GetLocationDisplay(session) • @GetTimeAgo(session.LastActivityAt)
+                                                        @GetLocationDisplay(campaign) • @GetTimeAgo(campaign.LastActivityAt)
                                                     </p>
                                                 </div>
                                     <div class="flex items-center gap-2">
-                                                    @if (session.PartyState.Any())
+                                                    @if (campaign.PartyState.Any())
                                                     {
-                                                        <Badge Color="BadgeColor.Indigo">@session.PartyState.Count PCs</Badge>
+                                                        <Badge Color="BadgeColor.Indigo">@campaign.PartyState.Count PCs</Badge>
                                                     }
-                                                    <Button Href="@($"/dm/{session.Id}")" Color="ButtonColor.Primary" Size="ButtonSize.Small">
+                                                    <Button Href="@($"/dm/{campaign.Id}")" Color="ButtonColor.Primary" Size="ButtonSize.Small">
                                                         Play
                                                     </Button>
                                                 </div>
@@ -127,12 +127,12 @@
                         {
                             <div class="text-center py-8">
                                 <BookOpenIcon Class="mx-auto h-12 w-12 text-gray-400" />
-                                <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">No sessions yet</h3>
-                                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Get started by creating a new session.</p>
+                                <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">No campaigns yet</h3>
+                                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Get started by creating a new campaign.</p>
                                 <div class="mt-6">
-                                    <Button Href="/sessions/new" Color="ButtonColor.Primary">
+                                    <Button Href="/campaigns/new" Color="ButtonColor.Primary">
                                         <PlusIcon Class="mr-2 h-4 w-4" />
-                                        New Session
+                                        New Campaign
                                     </Button>
                                 </div>
                             </div>
@@ -149,9 +149,9 @@
                         </div>
                         
                         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                            <Button Href="/sessions/new" Color="ButtonColor.Primary" Class="w-full justify-center">
+                            <Button Href="/campaigns/new" Color="ButtonColor.Primary" Class="w-full justify-center">
                                 <PlusIcon Class="mr-2 h-5 w-5" />
-                                Start New Session
+                                Start New Campaign
                             </Button>
                             <Button Href="/test/data-model" Color="ButtonColor.Light" Class="w-full justify-center">
                                 <ClipboardIcon Class="mr-2 h-5 w-5" />
@@ -186,12 +186,12 @@
 </AuthorizeView>
 
 @code {
-    private List<RiddleSession> sessions = new();
+    private List<CampaignInstance> campaigns = new();
     private bool isLoading = true;
-    private int sessionCount = 0;
+    private int campaignCount = 0;
     private int characterCount = 0;
     private string lastActivityText = "No activity";
-    private string lastSessionName = "";
+    private string lastCampaignName = "";
     private string? currentUserId;
 
     protected override async Task OnInitializedAsync()
@@ -205,39 +205,39 @@
             
             if (!string.IsNullOrEmpty(currentUserId))
             {
-                await LoadSessionsAsync();
+                await LoadCampaignsAsync();
             }
         }
         
         isLoading = false;
     }
 
-    private async Task LoadSessionsAsync()
+    private async Task LoadCampaignsAsync()
     {
         if (string.IsNullOrEmpty(currentUserId)) return;
         
-        sessions = await SessionService.GetSessionsForUserAsync(currentUserId);
-        sessionCount = sessions.Count;
-        characterCount = sessions.Sum(s => s.PartyState.Count);
+        campaigns = await CampaignService.GetCampaignsForUserAsync(currentUserId);
+        campaignCount = campaigns.Count;
+        characterCount = campaigns.Sum(c => c.PartyState.Count);
         
-        var mostRecent = sessions.FirstOrDefault();
+        var mostRecent = campaigns.FirstOrDefault();
         if (mostRecent != null)
         {
             lastActivityText = GetTimeAgo(mostRecent.LastActivityAt);
-            lastSessionName = mostRecent.CampaignName;
+            lastCampaignName = mostRecent.Name;
         }
     }
 
-    private string GetLocationDisplay(RiddleSession session)
+    private string GetLocationDisplay(CampaignInstance campaign)
     {
         // Convert location ID to human-readable format
-        return session.CurrentLocationId.Replace("_", " ").ToUpperInvariant() switch
+        return campaign.CurrentLocationId.Replace("_", " ").ToUpperInvariant() switch
         {
             var x when x.Contains("GOBLIN") => "Goblin Ambush",
             var x when x.Contains("PHANDALIN") => "Phandalin",
             var x when x.Contains("CRAGMAW") => "Cragmaw Hideout",
             var x when x.Contains("REDBRAND") => "Redbrand Hideout",
-            _ => session.CurrentLocationId.Replace("_", " ")
+            _ => campaign.CurrentLocationId.Replace("_", " ")
         };
     }
 

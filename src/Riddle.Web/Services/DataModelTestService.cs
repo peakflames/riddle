@@ -48,25 +48,26 @@ public class DataModelTestService
             }
             var testUserId = testUser.Id;
 
-            // Test 2: Create a RiddleSession
+            // Test 2: Create a CampaignInstance
             output.AppendLine();
-            output.AppendLine("Test 2: Create RiddleSession");
-            var session = new RiddleSession
+            output.AppendLine("Test 2: Create CampaignInstance");
+            var campaign = new CampaignInstance
             {
-                CampaignName = "Test Campaign - " + DateTime.UtcNow.ToString("HH:mm:ss"),
+                Name = "Test Campaign - " + DateTime.UtcNow.ToString("HH:mm:ss"),
+                CampaignModule = "Lost Mine of Phandelver",
                 DmUserId = testUserId,
                 CurrentChapterId = "test_chapter",
                 CurrentLocationId = "test_location"
             };
-            _dbContext.RiddleSessions.Add(session);
+            _dbContext.CampaignInstances.Add(campaign);
             await _dbContext.SaveChangesAsync();
-            output.AppendLine($"  ✓ Created session: {session.Id}");
-            output.AppendLine($"  ✓ UUID v7 (time-sortable): {session.Id.ToString()[..13]}...");
+            output.AppendLine($"  ✓ Created campaign: {campaign.Id}");
+            output.AppendLine($"  ✓ UUID v7 (time-sortable): {campaign.Id.ToString()[..13]}...");
 
             // Test 3: Add Characters to PartyState (JSON serialization)
             output.AppendLine();
             output.AppendLine("Test 3: JSON Serialization - Characters");
-            session.PartyState = new List<Character>
+            campaign.PartyState = new List<Character>
             {
                 new Character 
                 { 
@@ -93,59 +94,59 @@ public class DataModelTestService
                 }
             };
             await _dbContext.SaveChangesAsync();
-            output.AppendLine($"  ✓ Added {session.PartyState.Count} characters to party");
+            output.AppendLine($"  ✓ Added {campaign.PartyState.Count} characters to party");
 
             // Test 4: Add Quests (JSON serialization)
             output.AppendLine();
             output.AppendLine("Test 4: JSON Serialization - Quests");
-            session.ActiveQuests = new List<Quest>
+            campaign.ActiveQuests = new List<Quest>
             {
                 new Quest
                 {
-                    Title = "Find the Lost Mine",
+                    Title = "Find → Lost Mine",
                     State = "Active",
                     IsMainStory = true,
                     Objectives = new List<string> { "Travel to Phandalin", "Find Gundren Rockseeker" }
                 },
                 new Quest
                 {
-                    Title = "Deliver the Supplies",
+                    Title = "Deliver Supplies",
                     State = "Active",
                     IsMainStory = false,
                     Objectives = new List<string> { "Reach Barthen's Provisions" }
                 }
             };
             await _dbContext.SaveChangesAsync();
-            output.AppendLine($"  ✓ Added {session.ActiveQuests.Count} quests");
+            output.AppendLine($"  ✓ Added {campaign.ActiveQuests.Count} quests");
 
             // Test 5: Add Combat Encounter (nullable JSON)
             output.AppendLine();
             output.AppendLine("Test 5: JSON Serialization - Combat Encounter");
-            session.ActiveCombat = new CombatEncounter
+            campaign.ActiveCombat = new CombatEncounter
             {
                 IsActive = true,
                 RoundNumber = 1,
-                TurnOrder = session.PartyState.Select(c => c.Id).ToList(),
+                TurnOrder = campaign.PartyState.Select(c => c.Id).ToList(),
                 CurrentTurnIndex = 0
             };
             await _dbContext.SaveChangesAsync();
-            output.AppendLine($"  ✓ Started combat encounter: Round {session.ActiveCombat.RoundNumber}");
+            output.AppendLine($"  ✓ Started combat encounter: Round {campaign.ActiveCombat.RoundNumber}");
 
             // Test 6: Add Log Entries
             output.AppendLine();
             output.AppendLine("Test 6: JSON Serialization - Log Entries");
-            session.NarrativeLog = new List<LogEntry>
+            campaign.NarrativeLog = new List<LogEntry>
             {
                 new LogEntry { Entry = "The party begins their journey.", Importance = "standard" },
                 new LogEntry { Entry = "Ambush! Goblins attack!", Importance = "critical" }
             };
             await _dbContext.SaveChangesAsync();
-            output.AppendLine($"  ✓ Added {session.NarrativeLog.Count} log entries");
+            output.AppendLine($"  ✓ Added {campaign.NarrativeLog.Count} log entries");
 
             // Test 7: Set Party Preferences
             output.AppendLine();
             output.AppendLine("Test 7: JSON Serialization - Preferences");
-            session.Preferences = new PartyPreferences
+            campaign.Preferences = new PartyPreferences
             {
                 CombatFocus = "High",
                 RoleplayFocus = "Medium",
@@ -154,45 +155,45 @@ public class DataModelTestService
                 AvoidedTopics = new List<string> { "gore" }
             };
             await _dbContext.SaveChangesAsync();
-            output.AppendLine($"  ✓ Set preferences: Combat={session.Preferences.CombatFocus}, Pacing={session.Preferences.Pacing}");
+            output.AppendLine($"  ✓ Set preferences: Combat={campaign.Preferences.CombatFocus}, Pacing={campaign.Preferences.Pacing}");
 
             // Test 8: Read back and verify JSON deserialization
             output.AppendLine();
             output.AppendLine("Test 8: Verify JSON Deserialization");
-            var loadedSession = await _dbContext.RiddleSessions
-                .FirstOrDefaultAsync(s => s.Id == session.Id);
+            var loadedCampaign = await _dbContext.CampaignInstances
+                .FirstOrDefaultAsync(c => c.Id == campaign.Id);
             
-            if (loadedSession != null)
+            if (loadedCampaign != null)
             {
-                output.AppendLine($"  ✓ Party State: {loadedSession.PartyState.Count} characters");
-                output.AppendLine($"  ✓ Active Quests: {loadedSession.ActiveQuests.Count} quests");
-                output.AppendLine($"  ✓ Combat Active: {loadedSession.ActiveCombat?.IsActive ?? false}");
-                output.AppendLine($"  ✓ Log Entries: {loadedSession.NarrativeLog.Count} entries");
-                output.AppendLine($"  ✓ Preferences Tone: {loadedSession.Preferences.Tone}");
+                output.AppendLine($"  ✓ Party State: {loadedCampaign.PartyState.Count} characters");
+                output.AppendLine($"  ✓ Active Quests: {loadedCampaign.ActiveQuests.Count} quests");
+                output.AppendLine($"  ✓ Combat Active: {loadedCampaign.ActiveCombat?.IsActive ?? false}");
+                output.AppendLine($"  ✓ Log Entries: {loadedCampaign.NarrativeLog.Count} entries");
+                output.AppendLine($"  ✓ Preferences Tone: {loadedCampaign.Preferences.Tone}");
             }
 
             // Test 9: Query by User (Index test)
             output.AppendLine();
             output.AppendLine("Test 9: Query by DmUserId (Index)");
-            var userSessions = await _dbContext.RiddleSessions
-                .Where(s => s.DmUserId == testUserId)
+            var userCampaigns = await _dbContext.CampaignInstances
+                .Where(c => c.DmUserId == testUserId)
                 .ToListAsync();
-            output.AppendLine($"  ✓ Found {userSessions.Count} sessions for test user");
+            output.AppendLine($"  ✓ Found {userCampaigns.Count} campaigns for test user");
 
-            // Test 10: Update session
+            // Test 10: Update campaign
             output.AppendLine();
-            output.AppendLine("Test 10: Update Session");
-            session.LastActivityAt = DateTime.UtcNow;
-            session.CurrentLocationId = "updated_location";
+            output.AppendLine("Test 10: Update Campaign");
+            campaign.LastActivityAt = DateTime.UtcNow;
+            campaign.CurrentLocationId = "updated_location";
             await _dbContext.SaveChangesAsync();
-            output.AppendLine($"  ✓ Updated location to: {session.CurrentLocationId}");
+            output.AppendLine($"  ✓ Updated location to: {campaign.CurrentLocationId}");
 
-            // Test 11: Delete session
+            // Test 11: Delete campaign
             output.AppendLine();
-            output.AppendLine("Test 11: Delete Session");
-            _dbContext.RiddleSessions.Remove(session);
+            output.AppendLine("Test 11: Delete Campaign");
+            _dbContext.CampaignInstances.Remove(campaign);
             await _dbContext.SaveChangesAsync();
-            output.AppendLine($"  ✓ Deleted test session");
+            output.AppendLine($"  ✓ Deleted test campaign");
 
             // Clean up test user
             _dbContext.Users.Remove(testUser);

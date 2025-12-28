@@ -11,8 +11,8 @@ using Riddle.Web.Data;
 namespace Riddle.Web.Migrations
 {
     [DbContext(typeof(RiddleDbContext))]
-    [Migration("20251227165014_AddGameEntities")]
-    partial class AddGameEntities
+    [Migration("20251228075119_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -222,7 +222,7 @@ namespace Riddle.Web.Migrations
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
-            modelBuilder.Entity("Riddle.Web.Models.RiddleSession", b =>
+            modelBuilder.Entity("Riddle.Web.Models.CampaignInstance", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -239,7 +239,7 @@ namespace Riddle.Web.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("CampaignName")
+                    b.Property<string>("CampaignModule")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
@@ -288,6 +288,11 @@ namespace Riddle.Web.Migrations
                         .HasMaxLength(5000)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("NarrativeLogJson")
                         .IsRequired()
                         .HasColumnType("text");
@@ -304,7 +309,56 @@ namespace Riddle.Web.Migrations
 
                     b.HasIndex("DmUserId");
 
-                    b.ToTable("RiddleSessions");
+                    b.ToTable("CampaignInstances");
+                });
+
+            modelBuilder.Entity("Riddle.Web.Models.PlaySession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("CampaignInstanceId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DmNotes")
+                        .HasMaxLength(5000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EndLocationId")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("EndedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("KeyEventsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("SessionNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("StartLocationId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CampaignInstanceId");
+
+                    b.ToTable("PlaySessions");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
@@ -358,7 +412,7 @@ namespace Riddle.Web.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Riddle.Web.Models.RiddleSession", b =>
+            modelBuilder.Entity("Riddle.Web.Models.CampaignInstance", b =>
                 {
                     b.HasOne("Riddle.Web.Models.ApplicationUser", "DmUser")
                         .WithMany()
@@ -367,6 +421,22 @@ namespace Riddle.Web.Migrations
                         .IsRequired();
 
                     b.Navigation("DmUser");
+                });
+
+            modelBuilder.Entity("Riddle.Web.Models.PlaySession", b =>
+                {
+                    b.HasOne("Riddle.Web.Models.CampaignInstance", "CampaignInstance")
+                        .WithMany("PlaySessions")
+                        .HasForeignKey("CampaignInstanceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CampaignInstance");
+                });
+
+            modelBuilder.Entity("Riddle.Web.Models.CampaignInstance", b =>
+                {
+                    b.Navigation("PlaySessions");
                 });
 #pragma warning restore 612, 618
         }
