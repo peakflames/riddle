@@ -357,6 +357,12 @@ def run_dotnet_command(dotnet_path: str, command: str) -> None:
             print("Successfully built project")
         
         elif command == "start":
+            # Auto-stop any running application to prevent file lock issues
+            pid = get_running_pid()
+            if pid:
+                print("Stopping running application before build...")
+                stop_background()
+            
             # Auto-build before starting
             print("Building project before start...")
             subprocess.run(
