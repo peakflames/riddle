@@ -265,15 +265,29 @@ Only after user approval:
 - **NEVER** assume you know file contents from previous conversations
 - **ALWAYS** `read_file` before using `replace_in_file`
 - **ALWAYS** verify changes with `git diff` after editing
+- **ALWAYS** read model files before referencing properties in Razor/UI code
 
 ### Build Discipline
 - Run `python build.py` after EVERY file modification
 - If build fails, fix immediately before proceeding
 - Never claim completion without successful build
+- Build errors often reveal API mismatches - read error messages carefully
+
+### Component/Library API Verification
+- **ALWAYS** verify component API signatures before use (enums, sizes, colors)
+- Check reference projects or documentation for exact property names
+- Common pitfalls:
+  - Enum values: `SpinnerSize.Xl` not `SpinnerSize.ExtraLarge`
+  - Context conflicts: Add `Context="editContext"` to EditForm inside AuthorizeView
+  - Using directives: Some enums need explicit `@using` statements
 
 ### Testing Requirements
 - Create functional test pages/endpoints when appropriate
-- Use Playwright MCP for UI verification
+- Use Playwright MCP for UI verification:
+  - `browser_navigate` to load pages
+  - `browser_snapshot` to capture state and get element refs
+  - `browser_click` with refs from snapshot
+  - **NOTE:** Refs change after page updates - always take new snapshot before clicking
 - Check `riddle.log` for runtime errors
 
 ### Git Usage
@@ -283,15 +297,17 @@ Only after user approval:
 - Never `git push` without user approval
 
 ### Documentation
-- Update `.clinerules/AGENT.md` with lessons learned
+- Update `.clinerules/AGENT.md` with lessons learned after each objective
 - Keep verification checklists current
 - Record blockers immediately when encountered
+- Create reference docs (e.g., component API docs) for frequently used libraries
 
 ### When Stuck
 1. Use `git log` and `git diff` to understand what changed
 2. Use `search_files` to find similar patterns in codebase
 3. Read error messages carefully - they often contain the solution
-4. Surface findings to user rather than guessing blindly
+4. Check model files for actual property names (don't assume)
+5. Surface findings to user rather than guessing blindly
 </llm_guidelines>
 
 ---
@@ -444,3 +460,65 @@ git commit -m "type(scope): description"
 git push origin feature/phase{N}-obj{M}-{desc}
 ```
 </quick_reference>
+
+---
+
+## Common Pitfalls and Solutions
+
+<common_pitfalls>
+### Flowbite Blazor Component APIs
+| Issue | Wrong | Correct |
+|-------|-------|---------|
+| SpinnerSize | `SpinnerSize.ExtraLarge` | `SpinnerSize.Xl` |
+| CardSize | `CardSize.XLarge` | `CardSize.ExtraLarge` |
+| BadgeColor | Using without import | Add `@using Flowbite.Blazor.Enums` |
+
+### Blazor Context Conflicts
+When EditForm is inside AuthorizeView, both use "context" parameter:
+```razor
+<!-- WRONG: context name collision -->
+<AuthorizeView>
+    <Authorized>
+        <EditForm Model="@model">
+
+<!-- CORRECT: disambiguate context -->
+<AuthorizeView>
+    <Authorized>
+        <EditForm Model="@model" Context="editContext">
+```
+
+### Model Property Mismatches
+Always `read_file` on model before referencing in UI:
+```bash
+# Before writing UI that uses Character properties:
+read_file src/Riddle.Web/Models/Character.cs
+# Then verify: Is it "Race" or "Type"? "Level" or "CurrentLevel"?
+```
+
+### Playwright MCP Ref Invalidation
+Element refs change after page updates:
+```
+# After clicking, page state changes
+# Old refs become invalid
+# ALWAYS take new snapshot before next click
+browser_snapshot → browser_click → browser_snapshot → browser_click
+```
+
+### EF Core Service Pattern
+```csharp
+// Inject DbContext directly
+public class SessionService : ISessionService {
+    private readonly RiddleDbContext _context;
+    public SessionService(RiddleDbContext context) => _context = context;
+}
+```
+
+### Authentication State Access
+```csharp
+var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+var user = authState.User;
+if (user.Identity?.IsAuthenticated == true) {
+    var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+}
+```
+</common_pitfalls>

@@ -132,6 +132,25 @@ PREFER to leverage components and pages already create over at `- **Flowbite Bla
 ### UUID/GUID
 - Use `Guid.CreateVersion7()` for time-sortable IDs (requires .NET 9+)
 
+### Flowbite Blazor Component APIs
+- **SpinnerSize**: Use `SpinnerSize.Xl`, not `SpinnerSize.ExtraLarge`
+- **BadgeColor**: Requires explicit `@using Flowbite.Blazor.Enums` in some contexts
+- **CardSize**: Use `CardSize.ExtraLarge`, not `CardSize.XLarge`
+- **EditForm Context Conflicts**: When EditForm is inside AuthorizeView, add `Context="editContext"` parameter to EditForm to avoid context name collision
+- **Icon Components**: Use Flowbite icon components (e.g., `<BookOpenIcon Class="w-5 h-5" />`) from Flowbite.Blazor.Icons namespace
+- Always check Flowbite Blazor docs or reference dashboard project for exact API signatures
+
+### EF Core Patterns
+- When creating services that use DbContext, inject `RiddleDbContext` directly
+- For computed properties on models (like `PartyState` backed by `PartyStateJson`), use `[NotMapped]` attribute
+- Always call `SaveChangesAsync()` after mutations
+
+### Blazor Server Authentication Patterns
+- Get current user ID via `AuthenticationStateProvider.GetAuthenticationStateAsync()`
+- User claims are accessed via `user.FindFirst(ClaimTypes.NameIdentifier)?.Value`
+- Always check `user.Identity?.IsAuthenticated == true` before accessing claims
+- Use `<AuthorizeView>` with `<Authorized>` and `<NotAuthorized>` sections for protected pages
+
 ## Git Workflow
 - Branch from `develop`: `git checkout develop && git pull origin develop`.
 - Naming: `fix/issue-{id}-description`, `feature/issue-{id}-description`, or `enhancement/issue-{id}-description`.
