@@ -57,6 +57,6 @@ Implement `IRiddleLlmService` and `RiddleLlmService` to handle LLM communication
 | `CharacterClass`/`Level` not on Character | Changed to use `Type`, `CurrentHp`, `MaxHp` |
 
 ## User Approval
-- [ ] Changes reviewed by user
-- [ ] Approved for push to origin
-- [ ] Merged to develop
+- [x] Changes reviewed by user
+- [x] Approved for push to origin
+- [x] Merged to develop
