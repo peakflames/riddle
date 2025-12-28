@@ -9,6 +9,7 @@
 @using Riddle.Web.Components.Shared
 @implements IDisposable
 @inject ICampaignService CampaignService
+@inject ICharacterService CharacterService
 @inject IGameStateService GameStateService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
@@ -92,6 +93,7 @@
                                     OnAddClick="@OpenAddCharacterModal"
                                     OnEdit="@OpenEditCharacterModal"
                                     OnRemove="@HandleRemoveCharacter"
+                                    OnUnclaim="@HandleUnclaimCharacter"
                                     ShowInviteButton="true"
                                     OnInviteClick="@OpenInviteModal" />
                             </div>
@@ -362,5 +364,18 @@
     {
         // Campaign object is already updated by the modal
         StateHasChanged();
+    }
+    
+    private async Task HandleUnclaimCharacter(Character character)
+    {
+        if (campaign == null) return;
+        
+        var success = await CharacterService.UnclaimCharacterAsync(campaign.Id, character.Id);
+        if (success)
+        {
+            // Reload campaign to get fresh party state
+            await LoadCampaignAsync();
+            StateHasChanged();
+        }
     }
 }

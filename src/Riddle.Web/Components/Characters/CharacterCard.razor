@@ -28,9 +28,21 @@
             <!-- Status Badge -->
             @if (Character.IsClaimed)
             {
-                <Badge Color="BadgeColor.Success" Size="BadgeSize.ExtraSmall">
-                    @Character.PlayerName
-                </Badge>
+                <div class="flex items-center gap-1">
+                    <Badge Color="BadgeColor.Success" Size="BadgeSize.ExtraSmall">
+                        @Character.PlayerName
+                    </Badge>
+                    @if (AllowUnclaim)
+                    {
+                        <button type="button" 
+                                class="inline-flex items-center justify-center p-0.5 text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                                title="Remove player from character"
+                                @onclick="HandleUnclaim"
+                                @onclick:stopPropagation="true">
+                            <CloseIcon class="w-3 h-3" />
+                        </button>
+                    }
+                </div>
             }
             else if (Character.Type == "PC")
             {
@@ -105,10 +117,21 @@
     public bool ShowActions { get; set; } = true;
     
     [Parameter]
+    public bool AllowUnclaim { get; set; } = false;
+    
+    [Parameter]
     public EventCallback<Character> OnEdit { get; set; }
     
     [Parameter]
     public EventCallback<Character> OnRemove { get; set; }
+    
+    [Parameter]
+    public EventCallback<Character> OnUnclaim { get; set; }
+    
+    private async Task HandleUnclaim()
+    {
+        await OnUnclaim.InvokeAsync(Character);
+    }
     
     private RenderFragment GetClassIcon() => Character.Class?.ToLower() switch
     {

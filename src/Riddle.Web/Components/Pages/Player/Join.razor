@@ -1,5 +1,6 @@
 @page "/join"
 @page "/join/{InviteCode}"
+@layout StackedLayout
 @rendermode InteractiveServer
 
 @using Riddle.Web.Models
@@ -14,25 +15,25 @@
 
 <PageTitle>Join Campaign - Riddle</PageTitle>
 
-<div class="min-h-screen bg-gray-900 flex items-center justify-center px-4">
-    <div class="max-w-md w-full">
+<div class="flex justify-center px-4 py-6">
+    <div class="w-full max-w-md">
         @if (isLoading)
         {
-            <Card class="bg-gray-800 border-gray-700">
-                <div class="text-center py-8">
-                    <Spinner Size="SpinnerSize.Xl" Color="SpinnerColor.Purple" class="mb-4" />
+            <Card class="max-w-md p-4 sm:p-6 md:p-8 bg-gray-800 border-gray-700">
+                <div class="flex flex-col space-y-4 text-center py-4">
+                    <Spinner Size="SpinnerSize.Xl" Color="SpinnerColor.Purple" />
                     <p class="text-gray-400">@loadingMessage</p>
                 </div>
             </Card>
         }
         else if (errorMessage != null)
         {
-            <Card class="bg-gray-800 border-gray-700">
-                <div class="text-center">
-                    <span class="text-4xl mb-4 block">❌</span>
-                    <h2 class="text-xl font-bold text-white mb-2">Error</h2>
-                    <p class="text-gray-400 mb-6">@errorMessage</p>
-                    <div class="space-y-3">
+            <Card class="max-w-md p-4 sm:p-6 md:p-8 bg-gray-800 border-gray-700">
+                <div class="flex flex-col space-y-4 text-center">
+                    <span class="text-4xl">❌</span>
+                    <h2 class="text-xl font-bold text-white">Error</h2>
+                    <p class="text-gray-400">@errorMessage</p>
+                    <div class="flex flex-col space-y-3 pt-2">
                         <Button Color="ButtonColor.Primary" class="w-full" @onclick="ResetForm">
                             Try Another Code
                         </Button>
@@ -46,42 +47,45 @@
         else if (campaign == null)
         {
             @* Enter Invite Code Form *@
-            <Card class="bg-gray-800 border-gray-700">
-                <div class="text-center mb-6">
-                    <span class="text-4xl mb-4 block">🎲</span>
-                    <h1 class="text-2xl font-bold text-white mb-2">Join a Campaign</h1>
-                    <p class="text-gray-400">Enter the invite code from your DM to join their campaign.</p>
-                </div>
-                
-                <div class="space-y-4">
-                    <div>
-                        <Label For="inviteCode" class="text-gray-300">Invite Code</Label>
-                        <TextInput Id="inviteCode" 
-                                   @bind-Value="enteredCode" 
-                                   Placeholder="e.g., ABC123"
-                                   class="text-center text-2xl tracking-widest uppercase" />
+            <Card class="max-w-md p-4 sm:p-6 md:p-8 bg-gray-800 border-gray-700">
+                <div class="flex flex-col space-y-6">
+                    <div class="flex flex-col space-y-2 text-center">
+                        <span class="text-4xl">🎲</span>
+                        <h1 class="text-2xl font-bold text-white">Join a Campaign</h1>
+                        <p class="text-gray-400">Enter the invite code from your DM to join their campaign.</p>
                     </div>
-                    <Button Color="ButtonColor.Primary" 
-                            class="w-full" 
-                            Disabled="@string.IsNullOrWhiteSpace(enteredCode)"
-                            @onclick="ValidateCode">
-                        Join Campaign
-                    </Button>
+                    
+                    <div class="flex flex-col space-y-4">
+                        <div>
+                            <Label For="inviteCode" class="text-gray-300">Invite Code</Label>
+                            <TextInput Id="inviteCode" 
+                                       @bind-Value="enteredCode" 
+                                       Placeholder="e.g., ABC123"
+                                       class="text-center text-2xl tracking-widest uppercase" />
+                        </div>
+                        <Button Color="ButtonColor.Primary" 
+                                class="w-full" 
+                                Disabled="@string.IsNullOrWhiteSpace(enteredCode)"
+                                @onclick="ValidateCode">
+                            Join Campaign
+                        </Button>
+                    </div>
                 </div>
             </Card>
         }
         else if (!isAuthenticated)
         {
             @* Login Required *@
-            <Card class="bg-gray-800 border-gray-700">
-                <div class="text-center mb-6">
-                    <span class="text-4xl mb-4 block">🔐</span>
-                    <h1 class="text-2xl font-bold text-white mb-2">Sign In Required</h1>
-                    <p class="text-gray-400 mb-2">You need to sign in to join:</p>
-                    <p class="text-xl font-semibold text-purple-400">@campaign.Name</p>
-                </div>
-                
-                <Button Color="ButtonColor.Primary" class="w-full" @onclick="SignInAndReturn">
+            <Card class="max-w-md p-4 sm:p-6 md:p-8 bg-gray-800 border-gray-700">
+                <div class="flex flex-col space-y-6">
+                    <div class="flex flex-col space-y-2 text-center">
+                        <span class="text-4xl">🔐</span>
+                        <h1 class="text-2xl font-bold text-white">Sign In Required</h1>
+                        <p class="text-gray-400">You need to sign in to join:</p>
+                        <p class="text-xl font-semibold text-purple-400">@campaign.Name</p>
+                    </div>
+                    
+                    <Button Color="ButtonColor.Primary" class="w-full" @onclick="SignInAndReturn">
                     <span class="flex items-center justify-center gap-2">
                         <svg class="w-5 h-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -90,52 +94,58 @@
                             <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                         </svg>
                         Sign in with Google
-                    </span>
-                </Button>
+                        </span>
+                    </Button>
+                </div>
             </Card>
         }
         else if (selectedCharacter == null && availableCharacters.Any())
         {
             @* Character Selection *@
-            <Card class="bg-gray-800 border-gray-700">
-                <div class="text-center mb-6">
-                    <h1 class="text-2xl font-bold text-white mb-2">@campaign.Name</h1>
-                    <p class="text-gray-400">@campaign.CampaignModule</p>
-                </div>
-                
-                <h2 class="text-lg font-semibold text-white mb-4">Choose Your Character</h2>
-                <div class="space-y-3">
+            <Card class="max-w-md p-4 sm:p-6 md:p-8 bg-gray-800 border-gray-700">
+                <div class="flex flex-col space-y-6">
+                    <div class="flex flex-col space-y-2 text-center">
+                        <Heading Tag="HeadingTag.H1" Size="TextSize.XXL">@campaign.Name</Heading>
+                        <Paragraph class="!text-gray-400">@campaign.CampaignModule</Paragraph>
+                    </div>
+                    
+                    <Heading Tag="HeadingTag.H2" Size="TextSize.LG">Choose Your Character</Heading>
+                    <div class="space-y-2">
                     @foreach (var character in availableCharacters)
                     {
-                        <button class="w-full p-4 bg-gray-700/50 hover:bg-gray-700 rounded-lg transition-colors text-left flex items-center gap-4 border border-transparent hover:border-purple-500"
+                        <button class="w-full p-3 bg-gray-700/50 hover:bg-gray-700 rounded-lg transition-colors text-left flex items-center gap-3 border border-gray-600 hover:border-purple-500 focus:ring-2 focus:ring-purple-500 focus:outline-none"
                                 @onclick="() => ClaimCharacter(character)">
-                            <div class="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-full flex items-center justify-center text-xl">
-                                @GetClassIcon(character.Class)
+                            <Avatar Size="AvatarSize.Medium" 
+                                    Rounded="true" 
+                                    class="!bg-gradient-to-br !from-purple-500 !to-indigo-600 flex-shrink-0">
+                                <span class="text-lg">@GetClassIcon(character.Class)</span>
+                            </Avatar>
+                            <div class="flex-1 min-w-0">
+                                <Span Weight="FontWeight.SemiBold" CustomColor="text-white" class="block truncate">@character.Name</Span>
+                                <Span Size="TextSize.SM" CustomColor="text-gray-400">@character.DisplayRaceClass • Level @character.Level</Span>
                             </div>
-                            <div class="flex-1">
-                                <span class="text-white font-semibold block">@character.Name</span>
-                                <span class="text-gray-400 text-sm">@character.DisplayRaceClass • Level @character.Level</span>
-                            </div>
+                        <ChevronRightIcon class="w-5 h-5 text-gray-500" />
                         </button>
                     }
+                    </div>
+                    
+                    @if (alreadyClaimedCount > 0)
+                    {
+                        <Paragraph Size="TextSize.SM" class="!text-gray-500 text-center">
+                            @alreadyClaimedCount character(s) already claimed by other players
+                        </Paragraph>
+                    }
                 </div>
-                
-                @if (alreadyClaimedCount > 0)
-                {
-                    <p class="text-gray-500 text-sm mt-4 text-center">
-                        @alreadyClaimedCount character(s) already claimed by other players
-                    </p>
-                }
             </Card>
         }
         else if (!availableCharacters.Any() && playerCharacters.Any())
         {
             @* Already has character(s) - redirect to dashboard *@
-            <Card class="bg-gray-800 border-gray-700">
-                <div class="text-center">
-                    <span class="text-4xl mb-4 block">✅</span>
-                    <h2 class="text-xl font-bold text-white mb-2">You're already in this campaign!</h2>
-                    <p class="text-gray-400 mb-6">Redirecting to your dashboard...</p>
+            <Card class="max-w-md p-4 sm:p-6 md:p-8 bg-gray-800 border-gray-700">
+                <div class="flex flex-col space-y-4 text-center">
+                    <span class="text-4xl">✅</span>
+                    <h2 class="text-xl font-bold text-white">You're already in this campaign!</h2>
+                    <p class="text-gray-400">Redirecting to your dashboard...</p>
                     <Spinner Size="SpinnerSize.Md" Color="SpinnerColor.Purple" />
                 </div>
             </Card>
@@ -143,11 +153,11 @@
         else if (!availableCharacters.Any())
         {
             @* No characters available *@
-            <Card class="bg-gray-800 border-gray-700">
-                <div class="text-center">
-                    <span class="text-4xl mb-4 block">😔</span>
-                    <h1 class="text-xl font-bold text-white mb-2">@campaign.Name</h1>
-                    <p class="text-gray-400 mb-6">All characters in this campaign have been claimed. Ask your DM to create more characters.</p>
+            <Card class="max-w-md p-4 sm:p-6 md:p-8 bg-gray-800 border-gray-700">
+                <div class="flex flex-col space-y-4 text-center">
+                    <span class="text-4xl">😔</span>
+                    <h1 class="text-xl font-bold text-white">@campaign.Name</h1>
+                    <p class="text-gray-400">All characters in this campaign have been claimed. Ask your DM to create more characters.</p>
                     <Button Color="ButtonColor.Light" class="w-full" @onclick="GoHome">
                         Return Home
                     </Button>
@@ -157,9 +167,9 @@
         else if (isClaiming)
         {
             @* Claiming in progress *@
-            <Card class="bg-gray-800 border-gray-700">
-                <div class="text-center py-8">
-                    <Spinner Size="SpinnerSize.Xl" Color="SpinnerColor.Purple" class="mb-4" />
+            <Card class="max-w-md p-4 sm:p-6 md:p-8 bg-gray-800 border-gray-700">
+                <div class="flex flex-col space-y-4 text-center py-4">
+                    <Spinner Size="SpinnerSize.Xl" Color="SpinnerColor.Purple" />
                     <p class="text-gray-400">Claiming @selectedCharacter?.Name...</p>
                 </div>
             </Card>

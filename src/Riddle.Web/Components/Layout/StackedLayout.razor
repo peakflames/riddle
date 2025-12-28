@@ -1,0 +1,23 @@
+@inherits LayoutBase
+
+@*
+    StackedLayout.razor
+    Full-width layout variant without sidebar for player-facing pages.
+    Provides maximum content area with navbar but no sidebar navigation.
+    
+    Used by: /join, /join/{code}, /play/{CampaignId}
+*@
+
+<div class="antialiased bg-gray-50 dark:bg-gray-900 min-h-screen">
+    <AppNavBar ResponsiveMenuEnabled="false" />
+
+    <main class="p-4">
+        @Body
+    </main>
+</div>
+
+<div id="blazor-error-ui">
+    An unhandled error has occurred.
+    <a href="" class="reload">Reload</a>
+    <a class="dismiss">🗙</a>
+</div>

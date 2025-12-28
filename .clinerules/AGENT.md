@@ -43,12 +43,20 @@ Use the Python automation:
 - `python build.py db campaigns` — show campaign instances with party state preview
 - `python build.py db characters` — show characters from most recent campaign (with PlayerId claim status)
 - `python build.py db characters <campaign-id>` — show characters from specific campaign
+- `python build.py db party` — show full PartyStateJson (pretty-printed) from most recent campaign
+- `python build.py db party <campaign-id>` — show full PartyStateJson for specific campaign
+- `python build.py db update "<name>" <property> "<value>"` — update a character property directly
+- `python build.py db create-character "@file.json"` — create a character from JSON file
+- `python build.py db delete-character "<name>"` — delete a character by name
+- `python build.py db character-template` — show JSON template for creating characters
 - `python build.py db "SELECT * FROM CampaignInstances"` — execute custom SQL query
 
 **When to use:**
 - Use `log` commands when debugging runtime issues or checking if operations succeeded
 - Use `db campaigns` to verify database persistence after UI actions (e.g., check PartyDataLen after adding characters)
 - Use `db characters` to verify character claims are persisted (PlayerId should show user GUID when claimed)
+- Use `db party` to inspect full character data including roleplay fields (PersonalityTraits, Ideals, Bonds, Flaws, Backstory)
+- Use `db update` to set character properties directly (bypasses UI for testing/automation)
 - Use `db "SQL"` for detailed data inspection when verifying features
 
 ## DB Migration Commands

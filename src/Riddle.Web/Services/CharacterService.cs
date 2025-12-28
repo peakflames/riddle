@@ -86,4 +86,41 @@ public class CharacterService : ICharacterService
         return await _context.CampaignInstances
             .FirstOrDefaultAsync(c => c.InviteCode == inviteCode);
     }
+
+    public async Task<bool> UnclaimCharacterAsync(Guid campaignId, string characterId)
+    {
+        var campaign = await _context.CampaignInstances.FindAsync(campaignId);
+        if (campaign == null)
+        {
+            _logger.LogWarning("Campaign {CampaignId} not found for character unclaim", campaignId);
+            return false;
+        }
+
+        // CRITICAL: Get the list ONCE and hold reference - each access to PartyState
+        // deserializes JSON fresh, so modifications to a previous access are lost!
+        var partyState = campaign.PartyState;
+        
+        var character = partyState.FirstOrDefault(c => c.Id == characterId);
+        if (character == null)
+        {
+            _logger.LogWarning("Character {CharacterId} not found in campaign {CampaignId}", characterId, campaignId);
+            return false;
+        }
+
+        var previousPlayer = character.PlayerName ?? character.PlayerId ?? "unknown";
+        
+        // Unclaim the character - clear player assignment
+        character.PlayerId = null;
+        character.PlayerName = null;
+        
+        // Set the modified list back to trigger JSON serialization via the setter
+        campaign.PartyState = partyState;
+        
+        await _context.SaveChangesAsync();
+        
+        _logger.LogInformation("DM unclaimed character {CharacterName} (was {PreviousPlayer}) in campaign {CampaignId}",
+            character.Name, previousPlayer, campaignId);
+        
+        return true;
+    }
 }

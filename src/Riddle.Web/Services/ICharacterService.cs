@@ -26,4 +26,10 @@ public interface ICharacterService
     /// Validates an invite code and returns the campaign if valid
     /// </summary>
     Task<CampaignInstance?> ValidateInviteCodeAsync(string inviteCode);
+    
+    /// <summary>
+    /// Unclaims a character, releasing it for another player to claim.
+    /// Used by DM to manage party composition.
+    /// </summary>
+    Task<bool> UnclaimCharacterAsync(Guid campaignId, string characterId);
 }

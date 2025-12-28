@@ -1,242 +1,365 @@
 @* Player Character Card - Full character sheet display for players (read-only) *@
+@* All data visible without clicking - mobile-first responsive design *@
 
-<Card class="!max-w-none bg-gray-800 border-gray-700">
-    @* Header with name and class *@
-    <div class="flex items-center justify-between mb-4">
-        <div class="flex items-center gap-3">
-            <div class="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-full flex items-center justify-center text-xl text-white font-bold">
+<div class="space-y-4">
+    @* ===== CHARACTER HEADER ===== *@
+    <Card class="!max-w-none p-4 bg-gray-800 border-gray-700">
+        <div class="flex items-start gap-4">
+            @* Avatar *@
+            <div class="w-14 h-14 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-full flex items-center justify-center text-2xl flex-shrink-0">
                 @GetClassIcon()
             </div>
-            <div>
-                <h2 class="text-xl font-bold text-white">@Character.Name</h2>
-                <p class="text-sm text-gray-400">@Character.DisplayRaceClass</p>
+            @* Identity *@
+            <div class="flex-1 min-w-0">
+                <Heading Tag="HeadingTag.H2" Size="TextSize.XL" class="!mb-0 truncate">@Character.Name</Heading>
+                <Paragraph Size="TextSize.SM" class="!text-gray-400 !mt-0">
+                    @Character.DisplayRaceClass
+                    @if (!string.IsNullOrEmpty(Character.Background))
+                    {
+                        <span class="text-gray-500"> • @Character.Background</span>
+                    }
+                </Paragraph>
+                <div class="flex flex-wrap gap-2 mt-2">
+                    <Badge Color="BadgeColor.Purple">Level @Character.Level</Badge>
+                    @if (!string.IsNullOrEmpty(Character.Alignment))
+                    {
+                        <Badge Color="BadgeColor.Gray">@Character.Alignment</Badge>
+                    }
+                </div>
             </div>
         </div>
-        <Badge Color="BadgeColor.Purple" class="text-sm">
-            Level @Character.Level
-        </Badge>
-    </div>
-    
-    @* HP Bar *@
-    <div class="mb-6">
-        <div class="flex justify-between items-center mb-2">
-            <span class="text-sm font-medium text-gray-300">Hit Points</span>
-            <span class="text-sm font-bold text-white">@Character.CurrentHp / @Character.MaxHp</span>
+
+        @* HP Bar *@
+        <div class="mt-4">
+            <div class="flex justify-between items-center mb-1">
+                <Span Size="TextSize.SM" Weight="FontWeight.Medium" CustomColor="text-gray-300">Hit Points</Span>
+                <Span Size="TextSize.SM" Weight="FontWeight.Bold" CustomColor="text-white">
+                    @Character.CurrentHp / @Character.MaxHp
+                    @if (Character.TemporaryHp > 0)
+                    {
+                        <span class="text-blue-400"> (+@Character.TemporaryHp)</span>
+                    }
+                </Span>
+            </div>
+            <div class="w-full bg-gray-700 rounded-full h-3 overflow-hidden">
+                <div class="h-full rounded-full transition-all duration-500 @GetHpBarColor()" 
+                     style="width: @GetHpPercentage()%"></div>
+            </div>
         </div>
-        <div class="w-full bg-gray-700 rounded-full h-4 overflow-hidden">
-            <div class="h-full rounded-full transition-all duration-500 @GetHpBarColor()" 
-                 style="width: @GetHpPercentage()%"></div>
-        </div>
-        @if (Character.TemporaryHp > 0)
+
+        @* Death Saves (only show if character is at 0 HP or has saves) *@
+        @if (Character.CurrentHp <= 0 || Character.DeathSaveSuccesses > 0 || Character.DeathSaveFailures > 0)
         {
-            <p class="text-xs text-blue-400 mt-1">+@Character.TemporaryHp Temporary HP</p>
+            <div class="mt-3 flex items-center gap-4">
+                <div class="flex items-center gap-1">
+                    <Span Size="TextSize.XS" CustomColor="text-gray-400">Saves:</Span>
+                    @for (int i = 0; i < 3; i++)
+                    {
+                        <span class="w-4 h-4 rounded-full border-2 @(i < Character.DeathSaveSuccesses ? "bg-green-500 border-green-500" : "border-gray-500")"></span>
+                    }
+                </div>
+                <div class="flex items-center gap-1">
+                    <Span Size="TextSize.XS" CustomColor="text-gray-400">Fails:</Span>
+                    @for (int i = 0; i < 3; i++)
+                    {
+                        <span class="w-4 h-4 rounded-full border-2 @(i < Character.DeathSaveFailures ? "bg-red-500 border-red-500" : "border-gray-500")"></span>
+                    }
+                </div>
+            </div>
         }
-    </div>
-    
-    @* Conditions *@
-    @if (Character.Conditions.Any())
-    {
-        <div class="mb-4">
-            <span class="text-sm font-medium text-gray-300 block mb-2">Conditions</span>
-            <div class="flex flex-wrap gap-2">
+
+        @* Active Conditions *@
+        @if (Character.Conditions.Any())
+        {
+            <div class="mt-3 flex flex-wrap gap-2">
                 @foreach (var condition in Character.Conditions)
                 {
-                    <Badge Color="GetConditionColor(condition)">
-                        @condition
-                    </Badge>
+                    <Badge Color="GetConditionColor(condition)">@condition</Badge>
                 }
             </div>
-        </div>
-    }
-    
-    @* Combat Stats Grid *@
-    <div class="grid grid-cols-3 gap-4 mb-6">
-        <div class="bg-gray-700/50 rounded-lg p-3 text-center">
-            <span class="text-2xl font-bold text-white">@Character.ArmorClass</span>
-            <p class="text-xs text-gray-400">Armor Class</p>
-        </div>
-        <div class="bg-gray-700/50 rounded-lg p-3 text-center">
-            <span class="text-2xl font-bold text-white">@(Character.Initiative >= 0 ? "+" : "")@Character.Initiative</span>
-            <p class="text-xs text-gray-400">Initiative</p>
-        </div>
-        <div class="bg-gray-700/50 rounded-lg p-3 text-center">
-            <span class="text-2xl font-bold text-white">@Character.Speed</span>
-            <p class="text-xs text-gray-400">Speed</p>
-        </div>
+        }
+    </Card>
+
+    @* ===== COMBAT & ABILITY SCORES ROW ===== *@
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        @* Combat Stats *@
+        <Card class="!max-w-none p-4 bg-gray-800 border-gray-700">
+            <Heading Tag="HeadingTag.H3" Size="TextSize.SM" CustomColor="text-gray-400" class="!mb-3">Combat</Heading>
+            <div class="grid grid-cols-4 gap-2">
+                <div class="bg-gray-700/50 rounded-lg p-2 text-center">
+                    <Span Size="TextSize.XL" Weight="FontWeight.Bold" CustomColor="text-white">@Character.ArmorClass</Span>
+                    <Paragraph Size="TextSize.XS" class="!text-gray-400 !mt-0">AC</Paragraph>
+                </div>
+                <div class="bg-gray-700/50 rounded-lg p-2 text-center">
+                    <Span Size="TextSize.XL" Weight="FontWeight.Bold" CustomColor="text-white">@FormatModifier(Character.Initiative)</Span>
+                    <Paragraph Size="TextSize.XS" class="!text-gray-400 !mt-0">Init</Paragraph>
+                </div>
+                <div class="bg-gray-700/50 rounded-lg p-2 text-center">
+                    <Span Size="TextSize.XL" Weight="FontWeight.Bold" CustomColor="text-white">@Character.Speed.Replace(" ft", "")</Span>
+                    <Paragraph Size="TextSize.XS" class="!text-gray-400 !mt-0">Speed</Paragraph>
+                </div>
+                <div class="bg-gray-700/50 rounded-lg p-2 text-center">
+                    <Span Size="TextSize.XL" Weight="FontWeight.Bold" CustomColor="text-white">@Character.PassivePerception</Span>
+                    <Paragraph Size="TextSize.XS" class="!text-gray-400 !mt-0">P.Perc</Paragraph>
+                </div>
+            </div>
+        </Card>
+
+        @* Ability Scores *@
+        <Card class="!max-w-none p-4 bg-gray-800 border-gray-700">
+            <Heading Tag="HeadingTag.H3" Size="TextSize.SM" CustomColor="text-gray-400" class="!mb-3">Abilities</Heading>
+            <div class="grid grid-cols-6 gap-1">
+                <AbilityScoreDisplay Name="STR" Score="@Character.Strength" Modifier="@Character.StrengthModifier" />
+                <AbilityScoreDisplay Name="DEX" Score="@Character.Dexterity" Modifier="@Character.DexterityModifier" />
+                <AbilityScoreDisplay Name="CON" Score="@Character.Constitution" Modifier="@Character.ConstitutionModifier" />
+                <AbilityScoreDisplay Name="INT" Score="@Character.Intelligence" Modifier="@Character.IntelligenceModifier" />
+                <AbilityScoreDisplay Name="WIS" Score="@Character.Wisdom" Modifier="@Character.WisdomModifier" />
+                <AbilityScoreDisplay Name="CHA" Score="@Character.Charisma" Modifier="@Character.CharismaModifier" />
+            </div>
+        </Card>
     </div>
-    
-    @* Ability Scores *@
-    <div class="mb-6">
-        <span class="text-sm font-medium text-gray-300 block mb-3">Ability Scores</span>
-        <div class="grid grid-cols-6 gap-2">
-            <AbilityScoreDisplay Name="STR" Score="@Character.Strength" Modifier="@Character.StrengthModifier" />
-            <AbilityScoreDisplay Name="DEX" Score="@Character.Dexterity" Modifier="@Character.DexterityModifier" />
-            <AbilityScoreDisplay Name="CON" Score="@Character.Constitution" Modifier="@Character.ConstitutionModifier" />
-            <AbilityScoreDisplay Name="INT" Score="@Character.Intelligence" Modifier="@Character.IntelligenceModifier" />
-            <AbilityScoreDisplay Name="WIS" Score="@Character.Wisdom" Modifier="@Character.WisdomModifier" />
-            <AbilityScoreDisplay Name="CHA" Score="@Character.Charisma" Modifier="@Character.CharismaModifier" />
-        </div>
-    </div>
-    
-    @* Proficiencies (collapsible section) *@
-    @if (Character.SkillProficiencies.Any() || Character.SavingThrowProficiencies.Any())
-    {
-        <div class="mb-6">
-            <button class="flex items-center justify-between w-full text-sm font-medium text-gray-300 mb-2"
-                    @onclick="() => showProficiencies = !showProficiencies">
-                <span>Proficiencies</span>
-                <span class="text-xs">@(showProficiencies ? "▼" : "►")</span>
-            </button>
-            @if (showProficiencies)
+
+    @* ===== PROFICIENCIES ===== *@
+    <Card class="!max-w-none p-4 bg-gray-800 border-gray-700">
+        <Heading Tag="HeadingTag.H3" Size="TextSize.SM" CustomColor="text-gray-400" class="!mb-3">Proficiencies</Heading>
+        <div class="space-y-2">
+            @if (Character.SavingThrowProficiencies.Any())
             {
-                <div class="bg-gray-700/30 rounded-lg p-3 space-y-2">
-                    @if (Character.SavingThrowProficiencies.Any())
+                <div class="flex flex-wrap gap-1 items-center">
+                    <Span Size="TextSize.XS" CustomColor="text-gray-500" class="w-16">Saves:</Span>
+                    @foreach (var save in Character.SavingThrowProficiencies)
                     {
-                        <div>
-                            <span class="text-xs text-gray-400">Saving Throws:</span>
-                            <span class="text-sm text-gray-200 ml-1">@string.Join(", ", Character.SavingThrowProficiencies)</span>
-                        </div>
+                        <Badge Color="BadgeColor.Success" class="!text-xs">@save</Badge>
                     }
-                    @if (Character.SkillProficiencies.Any())
+                </div>
+            }
+            @if (Character.SkillProficiencies.Any())
+            {
+                <div class="flex flex-wrap gap-1 items-center">
+                    <Span Size="TextSize.XS" CustomColor="text-gray-500" class="w-16">Skills:</Span>
+                    @foreach (var skill in Character.SkillProficiencies)
                     {
-                        <div>
-                            <span class="text-xs text-gray-400">Skills:</span>
-                            <span class="text-sm text-gray-200 ml-1">@string.Join(", ", Character.SkillProficiencies)</span>
-                        </div>
+                        <Badge Color="BadgeColor.Info" class="!text-xs">@skill</Badge>
                     }
-                    @if (Character.Languages.Any())
+                </div>
+            }
+            @if (Character.ToolProficiencies.Any())
+            {
+                <div class="flex flex-wrap gap-1 items-center">
+                    <Span Size="TextSize.XS" CustomColor="text-gray-500" class="w-16">Tools:</Span>
+                    @foreach (var tool in Character.ToolProficiencies)
                     {
-                        <div>
-                            <span class="text-xs text-gray-400">Languages:</span>
-                            <span class="text-sm text-gray-200 ml-1">@string.Join(", ", Character.Languages)</span>
-                        </div>
+                        <Badge Color="BadgeColor.Warning" class="!text-xs">@tool</Badge>
+                    }
+                </div>
+            }
+            @if (Character.Languages.Any())
+            {
+                <div class="flex flex-wrap gap-1 items-center">
+                    <Span Size="TextSize.XS" CustomColor="text-gray-500" class="w-16">Lang:</Span>
+                    @foreach (var lang in Character.Languages)
+                    {
+                        <Badge Color="BadgeColor.Gray" class="!text-xs">@lang</Badge>
                     }
                 </div>
             }
         </div>
-    }
-    
-    @* Spellcasting (if applicable) *@
+    </Card>
+
+    @* ===== SPELLCASTING (conditional) ===== *@
     @if (Character.IsSpellcaster)
     {
-        <div class="mb-6">
-            <button class="flex items-center justify-between w-full text-sm font-medium text-gray-300 mb-2"
-                    @onclick="() => showSpells = !showSpells">
-                <span>Spellcasting (@Character.SpellcastingAbility)</span>
-                <span class="text-xs">@(showSpells ? "▼" : "►")</span>
-            </button>
-            @if (showSpells)
+        <Card class="!max-w-none p-4 bg-gray-800 border-gray-700">
+            <div class="flex items-center justify-between mb-3">
+                <Heading Tag="HeadingTag.H3" Size="TextSize.SM" CustomColor="text-gray-400" class="!mb-0">Spellcasting</Heading>
+                <div class="flex gap-3">
+                    <div class="text-center">
+                        <Span Size="TextSize.LG" Weight="FontWeight.Bold" CustomColor="text-white">@Character.SpellSaveDC</Span>
+                        <Span Size="TextSize.XS" CustomColor="text-gray-500" class="block">DC</Span>
+                    </div>
+                    <div class="text-center">
+                        <Span Size="TextSize.LG" Weight="FontWeight.Bold" CustomColor="text-white">@FormatModifier(Character.SpellAttackBonus ?? 0)</Span>
+                        <Span Size="TextSize.XS" CustomColor="text-gray-500" class="block">Atk</Span>
+                    </div>
+                </div>
+            </div>
+            
+            @* Spell Slots *@
+            @if (Character.SpellSlots.Any())
             {
-                <div class="bg-gray-700/30 rounded-lg p-3 space-y-3">
-                    <div class="flex gap-4">
-                        <div>
-                            <span class="text-xs text-gray-400">Save DC</span>
-                            <span class="text-lg font-bold text-white ml-2">@Character.SpellSaveDC</span>
+                <div class="flex flex-wrap gap-2 mb-3">
+                    @foreach (var kvp in Character.SpellSlots.OrderBy(x => x.Key))
+                    {
+                        var used = Character.SpellSlotsUsed.GetValueOrDefault(kvp.Key, 0);
+                        var remaining = kvp.Value - used;
+                        <div class="bg-gray-700/50 rounded px-2 py-1 flex items-center gap-1">
+                            <Span Size="TextSize.XS" CustomColor="text-gray-400">L@kvp.Key</Span>
+                            <Span Size="TextSize.SM" Weight="FontWeight.Bold" CustomColor="@(remaining > 0 ? "text-purple-400" : "text-gray-500")">@remaining/@kvp.Value</Span>
                         </div>
-                        <div>
-                            <span class="text-xs text-gray-400">Attack</span>
-                            <span class="text-lg font-bold text-white ml-2">+@Character.SpellAttackBonus</span>
+                    }
+                </div>
+            }
+            
+            @* Cantrips & Spells in columns *@
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                @if (Character.Cantrips.Any())
+                {
+                    <div>
+                        <Span Size="TextSize.XS" CustomColor="text-gray-500" class="block mb-1">Cantrips</Span>
+                        <div class="flex flex-wrap gap-1">
+                            @foreach (var cantrip in Character.Cantrips)
+                            {
+                                <Badge Color="BadgeColor.Gray" class="!text-xs">@cantrip</Badge>
+                            }
                         </div>
                     </div>
-                    
-                    @if (Character.Cantrips.Any())
-                    {
-                        <div>
-                            <span class="text-xs text-gray-400 block mb-1">Cantrips</span>
-                            <div class="flex flex-wrap gap-1">
-                                @foreach (var cantrip in Character.Cantrips)
-                                {
-                                    <Badge Color="BadgeColor.Gray" class="text-xs">@cantrip</Badge>
-                                }
-                            </div>
+                }
+                @if (Character.SpellsKnown.Any())
+                {
+                    <div>
+                        <Span Size="TextSize.XS" CustomColor="text-gray-500" class="block mb-1">Spells</Span>
+                        <div class="flex flex-wrap gap-1">
+                            @foreach (var spell in Character.SpellsKnown)
+                            {
+                                <Badge Color="BadgeColor.Indigo" class="!text-xs">@spell</Badge>
+                            }
                         </div>
-                    }
-                    
-                    @if (Character.SpellsKnown.Any())
-                    {
-                        <div>
-                            <span class="text-xs text-gray-400 block mb-1">Spells Known</span>
-                            <div class="flex flex-wrap gap-1">
-                                @foreach (var spell in Character.SpellsKnown)
-                                {
-                                    <Badge Color="BadgeColor.Indigo" class="text-xs">@spell</Badge>
-                                }
-                            </div>
-                        </div>
-                    }
-                    
-                    @if (Character.SpellSlots.Any())
-                    {
-                        <div>
-                            <span class="text-xs text-gray-400 block mb-1">Spell Slots</span>
-                            <div class="flex flex-wrap gap-2">
-                                @foreach (var kvp in Character.SpellSlots.OrderBy(x => x.Key))
-                                {
-                                    var used = Character.SpellSlotsUsed.GetValueOrDefault(kvp.Key, 0);
-                                    var remaining = kvp.Value - used;
-                                    <div class="bg-gray-600 rounded px-2 py-1 text-xs">
-                                        <span class="text-gray-400">L@kvp.Key:</span>
-                                        <span class="text-white font-bold ml-1">@remaining/@kvp.Value</span>
-                                    </div>
-                                }
-                            </div>
-                        </div>
-                    }
-                </div>
-            }
-        </div>
+                    </div>
+                }
+            </div>
+        </Card>
     }
-    
-    @* Equipment (collapsible) *@
-    @if (Character.Weapons.Any() || Character.Equipment.Any())
+
+    @* ===== EQUIPMENT & CURRENCY ===== *@
+    @if (Character.Weapons.Any() || Character.Equipment.Any() || HasAnyCurrency())
     {
-        <div class="mb-4">
-            <button class="flex items-center justify-between w-full text-sm font-medium text-gray-300 mb-2"
-                    @onclick="() => showEquipment = !showEquipment">
-                <span>Equipment</span>
-                <span class="text-xs">@(showEquipment ? "▼" : "►")</span>
-            </button>
-            @if (showEquipment)
+        <Card class="!max-w-none p-4 bg-gray-800 border-gray-700">
+            <Heading Tag="HeadingTag.H3" Size="TextSize.SM" CustomColor="text-gray-400" class="!mb-3">Equipment</Heading>
+            
+            @* Currency row *@
+            @if (HasAnyCurrency())
             {
-                <div class="bg-gray-700/30 rounded-lg p-3 space-y-2">
-                    @if (Character.Weapons.Any())
+                <div class="flex flex-wrap gap-2 mb-3">
+                    @if (Character.PlatinumPieces > 0)
                     {
-                        <div>
-                            <span class="text-xs text-gray-400">Weapons:</span>
-                            <span class="text-sm text-gray-200 ml-1">@string.Join(", ", Character.Weapons)</span>
+                        <div class="bg-gray-700/50 rounded px-2 py-1 flex items-center gap-1">
+                            <Span Size="TextSize.SM" Weight="FontWeight.Bold" CustomColor="text-gray-300">@Character.PlatinumPieces</Span>
+                            <Span Size="TextSize.XS" CustomColor="text-gray-400">pp</Span>
                         </div>
                     }
-                    @if (Character.Equipment.Any())
+                    @if (Character.GoldPieces > 0)
                     {
-                        <div>
-                            <span class="text-xs text-gray-400">Items:</span>
-                            <span class="text-sm text-gray-200 ml-1">@string.Join(", ", Character.Equipment)</span>
+                        <div class="bg-gray-700/50 rounded px-2 py-1 flex items-center gap-1">
+                            <Span Size="TextSize.SM" Weight="FontWeight.Bold" CustomColor="text-yellow-400">@Character.GoldPieces</Span>
+                            <Span Size="TextSize.XS" CustomColor="text-gray-400">gp</Span>
                         </div>
                     }
-                    @if (Character.GoldPieces > 0 || Character.SilverPieces > 0)
+                    @if (Character.SilverPieces > 0)
                     {
-                        <div>
-                            <span class="text-xs text-gray-400">Currency:</span>
-                            <span class="text-sm text-yellow-400 ml-1">
-                                @if (Character.GoldPieces > 0) { <span>@Character.GoldPieces gp</span> }
-                                @if (Character.SilverPieces > 0) { <span class="ml-1">@Character.SilverPieces sp</span> }
-                                @if (Character.CopperPieces > 0) { <span class="ml-1">@Character.CopperPieces cp</span> }
-                            </span>
+                        <div class="bg-gray-700/50 rounded px-2 py-1 flex items-center gap-1">
+                            <Span Size="TextSize.SM" Weight="FontWeight.Bold" CustomColor="text-gray-300">@Character.SilverPieces</Span>
+                            <Span Size="TextSize.XS" CustomColor="text-gray-400">sp</Span>
+                        </div>
+                    }
+                    @if (Character.CopperPieces > 0)
+                    {
+                        <div class="bg-gray-700/50 rounded px-2 py-1 flex items-center gap-1">
+                            <Span Size="TextSize.SM" Weight="FontWeight.Bold" CustomColor="text-orange-400">@Character.CopperPieces</Span>
+                            <Span Size="TextSize.XS" CustomColor="text-gray-400">cp</Span>
                         </div>
                     }
                 </div>
             }
-        </div>
+            
+            @* Weapons & Equipment *@
+            <div class="space-y-2">
+                @if (Character.Weapons.Any())
+                {
+                    <div class="flex flex-wrap gap-1 items-center">
+                        <Span Size="TextSize.XS" CustomColor="text-gray-500" class="w-16">Weapons:</Span>
+                        @foreach (var weapon in Character.Weapons)
+                        {
+                            <Badge Color="BadgeColor.Pink" class="!text-xs">@weapon</Badge>
+                        }
+                    </div>
+                }
+                @if (Character.Equipment.Any())
+                {
+                    <div class="flex flex-wrap gap-1 items-center">
+                        <Span Size="TextSize.XS" CustomColor="text-gray-500" class="w-16">Items:</Span>
+                        @foreach (var item in Character.Equipment)
+                        {
+                            <Badge Color="BadgeColor.Gray" class="!text-xs">@item</Badge>
+                        }
+                    </div>
+                }
+            </div>
+        </Card>
     }
-</Card>
+
+    @* ===== ROLEPLAY / CHARACTER TRAITS ===== *@
+    @if (HasRoleplayContent())
+    {
+        <Card class="!max-w-none p-4 bg-gray-800 border-gray-700">
+            <Heading Tag="HeadingTag.H3" Size="TextSize.SM" CustomColor="text-gray-400" class="!mb-3">Character Traits</Heading>
+            <div class="space-y-3">
+                @if (!string.IsNullOrWhiteSpace(Character.PersonalityTraits))
+                {
+                    <div>
+                        <Span Size="TextSize.XS" CustomColor="text-purple-400" Weight="FontWeight.Medium" class="block mb-1">Personality</Span>
+                        <Paragraph Size="TextSize.SM" class="!text-gray-300 !mt-0 italic">@Character.PersonalityTraits</Paragraph>
+                    </div>
+                }
+                @if (!string.IsNullOrWhiteSpace(Character.Ideals))
+                {
+                    <div>
+                        <Span Size="TextSize.XS" CustomColor="text-yellow-400" Weight="FontWeight.Medium" class="block mb-1">Ideals</Span>
+                        <Paragraph Size="TextSize.SM" class="!text-gray-300 !mt-0 italic">@Character.Ideals</Paragraph>
+                    </div>
+                }
+                @if (!string.IsNullOrWhiteSpace(Character.Bonds))
+                {
+                    <div>
+                        <Span Size="TextSize.XS" CustomColor="text-blue-400" Weight="FontWeight.Medium" class="block mb-1">Bonds</Span>
+                        <Paragraph Size="TextSize.SM" class="!text-gray-300 !mt-0 italic">@Character.Bonds</Paragraph>
+                    </div>
+                }
+                @if (!string.IsNullOrWhiteSpace(Character.Flaws))
+                {
+                    <div>
+                        <Span Size="TextSize.XS" CustomColor="text-red-400" Weight="FontWeight.Medium" class="block mb-1">Flaws</Span>
+                        <Paragraph Size="TextSize.SM" class="!text-gray-300 !mt-0 italic">@Character.Flaws</Paragraph>
+                    </div>
+                }
+            </div>
+        </Card>
+    }
+
+    @* ===== BACKSTORY ===== *@
+    @if (!string.IsNullOrWhiteSpace(Character.Backstory))
+    {
+        <Card class="!max-w-none p-4 bg-gray-800 border-gray-700">
+            <Heading Tag="HeadingTag.H3" Size="TextSize.SM" CustomColor="text-gray-400" class="!mb-3">Backstory</Heading>
+            <Paragraph Size="TextSize.SM" class="!text-gray-300 !mt-0 whitespace-pre-wrap">@Character.Backstory</Paragraph>
+        </Card>
+    }
+
+    @* ===== STATUS NOTES (if any) ===== *@
+    @if (!string.IsNullOrWhiteSpace(Character.StatusNotes))
+    {
+        <Card class="!max-w-none p-4 bg-amber-900/20 border-amber-700/50">
+            <div class="flex items-center gap-2 mb-2">
+                <span class="text-amber-400">📝</span>
+                <Heading Tag="HeadingTag.H3" Size="TextSize.SM" CustomColor="text-amber-400" class="!mb-0">DM Notes</Heading>
+            </div>
+            <Paragraph Size="TextSize.SM" class="!text-amber-200/90 !mt-0">@Character.StatusNotes</Paragraph>
+        </Card>
+    }
+</div>
 
 @code {
     [Parameter, EditorRequired]
     public Character Character { get; set; } = null!;
-    
-    private bool showProficiencies = false;
-    private bool showSpells = false;
-    private bool showEquipment = false;
     
     private string GetClassIcon() => Character.Class?.ToLower() switch
     {
@@ -255,6 +378,8 @@
         _ => "👤"
     };
     
+    private string FormatModifier(int mod) => mod >= 0 ? $"+{mod}" : mod.ToString();
+    
     private double GetHpPercentage()
     {
         if (Character.MaxHp <= 0) return 0;
@@ -272,6 +397,12 @@
         };
     }
     
+    private bool HasAnyCurrency() => 
+        Character.PlatinumPieces > 0 || 
+        Character.GoldPieces > 0 || 
+        Character.SilverPieces > 0 || 
+        Character.CopperPieces > 0;
+    
     private BadgeColor GetConditionColor(string condition) => condition.ToLower() switch
     {
         "poisoned" => BadgeColor.Success,
@@ -286,4 +417,10 @@
         "exhausted" => BadgeColor.Pink,
         _ => BadgeColor.Info
     };
+    
+    private bool HasRoleplayContent() =>
+        !string.IsNullOrWhiteSpace(Character.PersonalityTraits) ||
+        !string.IsNullOrWhiteSpace(Character.Ideals) ||
+        !string.IsNullOrWhiteSpace(Character.Bonds) ||
+        !string.IsNullOrWhiteSpace(Character.Flaws);
 }
