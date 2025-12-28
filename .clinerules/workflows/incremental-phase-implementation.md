@@ -368,6 +368,9 @@ Create or update the objective-specific verification checklist:
 **Status:** In Progress | Complete | Blocked
 
 ## Acceptance Criteria
+
+> These should directly from the section ## [Phase # Completion Checklist] of the phase#_implementation_plan.md
+
 - [ ] Criterion 1
 - [ ] Criterion 2
 - [ ] Criterion 3
@@ -379,7 +382,7 @@ Create or update the objective-specific verification checklist:
 ## Tests Performed
 - [ ] Build passes (`python build.py`)
 - [ ] Application starts (`python build.py start`)
-- [ ] Functional test: {description}
+- [ ] Functional test: {description} NOTE: The Test performed should verify the acceptance criteira is fully achieved.
 - [ ] No console errors
 
 ## Commits
