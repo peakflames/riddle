@@ -1,0 +1,155 @@
+@using Riddle.Web.Models
+@using Riddle.Web.Services
+@inject ICampaignService CampaignService
+@inject IJSRuntime JSRuntime
+
+<Modal Show="@Show" ShowChanged="@ShowChanged" Size="ModalSize.Medium">
+    <ModalHeader>
+        <h3 class="flex items-center gap-2">
+            <ShareNodesIcon Class="w-5 h-5" />
+            Invite Players
+        </h3>
+    </ModalHeader>
+    <ModalBody>
+        <div class="space-y-4">
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+                Share this link with your players to let them join your campaign:
+            </p>
+            
+            <!-- Invite Link Display -->
+            <div class="flex items-center gap-2">
+                <div class="flex-1 p-3 bg-gray-100 dark:bg-gray-700 rounded-lg font-mono text-sm text-gray-900 dark:text-white break-all">
+                    @InviteUrl
+                </div>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="flex flex-wrap gap-2">
+                <Button Color="ButtonColor.Primary" OnClick="@CopyToClipboard">
+                    @if (_copied)
+                    {
+                        <CheckIcon Class="w-4 h-4 mr-2" />
+                        <span>Copied!</span>
+                    }
+                    else
+                    {
+                        <ClipboardArrowIcon Class="w-4 h-4 mr-2" />
+                        <span>Copy Link</span>
+                    }
+                </Button>
+                
+                <Button Color="ButtonColor.Light" OnClick="@ShowRegenerateConfirmation">
+                    <RefreshIcon Class="w-4 h-4 mr-2" />
+                    Regenerate
+                </Button>
+            </div>
+            
+            @if (_showRegenerateConfirm)
+            {
+                <Alert Color="AlertColor.Warning" WithBorderAccent="true">
+                    <div class="flex flex-col gap-3">
+                        <p class="text-sm font-medium">Are you sure you want to regenerate the invite code?</p>
+                        <p class="text-xs text-gray-600 dark:text-gray-400">
+                            This will invalidate the current invite link. Players using the old link will no longer be able to join.
+                        </p>
+                        <div class="flex gap-2">
+                            <Button Size="ButtonSize.Small" Color="ButtonColor.Red" OnClick="@RegenerateInviteCode">
+                                Yes, Regenerate
+                            </Button>
+                            <Button Size="ButtonSize.Small" Color="ButtonColor.Light" OnClick="@CancelRegenerate">
+                                Cancel
+                            </Button>
+                        </div>
+                    </div>
+                </Alert>
+            }
+            
+            <!-- Help Text -->
+            <div class="text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 pt-3">
+                <p class="flex items-center gap-1">
+                    <InfoCircleIcon Class="w-3 h-3" />
+                    Players will need to sign in with their Google account to claim a character.
+                </p>
+            </div>
+        </div>
+    </ModalBody>
+    <ModalFooter>
+        <div class="flex justify-end w-full">
+            <Button Color="ButtonColor.Gray" OnClick="@Close">Close</Button>
+        </div>
+    </ModalFooter>
+</Modal>
+
+@code {
+    [Parameter]
+    public bool Show { get; set; }
+    
+    [Parameter]
+    public EventCallback<bool> ShowChanged { get; set; }
+    
+    [Parameter]
+    public CampaignInstance? Campaign { get; set; }
+    
+    [Parameter]
+    public EventCallback<string> OnInviteCodeRegenerated { get; set; }
+    
+    private bool _copied;
+    private bool _showRegenerateConfirm;
+    
+    private string InviteUrl => Campaign != null 
+        ? $"{NavigationManager.BaseUri}join/{Campaign.InviteCode}"
+        : "";
+    
+    [Inject]
+    private NavigationManager NavigationManager { get; set; } = default!;
+    
+    private async Task CopyToClipboard()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", InviteUrl);
+            _copied = true;
+            StateHasChanged();
+            
+            // Reset the "Copied!" state after 2 seconds
+            await Task.Delay(2000);
+            _copied = false;
+            StateHasChanged();
+        }
+        catch
+        {
+            // Clipboard API may not be available in all contexts
+        }
+    }
+    
+    private void ShowRegenerateConfirmation()
+    {
+        _showRegenerateConfirm = true;
+    }
+    
+    private void CancelRegenerate()
+    {
+        _showRegenerateConfirm = false;
+    }
+    
+    private async Task RegenerateInviteCode()
+    {
+        if (Campaign == null) return;
+        
+        var newCode = await CampaignService.RegenerateInviteCodeAsync(Campaign.Id);
+        Campaign.InviteCode = newCode;
+        
+        _showRegenerateConfirm = false;
+        _copied = false;
+        
+        await OnInviteCodeRegenerated.InvokeAsync(newCode);
+        StateHasChanged();
+    }
+    
+    private async Task Close()
+    {
+        _showRegenerateConfirm = false;
+        _copied = false;
+        await ShowChanged.InvokeAsync(false);
+    }
+}

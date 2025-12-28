@@ -6,6 +6,7 @@
 @using Riddle.Web.Components.Chat
 @using Riddle.Web.Components.Debug
 @using Riddle.Web.Components.Characters
+@using Riddle.Web.Components.Shared
 @implements IDisposable
 @inject ICampaignService CampaignService
 @inject IGameStateService GameStateService
@@ -62,6 +63,10 @@
                         </div>
                     </div>
                     <div class="flex items-center gap-2">
+                        <Button Color="ButtonColor.Light" Size="ButtonSize.Small" OnClick="@OpenInviteModal">
+                            <ShareNodesIcon Class="w-4 h-4 mr-2" />
+                            Invite Players
+                        </Button>
                         <Badge Color="BadgeColor.Success">Active</Badge>
                     </div>
                 </div>
@@ -179,6 +184,12 @@
                 @bind-Show="_showCharacterModal"
                 EditingCharacter="@_editingCharacter"
                 OnSave="@HandleSaveCharacter" />
+            
+            <!-- Invite Link Modal -->
+            <InviteLinkModal 
+                @bind-Show="_showInviteModal"
+                Campaign="@campaign"
+                OnInviteCodeRegenerated="@HandleInviteCodeRegenerated" />
         }
     </Authorized>
     <NotAuthorized>
@@ -197,6 +208,9 @@
     // Character management state
     private bool _showCharacterModal;
     private Character? _editingCharacter;
+    
+    // Invite modal state
+    private bool _showInviteModal;
 
     protected override async Task OnInitializedAsync()
     {
@@ -339,6 +353,18 @@
         campaign.PartyState = party;
         
         await CampaignService.UpdateCampaignAsync(campaign);
+        StateHasChanged();
+    }
+    
+    // Invite Modal Methods
+    private void OpenInviteModal()
+    {
+        _showInviteModal = true;
+    }
+    
+    private void HandleInviteCodeRegenerated(string newCode)
+    {
+        // Campaign object is already updated by the modal
         StateHasChanged();
     }
 }
