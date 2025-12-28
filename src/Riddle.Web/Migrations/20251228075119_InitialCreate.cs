@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Riddle.Web.Migrations
 {
     /// <inheritdoc />
-    public partial class AddGameEntities : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -160,11 +160,12 @@ namespace Riddle.Web.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "RiddleSessions",
+                name: "CampaignInstances",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    CampaignName = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
+                    Name = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
+                    CampaignModule = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
                     LastActivityAt = table.Column<DateTime>(type: "TEXT", nullable: false),
                     DmUserId = table.Column<string>(type: "TEXT", nullable: false),
@@ -185,11 +186,38 @@ namespace Riddle.Web.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_RiddleSessions", x => x.Id);
+                    table.PrimaryKey("PK_CampaignInstances", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_RiddleSessions_AspNetUsers_DmUserId",
+                        name: "FK_CampaignInstances_AspNetUsers_DmUserId",
                         column: x => x.DmUserId,
                         principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "PlaySessions",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
+                    CampaignInstanceId = table.Column<Guid>(type: "TEXT", nullable: false),
+                    SessionNumber = table.Column<int>(type: "INTEGER", nullable: false),
+                    StartedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    EndedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    IsActive = table.Column<bool>(type: "INTEGER", nullable: false),
+                    StartLocationId = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
+                    EndLocationId = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
+                    DmNotes = table.Column<string>(type: "TEXT", maxLength: 5000, nullable: true),
+                    KeyEventsJson = table.Column<string>(type: "text", nullable: false),
+                    Title = table.Column<string>(type: "TEXT", maxLength: 200, nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_PlaySessions", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_PlaySessions_CampaignInstances_CampaignInstanceId",
+                        column: x => x.CampaignInstanceId,
+                        principalTable: "CampaignInstances",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -232,9 +260,14 @@ namespace Riddle.Web.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_RiddleSessions_DmUserId",
-                table: "RiddleSessions",
+                name: "IX_CampaignInstances_DmUserId",
+                table: "CampaignInstances",
                 column: "DmUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PlaySessions_CampaignInstanceId",
+                table: "PlaySessions",
+                column: "CampaignInstanceId");
         }
 
         /// <inheritdoc />
@@ -256,10 +289,13 @@ namespace Riddle.Web.Migrations
                 name: "AspNetUserTokens");
 
             migrationBuilder.DropTable(
-                name: "RiddleSessions");
+                name: "PlaySessions");
 
             migrationBuilder.DropTable(
                 name: "AspNetRoles");
+
+            migrationBuilder.DropTable(
+                name: "CampaignInstances");
 
             migrationBuilder.DropTable(
                 name: "AspNetUsers");

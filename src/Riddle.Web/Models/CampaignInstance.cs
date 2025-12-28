@@ -6,26 +6,34 @@ using Microsoft.EntityFrameworkCore;
 namespace Riddle.Web.Models;
 
 /// <summary>
-/// Root entity representing a game session
+/// Root entity representing a campaign instance - the entire playthrough of a campaign 
+/// module (e.g., Lost Mine of Phandelver) with a specific party, spanning weeks/months.
 /// </summary>
 [Index(nameof(DmUserId))]
-public class RiddleSession
+public class CampaignInstance
 {
     /// <summary>
-    /// Unique identifier for the session (UUID v7 for time-ordered sorting)
+    /// Unique identifier for the campaign instance (UUID v7 for time-ordered sorting)
     /// </summary>
     [Key]
     public Guid Id { get; set; } = Guid.CreateVersion7();
     
     /// <summary>
-    /// Name of the campaign
+    /// Display name for this campaign instance (e.g., "Tuesday Night Group")
     /// </summary>
     [Required]
     [MaxLength(200)]
-    public string CampaignName { get; set; } = "Lost Mine of Phandelver";
+    public string Name { get; set; } = "My Campaign";
     
     /// <summary>
-    /// When this session was created
+    /// The campaign module being played (e.g., "Lost Mine of Phandelver")
+    /// </summary>
+    [Required]
+    [MaxLength(200)]
+    public string CampaignModule { get; set; } = "Lost Mine of Phandelver";
+    
+    /// <summary>
+    /// When this campaign instance was created
     /// </summary>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     
@@ -138,6 +146,12 @@ public class RiddleSession
     [MaxLength(5000)]
     public string? CurrentReadAloudText { get; set; }
     
+    // Navigation property for PlaySessions
+    /// <summary>
+    /// Collection of individual play sessions (game nights) within this campaign
+    /// </summary>
+    public List<PlaySession> PlaySessions { get; set; } = [];
+    
     // NotMapped properties for JSON deserialization convenience
     
     /// <summary>
@@ -146,7 +160,7 @@ public class RiddleSession
     [NotMapped]
     public List<string> CompletedMilestones
     {
-        get => JsonSerializer.Deserialize<List<string>>(CompletedMilestonesJson) ?? new();
+        get => JsonSerializer.Deserialize<List<string>>(CompletedMilestonesJson) ?? [];
         set => CompletedMilestonesJson = JsonSerializer.Serialize(value);
     }
     
@@ -156,7 +170,7 @@ public class RiddleSession
     [NotMapped]
     public List<string> KnownNpcIds
     {
-        get => JsonSerializer.Deserialize<List<string>>(KnownNpcIdsJson) ?? new();
+        get => JsonSerializer.Deserialize<List<string>>(KnownNpcIdsJson) ?? [];
         set => KnownNpcIdsJson = JsonSerializer.Serialize(value);
     }
     
@@ -166,7 +180,7 @@ public class RiddleSession
     [NotMapped]
     public List<string> DiscoveredLocations
     {
-        get => JsonSerializer.Deserialize<List<string>>(DiscoveredLocationsJson) ?? new();
+        get => JsonSerializer.Deserialize<List<string>>(DiscoveredLocationsJson) ?? [];
         set => DiscoveredLocationsJson = JsonSerializer.Serialize(value);
     }
     
@@ -176,7 +190,7 @@ public class RiddleSession
     [NotMapped]
     public List<Character> PartyState
     {
-        get => JsonSerializer.Deserialize<List<Character>>(PartyStateJson) ?? new();
+        get => JsonSerializer.Deserialize<List<Character>>(PartyStateJson) ?? [];
         set => PartyStateJson = JsonSerializer.Serialize(value);
     }
     
@@ -186,7 +200,7 @@ public class RiddleSession
     [NotMapped]
     public List<Quest> ActiveQuests
     {
-        get => JsonSerializer.Deserialize<List<Quest>>(ActiveQuestsJson) ?? new();
+        get => JsonSerializer.Deserialize<List<Quest>>(ActiveQuestsJson) ?? [];
         set => ActiveQuestsJson = JsonSerializer.Serialize(value);
     }
     
@@ -208,7 +222,7 @@ public class RiddleSession
     [NotMapped]
     public List<LogEntry> NarrativeLog
     {
-        get => JsonSerializer.Deserialize<List<LogEntry>>(NarrativeLogJson) ?? new();
+        get => JsonSerializer.Deserialize<List<LogEntry>>(NarrativeLogJson) ?? [];
         set => NarrativeLogJson = JsonSerializer.Serialize(value);
     }
     
@@ -228,7 +242,7 @@ public class RiddleSession
     [NotMapped]
     public List<string> ActivePlayerChoices
     {
-        get => JsonSerializer.Deserialize<List<string>>(ActivePlayerChoicesJson) ?? new();
+        get => JsonSerializer.Deserialize<List<string>>(ActivePlayerChoicesJson) ?? [];
         set => ActivePlayerChoicesJson = JsonSerializer.Serialize(value);
     }
 }

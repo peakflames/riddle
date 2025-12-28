@@ -1,12 +1,12 @@
-@page "/sessions/new"
+@page "/campaigns/new"
 @rendermode InteractiveServer
 @using Microsoft.AspNetCore.Components.Authorization
 @using Riddle.Web.Services
-@inject ISessionService SessionService
+@inject ICampaignService CampaignService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
 
-<PageTitle>New Session - Riddle</PageTitle>
+<PageTitle>New Campaign - Riddle</PageTitle>
 
 <AuthorizeView>
     <Authorized>
@@ -14,19 +14,19 @@
             <Card Size="CardSize.ExtraLarge" class="max-w-none">
                 <div class="p-6">
                     <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">
-                        Create New Session
+                        Create New Campaign
                     </h2>
                     
-                    <EditForm Model="@model" OnValidSubmit="@HandleSubmit" FormName="new-session" Context="editContext">
+                    <EditForm Model="@model" OnValidSubmit="@HandleSubmit" FormName="new-campaign" Context="editContext">
                         <DataAnnotationsValidator />
                         
                         <div class="mb-6">
-                            <Label For="campaignName" Value="Campaign Name" class="mb-2 block" />
-                            <TextInput Id="campaignName" 
-                                       @bind-Value="model.CampaignName" 
-                                       Placeholder="e.g., Lost Mine of Phandelver"
+                            <Label For="name" Value="Campaign Name" class="mb-2 block" />
+                            <TextInput Id="name" 
+                                       @bind-Value="model.Name" 
+                                       Placeholder="e.g., Tuesday Night Group"
                                        class="w-full" />
-                            <ValidationMessage For="@(() => model.CampaignName)" class="text-red-500 text-sm mt-1" />
+                            <ValidationMessage For="@(() => model.Name)" class="text-red-500 text-sm mt-1" />
                         </div>
                         
                         <div class="mb-6">
@@ -83,7 +83,7 @@
                                 else
                                 {
                                     <PlusIcon Class="mr-2 h-5 w-5" />
-                                    <span>Create Session</span>
+                                    <span>Create Campaign</span>
                                 }
                             </Button>
                             <Button Href="/" Color="ButtonColor.Light" class="flex-1">
@@ -101,16 +101,16 @@
 </AuthorizeView>
 
 @code {
-    private NewSessionModel model = new();
+    private NewCampaignModel model = new();
     private bool isSubmitting = false;
     private string? errorMessage;
     private string? currentUserId;
 
-    public class NewSessionModel
+    public class NewCampaignModel
     {
         [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Campaign name is required")]
         [System.ComponentModel.DataAnnotations.StringLength(200, MinimumLength = 3, ErrorMessage = "Campaign name must be between 3 and 200 characters")]
-        public string CampaignName { get; set; } = "Lost Mine of Phandelver";
+        public string Name { get; set; } = "Lost Mine of Phandelver";
         
         public string ModuleId { get; set; } = "lost_mine";
     }
@@ -131,11 +131,11 @@
         model.ModuleId = moduleId;
         
         // Auto-set campaign name based on module
-        model.CampaignName = moduleId switch
+        model.Name = moduleId switch
         {
             "lost_mine" => "Lost Mine of Phandelver",
             "homebrew" => "My Homebrew Campaign",
-            _ => model.CampaignName
+            _ => model.Name
         };
     }
 
@@ -155,7 +155,7 @@
     {
         if (string.IsNullOrEmpty(currentUserId))
         {
-            errorMessage = "You must be logged in to create a session.";
+            errorMessage = "You must be logged in to create a campaign.";
             return;
         }
         
@@ -164,12 +164,19 @@
         
         try
         {
-            var session = await SessionService.CreateSessionAsync(currentUserId, model.CampaignName);
-            Navigation.NavigateTo($"/dm/{session.Id}");
+            var campaignModule = model.ModuleId switch
+            {
+                "lost_mine" => "Lost Mine of Phandelver",
+                "homebrew" => "Homebrew",
+                _ => "Lost Mine of Phandelver"
+            };
+            
+            var campaign = await CampaignService.CreateCampaignAsync(currentUserId, model.Name, campaignModule);
+            Navigation.NavigateTo($"/dm/{campaign.Id}");
         }
         catch (Exception ex)
         {
-            errorMessage = $"Failed to create session: {ex.Message}";
+            errorMessage = $"Failed to create campaign: {ex.Message}";
             isSubmitting = false;
         }
     }
