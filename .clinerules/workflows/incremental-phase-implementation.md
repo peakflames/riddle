@@ -256,6 +256,63 @@ Only after user approval:
    - Mark objective as complete in `docs/phase{N}_objectives_assessment.md`
 </push_merge>
 
+### Step 9: Update Version and Changelog (After Feature Completion)
+
+<versioning>
+After completing a feature or objective:
+
+1. **Increment Version in csproj**
+   
+   Edit `src/Riddle.Web/Riddle.Web.csproj`:
+   ```xml
+   <Version>0.2.0</Version>
+   <AssemblyVersion>0.2.0.0</AssemblyVersion>
+   <FileVersion>0.2.0.0</FileVersion>
+   <InformationalVersion>0.2.0</InformationalVersion>
+   ```
+   
+   Version increment rules:
+   - **MINOR** (0.1.0 → 0.2.0): New feature or objective completed
+   - **PATCH** (0.1.0 → 0.1.1): Bug fix
+   - **MAJOR** (0.x.x → 1.0.0): Breaking changes or major milestone
+
+2. **Update CHANGELOG.md**
+   
+   Move items from `[Unreleased]` to new version section:
+   ```markdown
+   ## [Unreleased]
+   
+   ## [0.2.0] - YYYY-MM-DD
+   ### Added
+   - New feature description
+   
+   ### Fixed
+   - Bug fix description
+   ```
+   
+   Categories: Added, Changed, Deprecated, Removed, Fixed, Security
+
+3. **Update Footer Links**
+   ```markdown
+   [Unreleased]: https://github.com/peakflames/riddle/compare/v0.2.0...HEAD
+   [0.2.0]: https://github.com/peakflames/riddle/compare/v0.1.0...v0.2.0
+   [0.1.0]: https://github.com/peakflames/riddle/releases/tag/v0.1.0
+   ```
+
+4. **Commit Version Bump**
+   ```bash
+   git add src/Riddle.Web/Riddle.Web.csproj CHANGELOG.md
+   git commit -m "chore(release): bump version to 0.2.0"
+   git push origin develop
+   ```
+
+5. **Create Git Tag (Optional, for releases)**
+   ```bash
+   git tag -a v0.2.0 -m "Version 0.2.0"
+   git push origin v0.2.0
+   ```
+</versioning>
+
 ---
 
 ## LLM Implementer Guidelines

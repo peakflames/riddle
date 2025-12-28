@@ -105,6 +105,35 @@ No automated test project yet. Before submitting:
 4. Check browser console for errors
 5. Review `riddle.log` for runtime issues
 
+## Versioning
+
+This project uses [Semantic Versioning](https://semver.org/):
+
+- **MAJOR**: Breaking changes or major milestones
+- **MINOR**: New features (increment after each feature/objective)
+- **PATCH**: Bug fixes
+
+### After Merging a Feature
+
+1. **Update version** in `src/Riddle.Web/Riddle.Web.csproj`:
+   ```xml
+   <Version>0.2.0</Version>
+   <AssemblyVersion>0.2.0.0</AssemblyVersion>
+   <FileVersion>0.2.0.0</FileVersion>
+   <InformationalVersion>0.2.0</InformationalVersion>
+   ```
+
+2. **Update CHANGELOG.md**:
+   - Move items from `[Unreleased]` to new version section
+   - Add release date
+   - Use categories: Added, Changed, Deprecated, Removed, Fixed, Security
+
+3. **Commit and push**:
+   ```bash
+   git commit -m "chore(release): bump version to 0.2.0"
+   git push origin develop
+   ```
+
 ## Project Structure
 
 ```
