@@ -1,0 +1,314 @@
+@page "/play/{CampaignId:guid}"
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+@using Riddle.Web.Models
+@using Riddle.Web.Services
+@using Riddle.Web.Components.Player
+@using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
+
+@inject ICampaignService CampaignService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>@(campaign?.Name ?? "Player Dashboard") - Riddle</PageTitle>
+
+<div class="min-h-screen bg-gray-900">
+    @if (isLoading)
+    {
+        <div class="flex items-center justify-center h-screen">
+            <Spinner Size="SpinnerSize.Xl" Color="SpinnerColor.Purple" />
+        </div>
+    }
+    else if (errorMessage != null)
+    {
+        <div class="flex items-center justify-center h-screen">
+            <Card class="max-w-md bg-gray-800 border-gray-700">
+                <div class="text-center">
+                    <span class="text-4xl mb-4 block">❌</span>
+                    <h2 class="text-xl font-bold text-white mb-2">Error</h2>
+                    <p class="text-gray-400 mb-4">@errorMessage</p>
+                    <Button Color="ButtonColor.Primary" @onclick="GoHome">
+                        Return Home
+                    </Button>
+                </div>
+            </Card>
+        </div>
+    }
+    else if (selectedCharacter == null)
+    {
+        @* Character Selection Screen *@
+        <div class="container mx-auto px-4 py-8">
+            <div class="max-w-2xl mx-auto">
+                <Card class="bg-gray-800 border-gray-700">
+                    <div class="text-center mb-6">
+                        <h1 class="text-2xl font-bold text-white mb-2">@campaign!.Name</h1>
+                        <p class="text-gray-400">@campaign.CampaignModule</p>
+                    </div>
+                    
+                    @if (playerCharacters.Count == 0)
+                    {
+                        <div class="text-center py-8">
+                            <span class="text-4xl mb-4 block">🎭</span>
+                            <h2 class="text-xl font-bold text-white mb-2">No Characters Assigned</h2>
+                            <p class="text-gray-400 mb-4">You don't have any characters in this campaign yet.</p>
+                            <p class="text-gray-500 text-sm">Ask your DM to assign you a character.</p>
+                        </div>
+                    }
+                    else if (playerCharacters.Count == 1)
+                    {
+                        @* Auto-select single character *@
+                        <div class="text-center py-4">
+                            <Spinner Size="SpinnerSize.Md" Color="SpinnerColor.Purple" />
+                            <p class="text-gray-400 mt-2">Loading your character...</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <h2 class="text-lg font-semibold text-white mb-4">Select Your Character</h2>
+                        <div class="space-y-3">
+                            @foreach (var character in playerCharacters)
+                            {
+                                <button class="w-full p-4 bg-gray-700/50 hover:bg-gray-700 rounded-lg transition-colors text-left flex items-center gap-4"
+                                        @onclick="() => SelectCharacter(character)">
+                                    <div class="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-full flex items-center justify-center text-xl">
+                                        @GetClassIcon(character.Class)
+                                    </div>
+                                    <div class="flex-1">
+                                        <span class="text-white font-semibold block">@character.Name</span>
+                                        <span class="text-gray-400 text-sm">@character.DisplayRaceClass • Level @character.Level</span>
+                                    </div>
+                                    <div class="text-right">
+                                        <span class="text-white font-bold">@character.CurrentHp/@character.MaxHp HP</span>
+                                    </div>
+                                </button>
+                            }
+                        </div>
+                    }
+                </Card>
+            </div>
+        </div>
+    }
+    else
+    {
+        @* Main Dashboard View *@
+        <div class="container mx-auto px-4 py-6">
+            @* Header *@
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h1 class="text-2xl font-bold text-white">@campaign!.Name</h1>
+                    <p class="text-gray-400 text-sm">@campaign.CampaignModule • Playing as @selectedCharacter.Name</p>
+                </div>
+                <div class="flex items-center gap-4">
+                    @* Connection Status *@
+                    <Badge Color="BadgeColor.Success" class="flex items-center gap-1">
+                        <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                        Connected
+                    </Badge>
+                    @if (playerCharacters.Count > 1)
+                    {
+                        <Button Color="ButtonColor.Light" Size="ButtonSize.Small" 
+                                @onclick="ClearCharacterSelection">
+                            Switch Character
+                        </Button>
+                    }
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                @* Left Column: Character Card *@
+                <div class="lg:col-span-1">
+                    <PlayerCharacterCard Character="selectedCharacter" />
+                </div>
+                
+                @* Right Column: Game State Panels *@
+                <div class="lg:col-span-2 space-y-6">
+                    @* Scene Image *@
+                    @if (!string.IsNullOrEmpty(campaign.CurrentSceneImageUri))
+                    {
+                        <Card class="!max-w-none bg-gray-800 border-gray-700">
+                            <h3 class="text-lg font-semibold text-white mb-3">Current Scene</h3>
+                            <img src="@campaign.CurrentSceneImageUri" 
+                                 alt="Current scene" 
+                                 class="w-full rounded-lg object-cover max-h-64" />
+                        </Card>
+                    }
+                    
+                    @* Read Aloud Text *@
+                    @if (!string.IsNullOrEmpty(campaign.CurrentReadAloudText))
+                    {
+                        <Card class="!max-w-none bg-gradient-to-r from-purple-900/50 to-indigo-900/50 border-purple-700">
+                            <div class="flex items-start gap-3">
+                                <span class="text-2xl">📜</span>
+                                <div>
+                                    <h3 class="text-lg font-semibold text-purple-200 mb-2">The DM Reads...</h3>
+                                    <p class="text-gray-200 italic leading-relaxed whitespace-pre-wrap">@campaign.CurrentReadAloudText</p>
+                                </div>
+                            </div>
+                        </Card>
+                    }
+                    
+                    @* Active Player Choices *@
+                    @if (campaign.ActivePlayerChoices.Any())
+                    {
+                        <Card class="!max-w-none bg-gray-800 border-gray-700">
+                            <h3 class="text-lg font-semibold text-white mb-4">What do you do?</h3>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                @foreach (var choice in campaign.ActivePlayerChoices)
+                                {
+                                    <Button Color="ButtonColor.Primary" 
+                                            class="w-full justify-center"
+                                            Disabled="@hasSelectedChoice"
+                                            @onclick="() => SelectChoice(choice)">
+                                        @choice
+                                    </Button>
+                                }
+                            </div>
+                            @if (hasSelectedChoice)
+                            {
+                                <div class="mt-4 text-center">
+                                    <Badge Color="BadgeColor.Success">
+                                        ✓ You chose: @selectedChoice
+                                    </Badge>
+                                    <p class="text-gray-500 text-sm mt-2">Waiting for DM...</p>
+                                </div>
+                            }
+                        </Card>
+                    }
+                    else if (!string.IsNullOrEmpty(campaign.CurrentReadAloudText) || !string.IsNullOrEmpty(campaign.CurrentSceneImageUri))
+                    {
+                        @* Waiting state when no choices *@
+                        <Card class="!max-w-none bg-gray-800 border-gray-700">
+                            <div class="text-center py-4">
+                                <Spinner Size="SpinnerSize.Sm" Color="SpinnerColor.Purple" class="mb-3" />
+                                <p class="text-gray-400">Waiting for the DM...</p>
+                            </div>
+                        </Card>
+                    }
+                    
+                    @* Location Info *@
+                    <Card class="!max-w-none bg-gray-800 border-gray-700">
+                        <h3 class="text-lg font-semibold text-white mb-3">Current Location</h3>
+                        <div class="flex items-center gap-3">
+                            <span class="text-2xl">📍</span>
+                            <div>
+                                <span class="text-white font-medium block">@FormatLocationName(campaign.CurrentLocationId)</span>
+                                <span class="text-gray-500 text-sm">@FormatChapterName(campaign.CurrentChapterId)</span>
+                            </div>
+                        </div>
+                    </Card>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Guid CampaignId { get; set; }
+    
+    private CampaignInstance? campaign;
+    private List<Character> playerCharacters = [];
+    private Character? selectedCharacter;
+    private string? currentUserId;
+    private bool isLoading = true;
+    private string? errorMessage;
+    
+    private bool hasSelectedChoice = false;
+    private string? selectedChoice;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Get current user
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            if (user.Identity?.IsAuthenticated != true)
+            {
+                Navigation.NavigateTo($"/Account/Login?ReturnUrl=/play/{CampaignId}");
+                return;
+            }
+            
+            currentUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            
+            // Load campaign
+            campaign = await CampaignService.GetCampaignAsync(CampaignId);
+            if (campaign == null)
+            {
+                errorMessage = "Campaign not found.";
+                return;
+            }
+            
+            // Find characters belonging to this player
+            playerCharacters = campaign.PartyState
+                .Where(c => c.PlayerId == currentUserId && c.Type == "PC")
+                .ToList();
+            
+            // Auto-select if only one character
+            if (playerCharacters.Count == 1)
+            {
+                selectedCharacter = playerCharacters.First();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to load campaign: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+    
+    private void SelectCharacter(Character character)
+    {
+        selectedCharacter = character;
+    }
+    
+    private async Task SelectChoice(string choice)
+    {
+        // Mark choice as selected (will be sent via SignalR in future)
+        hasSelectedChoice = true;
+        selectedChoice = choice;
+        
+        // TODO: Phase 4 - Send choice to DM via SignalR
+        // await GameHub.SendChoiceAsync(CampaignId, selectedCharacter!.Id, choice);
+    }
+    
+    private void GoHome() => Navigation.NavigateTo("/");
+    
+    private void ClearCharacterSelection() => selectedCharacter = null;
+    
+    private string GetClassIcon(string? className) => className?.ToLower() switch
+    {
+        "fighter" => "⚔️",
+        "wizard" => "🧙",
+        "rogue" => "🗡️",
+        "cleric" => "✝️",
+        "paladin" => "🛡️",
+        "ranger" => "🏹",
+        "barbarian" => "💪",
+        "bard" => "🎵",
+        "druid" => "🌿",
+        "monk" => "👊",
+        "sorcerer" => "✨",
+        "warlock" => "👁️",
+        _ => "👤"
+    };
+    
+    private string FormatLocationName(string locationId)
+    {
+        // Convert snake_case to Title Case
+        return string.Join(" ", locationId.Split('_').Select(w => 
+            char.ToUpper(w[0]) + w.Substring(1).ToLower()));
+    }
+    
+    private string FormatChapterName(string chapterId)
+    {
+        // Convert "chapter_1" to "Chapter 1"
+        return string.Join(" ", chapterId.Split('_').Select(w => 
+            char.ToUpper(w[0]) + w.Substring(1).ToLower()));
+    }
+}

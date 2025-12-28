@@ -1,0 +1,18 @@
+@* AbilityScoreDisplay - Small display component for a single ability score *@
+
+<div class="bg-gray-700/50 rounded-lg p-2 text-center">
+    <span class="text-xs text-gray-400 block">@Name</span>
+    <span class="text-lg font-bold text-white">@Score</span>
+    <span class="text-xs text-gray-300 block">(@(Modifier >= 0 ? "+" : "")@Modifier)</span>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Name { get; set; } = null!;
+    
+    [Parameter]
+    public int Score { get; set; }
+    
+    [Parameter]
+    public int Modifier { get; set; }
+}
