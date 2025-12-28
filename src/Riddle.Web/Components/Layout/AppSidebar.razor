@@ -1,6 +1,7 @@
 @using Microsoft.AspNetCore.Components.Routing
+@using System.Reflection
 
-<div id="riddle-sidebar-outlet" class="h-full">
+<div id="riddle-sidebar-outlet" class="h-full flex flex-col">
     <Sidebar class="h-full">
 
         <SidebarItem
@@ -71,4 +72,21 @@
             </SidebarItem>
         </SidebarItemGroup>
     </Sidebar>
+    
+    <div class="mt-auto px-3 py-2 text-center">
+        <span class="text-xs text-gray-400 dark:text-gray-500">v@(AppVersion)</span>
+    </div>
 </div>
+
+@code {
+    private string AppVersion {
+        get {
+            var fullVersion = Assembly.GetEntryAssembly()
+                ?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+                ?.InformationalVersion ?? "0.0.0";
+            // Strip git hash suffix if present (e.g., "0.1.0+abc123..." -> "0.1.0")
+            var plusIndex = fullVersion.IndexOf('+');
+            return plusIndex > 0 ? fullVersion[..plusIndex] : fullVersion;
+        }
+    }
+}
