@@ -101,6 +101,7 @@ builder.Services.AddFlowbite();
 
 // Application Services
 builder.Services.AddScoped<ICampaignService, CampaignService>();
+builder.Services.AddScoped<IGameStateService, GameStateService>();
 
 var app = builder.Build();
 
