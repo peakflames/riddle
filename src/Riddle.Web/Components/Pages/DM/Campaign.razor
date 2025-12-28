@@ -3,6 +3,7 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Riddle.Web.Services
 @using Riddle.Web.Models
+@using Riddle.Web.Components.Chat
 @inject ICampaignService CampaignService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
@@ -61,48 +62,19 @@
                     </div>
                 </div>
                 
-                <!-- Main Content Area (Placeholder) -->
-                <div class="grid gap-4 lg:grid-cols-3">
-                    <!-- Left Column - Main Content -->
-                    <div class="lg:col-span-2 space-y-4">
-                        <Card Size="CardSize.ExtraLarge" class="max-w-none">
-                            <div class="p-6">
-                                <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-4">
-                                    <PlayIcon Class="inline-block w-5 h-5 mr-2" />
-                                    DM Interface
+                <!-- Main Content Area -->
+                <div class="grid gap-4 lg:grid-cols-3 lg:h-[calc(100vh-180px)]">
+                    <!-- Left Column - DM Chat (Full Height) -->
+                    <div class="lg:col-span-2 h-full">
+                        <Card Size="CardSize.ExtraLarge" class="max-w-none h-full">
+                            <div class="p-4 h-full flex flex-col">
+                                <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-4 flex-none">
+                                    <MessageDotsIcon Class="inline-block w-5 h-5 mr-2" />
+                                    DM Chat
                                 </h2>
-                                <div class="bg-gray-100 dark:bg-gray-800 rounded-lg p-8 text-center">
-                                    <RocketIcon Class="mx-auto h-16 w-16 text-gray-400 dark:text-gray-600" />
-                                    <h3 class="mt-4 text-lg font-medium text-gray-900 dark:text-white">
-                                        Coming Soon
-                                    </h3>
-                                    <p class="mt-2 text-gray-500 dark:text-gray-400">
-                                        The AI-powered DM interface will be implemented in Phase 2.
-                                        This will include narrative generation, combat management, and player choice handling.
-                                    </p>
+                                <div class="flex-1 min-h-0">
+                                    <DmChat CampaignId="@CampaignId" />
                                 </div>
-                            </div>
-                        </Card>
-                        
-                        <!-- Read-Aloud Section (Placeholder) -->
-                        <Card Size="CardSize.ExtraLarge" class="max-w-none">
-                            <div class="p-6">
-                                <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-4">
-                                    <BookOpenIcon Class="inline-block w-5 h-5 mr-2" />
-                                    Read-Aloud Text
-                                </h2>
-                                @if (!string.IsNullOrEmpty(campaign.CurrentReadAloudText))
-                                {
-                                    <div class="bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-500 p-4 italic text-gray-700 dark:text-gray-300">
-                                        @campaign.CurrentReadAloudText
-                                    </div>
-                                }
-                                else
-                                {
-                                    <p class="text-gray-500 dark:text-gray-400">
-                                        No read-aloud text available. Start session to generate narrative content.
-                                    </p>
-                                }
                             </div>
                         </Card>
                     </div>
@@ -190,6 +162,28 @@
                                         <dd class="text-gray-900 dark:text-white">@campaign.CompletedMilestones.Count completed</dd>
                                     </div>
                                 </dl>
+                            </div>
+                        </Card>
+                        
+                        <!-- Read-Aloud Text (moved from left column) -->
+                        <Card Size="CardSize.ExtraLarge" class="max-w-none">
+                            <div class="p-4">
+                                <h3 class="font-bold text-gray-900 dark:text-white mb-3">
+                                    <BookOpenIcon Class="inline-block w-4 h-4 mr-2" />
+                                    Read-Aloud Text
+                                </h3>
+                                @if (!string.IsNullOrEmpty(campaign.CurrentReadAloudText))
+                                {
+                                    <div class="bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-500 p-3 italic text-gray-700 dark:text-gray-300 text-sm">
+                                        @campaign.CurrentReadAloudText
+                                    </div>
+                                }
+                                else
+                                {
+                                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                                        No read-aloud text available. Start session to generate narrative content.
+                                    </p>
+                                }
                             </div>
                         </Card>
                     </div>

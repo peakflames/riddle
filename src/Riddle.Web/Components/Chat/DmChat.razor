@@ -1,0 +1,216 @@
+@* DmChat.razor - DM-to-LLM chat interface using Flowbite Chat components *@
+@using Riddle.Web.Services
+@inject IRiddleLlmService LlmService
+@inject ILogger<DmChat> Logger
+
+<div class="flex flex-col h-full">
+    <Conversation>
+        <ConversationContent AutoScrollBehavior="ConversationAutoScrollBehavior.StickToBottom" Class="px-2 py-4">
+            @if (!_messages.Any())
+            {
+                <div class="flex flex-col items-center justify-center h-48 text-center">
+                    <BookOpenIcon Class="w-12 h-12 text-purple-500 dark:text-purple-400 mb-3" />
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-1">Ready to Begin</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 max-w-sm">
+                        Describe a player action, ask for narrative guidance, or request a rules clarification.
+                    </p>
+                </div>
+            }
+            else
+            {
+                @foreach (var message in _messages)
+                {
+                    <ChatMessage @key="message.Id"
+                                 From="@message.Role"
+                                 AvatarInitials="@(message.Role == ChatMessageRole.User ? "DM" : "R")">
+                        <ChatMessageContent Variant="@(message.Role == ChatMessageRole.User ? ChatMessageVariant.Contained : ChatMessageVariant.Flat)">
+                            <ChatResponse Text="@message.Content" Role="@message.Role" />
+                            @if (message.IsStreaming && !string.IsNullOrEmpty(message.Content))
+                            {
+                                <span class="inline-block w-1.5 h-4 bg-purple-500 animate-pulse ml-0.5"></span>
+                            }
+                        </ChatMessageContent>
+                        
+                        @if (!message.IsStreaming && message.Role == ChatMessageRole.Assistant)
+                        {
+                            <ChatActions Class="justify-start -ml-3">
+                                <ChatAction Tooltip="Copy" OnClick="@(() => CopyMessageAsync(message.Content))">
+                                    <FileCopyAltIcon Class="h-4 w-4" aria-hidden="true" />
+                                </ChatAction>
+                            </ChatActions>
+                        }
+                    </ChatMessage>
+                }
+            }
+
+            @if (_isBusy && (_currentAssistantMessage == null || string.IsNullOrEmpty(_currentAssistantMessage.Content)))
+            {
+                <div class="flex items-center gap-2 px-4 pb-4 text-sm text-gray-500 dark:text-gray-400">
+                    <Loader />
+                    <span>@_busyLabel</span>
+                </div>
+            }
+        </ConversationContent>
+
+        <ConversationScrollButton />
+    </Conversation>
+
+    <PromptInput OnSubmit="HandleSubmitAsync"
+                 Text="@_inputText"
+                 TextChanged="HandleTextChanged">
+        <PromptInputBody>
+            <PromptInputTextarea Placeholder="Describe the action or ask Riddle for advice..." />
+        </PromptInputBody>
+        <PromptInputFooter Class="flex items-center justify-between">
+            <span class="text-xs text-gray-400 dark:text-gray-500">
+                Press Enter to send
+            </span>
+            <PromptInputSubmit Status="@_submissionStatus"
+                               Disabled="@(string.IsNullOrWhiteSpace(_inputText) || _isBusy)"
+                               Label=""
+                               SubmittingLabel=""
+                               StreamingLabel=""
+                               ErrorLabel="" />
+        </PromptInputFooter>
+    </PromptInput>
+</div>
+
+@code {
+    [Parameter]
+    public Guid CampaignId { get; set; }
+
+    [Inject]
+    private IJSRuntime JSRuntime { get; set; } = default!;
+
+    private List<DmChatMessage> _messages = new();
+    private string _inputText = string.Empty;
+    private bool _isBusy;
+    private string _busyLabel = "Riddle is thinking...";
+    private PromptSubmissionStatus _submissionStatus = PromptSubmissionStatus.Idle;
+    private DmChatMessage? _currentAssistantMessage;
+
+    private Task HandleTextChanged(string value)
+    {
+        _inputText = value;
+        return Task.CompletedTask;
+    }
+
+    private async Task HandleSubmitAsync(PromptInputMessage prompt)
+    {
+        var userText = prompt.Text?.Trim();
+        if (string.IsNullOrWhiteSpace(userText))
+            return;
+
+        if (_isBusy)
+            return;
+
+        // Add user message
+        var userMessage = new DmChatMessage(
+            Id: Guid.NewGuid(),
+            Role: ChatMessageRole.User,
+            Content: userText
+        );
+        _messages.Add(userMessage);
+
+        // Clear input and set busy state
+        _inputText = string.Empty;
+        _isBusy = true;
+        _busyLabel = "Connecting to Riddle...";
+        _submissionStatus = PromptSubmissionStatus.Submitting;
+        await InvokeAsync(StateHasChanged);
+
+        // Create assistant message placeholder
+        _currentAssistantMessage = new DmChatMessage(
+            Id: Guid.NewGuid(),
+            Role: ChatMessageRole.Assistant,
+            Content: string.Empty,
+            IsStreaming: true
+        );
+        _messages.Add(_currentAssistantMessage);
+
+        try
+        {
+            _busyLabel = "Riddle is thinking...";
+            _submissionStatus = PromptSubmissionStatus.Streaming;
+            await InvokeAsync(StateHasChanged);
+
+            await LlmService.ProcessDmInputAsync(
+                CampaignId,
+                userText,
+                async token =>
+                {
+                    _currentAssistantMessage = _currentAssistantMessage with
+                    {
+                        Content = _currentAssistantMessage.Content + token
+                    };
+                    // Update the message in the list
+                    var index = _messages.FindIndex(m => m.Id == _currentAssistantMessage.Id);
+                    if (index >= 0)
+                    {
+                        _messages[index] = _currentAssistantMessage;
+                    }
+                    await InvokeAsync(StateHasChanged);
+                });
+
+            // Mark streaming complete
+            if (_currentAssistantMessage != null)
+            {
+                _currentAssistantMessage = _currentAssistantMessage with { IsStreaming = false };
+                var index = _messages.FindIndex(m => m.Id == _currentAssistantMessage.Id);
+                if (index >= 0)
+                {
+                    _messages[index] = _currentAssistantMessage;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error processing DM input");
+            
+            // Update or add error message
+            if (_currentAssistantMessage != null)
+            {
+                _currentAssistantMessage = _currentAssistantMessage with
+                {
+                    Content = $"**Error:** {ex.Message}\n\nPlease check your API configuration and try again.",
+                    IsStreaming = false
+                };
+                var index = _messages.FindIndex(m => m.Id == _currentAssistantMessage.Id);
+                if (index >= 0)
+                {
+                    _messages[index] = _currentAssistantMessage;
+                }
+            }
+            
+            _submissionStatus = PromptSubmissionStatus.Error;
+        }
+        finally
+        {
+            _isBusy = false;
+            _submissionStatus = PromptSubmissionStatus.Idle;
+            _currentAssistantMessage = null;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task CopyMessageAsync(string content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+            return;
+
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", content);
+        }
+        catch
+        {
+            // Clipboard may not be available
+        }
+    }
+
+    private sealed record DmChatMessage(
+        Guid Id,
+        ChatMessageRole Role,
+        string Content,
+        bool IsStreaming = false);
+}
