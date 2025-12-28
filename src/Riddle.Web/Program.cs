@@ -100,7 +100,7 @@ builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddFlowbite();
 
 // Application Services
-builder.Services.AddScoped<ISessionService, SessionService>();
+builder.Services.AddScoped<ICampaignService, CampaignService>();
 
 var app = builder.Build();
 
