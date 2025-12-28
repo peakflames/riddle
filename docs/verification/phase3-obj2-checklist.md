@@ -57,4 +57,6 @@ None - implementation went smoothly.
 ## User Approval
 - [x] Changes reviewed by user
 - [x] Approved for push to origin
+- [x] Ensured Application is stopped
 - [x] Merged to develop
+- [ ] Feature branch deleted
