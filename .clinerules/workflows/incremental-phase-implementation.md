@@ -389,8 +389,11 @@ Create or update the objective-specific verification checklist:
 - {Any issues encountered}
 
 ## Approval
-- [ ] User approved changes
-- [ ] Ready for push/merge
+- [ ] Changes reviewed by user
+- [ ] Approved for push to origin
+- [ ] Ensured Application is stopped
+- [ ] Merged to develop
+- [ ] Feature branch deleted
 ```
 </checklist_update>
 

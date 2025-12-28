@@ -1,0 +1,57 @@
+@using Riddle.Web.Models
+
+<div class="space-y-3">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <h3 class="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <UsersIcon Class="h-4 w-4" />
+            Party (@Characters.Count)
+        </h3>
+        <Button Size="ButtonSize.Small" Color="ButtonColor.Primary" OnClick="@OnAddClick">
+            <PlusIcon Class="h-4 w-4 mr-1" />
+            Add
+        </Button>
+    </div>
+    
+    <!-- Character Cards -->
+    @if (Characters.Any())
+    {
+        <div class="space-y-2">
+            @foreach (var character in Characters)
+            {
+                <CharacterCard 
+                    Character="@character"
+                    ShowActions="true"
+                    OnEdit="@OnEdit"
+                    OnRemove="@OnRemove" />
+            }
+        </div>
+    }
+    else
+    {
+        <div class="rounded-lg border border-dashed border-gray-300 p-6 text-center dark:border-gray-600">
+            <UserCircleIcon Class="mx-auto h-10 w-10 text-gray-400" />
+            <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                No characters yet
+            </p>
+            <Button Size="ButtonSize.Small" Color="ButtonColor.Light" Class="mt-3" OnClick="@OnAddClick">
+                <PlusIcon Class="h-4 w-4 mr-1" />
+                Add First Character
+            </Button>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public List<Character> Characters { get; set; } = [];
+    
+    [Parameter]
+    public EventCallback OnAddClick { get; set; }
+    
+    [Parameter]
+    public EventCallback<Character> OnEdit { get; set; }
+    
+    [Parameter]
+    public EventCallback<Character> OnRemove { get; set; }
+}

@@ -15,6 +15,9 @@ import psutil
 from pathlib import Path
 from typing import Optional, Dict
 
+import sqlite3
+import re
+
 REQUIRED_DOTNET_VERSION = "9.0"
 TAILWIND_VERSION = "v3.4.15"
 TOOLS_DIR = Path("src/Riddle.Web/tools")
@@ -22,6 +25,7 @@ DOTNET_DIR = Path("./dotnet")
 PROJECT_PATH = "src/Riddle.Web/Riddle.Web.csproj"
 PID_FILE = Path(".riddle.pid")
 LOG_FILE = Path("riddle.log")
+DB_PATH = Path("src/Riddle.Web/riddle.db")
 
 
 def get_os_info() -> Dict[str, str]:
@@ -370,16 +374,167 @@ def run_dotnet_command(dotnet_path: str, command: str) -> None:
         sys.exit(1)
 
 
+def search_log(pattern: Optional[str] = None, tail: int = 0, level: Optional[str] = None) -> None:
+    """Search or tail the riddle.log file
+    
+    Args:
+        pattern: Regex pattern to search for (case-insensitive)
+        tail: Number of lines to show from end (0 = all)
+        level: Filter by log level (error, warn, info, debug)
+    """
+    if not LOG_FILE.exists():
+        print(f"Log file not found: {LOG_FILE}")
+        return
+    
+    try:
+        with open(LOG_FILE, 'r', encoding='utf-8', errors='replace') as f:
+            lines = f.readlines()
+        
+        # Apply tail
+        if tail > 0:
+            lines = lines[-tail:]
+        
+        # Filter by level if specified
+        if level:
+            level_upper = level.upper()
+            level_pattern = re.compile(rf'\b{level_upper}\b|{level_upper}:', re.IGNORECASE)
+            lines = [line for line in lines if level_pattern.search(line)]
+        
+        # Filter by pattern if specified
+        if pattern:
+            try:
+                regex = re.compile(pattern, re.IGNORECASE)
+                lines = [line for line in lines if regex.search(line)]
+            except re.error as e:
+                print(f"Invalid regex pattern: {e}")
+                return
+        
+        if lines:
+            for line in lines:
+                print(line.rstrip())
+            print(f"\n--- {len(lines)} line(s) shown ---")
+        else:
+            print("No matching log entries found")
+    
+    except Exception as e:
+        print(f"Error reading log file: {e}")
+
+
+def query_db(sql: str) -> None:
+    """Execute a SQL query on the riddle.db database
+    
+    Args:
+        sql: SQL query to execute
+    """
+    if not DB_PATH.exists():
+        print(f"Database not found: {DB_PATH}")
+        print("Make sure the application has been run at least once.")
+        return
+    
+    try:
+        conn = sqlite3.connect(str(DB_PATH))
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Execute the query
+        cursor.execute(sql)
+        
+        # Check if it's a SELECT query
+        if sql.strip().upper().startswith("SELECT"):
+            rows = cursor.fetchall()
+            
+            if rows:
+                # Get column names
+                columns = rows[0].keys()
+                
+                # Calculate column widths
+                widths = {col: len(col) for col in columns}
+                for row in rows:
+                    for col in columns:
+                        val = str(row[col]) if row[col] is not None else "NULL"
+                        # Truncate long values for display
+                        if len(val) > 80:
+                            val = val[:77] + "..."
+                        widths[col] = max(widths[col], len(val))
+                
+                # Print header
+                header = " | ".join(col.ljust(widths[col]) for col in columns)
+                print(header)
+                print("-" * len(header))
+                
+                # Print rows
+                for row in rows:
+                    row_str = " | ".join(
+                        (str(row[col])[:77] + "..." if len(str(row[col] or "")) > 80 else str(row[col] or "NULL")).ljust(widths[col])
+                        for col in columns
+                    )
+                    print(row_str)
+                
+                print(f"\n--- {len(rows)} row(s) returned ---")
+            else:
+                print("Query returned no results")
+        else:
+            conn.commit()
+            print(f"Query executed successfully. Rows affected: {cursor.rowcount}")
+        
+        conn.close()
+    
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+    except Exception as e:
+        print(f"Error: {e}")
+
+
+def list_tables() -> None:
+    """List all tables in the database"""
+    query_db("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;")
+
+
+def show_campaigns() -> None:
+    """Show campaign instances with party state info"""
+    query_db("""
+        SELECT 
+            Id,
+            Name,
+            CampaignModule,
+            datetime(CreatedAt) as Created,
+            length(PartyStateJson) as PartyDataLen,
+            substr(PartyStateJson, 1, 100) as PartyPreview
+        FROM CampaignInstances
+        ORDER BY CreatedAt DESC
+        LIMIT 10;
+    """)
+
+
 def print_usage() -> None:
     """Print usage information"""
-    print("Usage: python build.py [build|publish|watch|run|start|stop|status]")
-    print("  build   - Build the project (default)")
-    print("  publish - Publish the project to ./dist")
-    print("  watch   - Run with hot reload (foreground)")
-    print("  run     - Run the project (foreground)")
-    print("  start   - Start the project in background")
-    print("  stop    - Stop the background project")
-    print("  status  - Check if project is running")
+    print("Usage: python build.py [command] [options]")
+    print("")
+    print("Build & Run Commands:")
+    print("  build        - Build the project (default)")
+    print("  publish      - Publish the project to ./dist")
+    print("  watch        - Run with hot reload (foreground)")
+    print("  run          - Run the project (foreground)")
+    print("  start        - Start the project in background")
+    print("  stop         - Stop the background project")
+    print("  status       - Check if project is running")
+    print("")
+    print("Log Commands:")
+    print("  log                      - Show last 50 lines of log")
+    print("  log <pattern>            - Search log for regex pattern")
+    print("  log --tail <n>           - Show last n lines")
+    print("  log --level <level>      - Filter by level (error/warn/info/debug)")
+    print("  log --tail 100 --level error - Combine options")
+    print("")
+    print("Database Commands:")
+    print("  db tables                - List all database tables")
+    print("  db campaigns             - Show campaign instances")
+    print("  db \"<sql>\"               - Execute custom SQL query")
+    print("")
+    print("Examples:")
+    print("  python build.py log character")
+    print("  python build.py log --level error --tail 20")
+    print("  python build.py db \"SELECT * FROM CampaignInstances\"")
 
 
 def main() -> None:
@@ -393,6 +548,56 @@ def main() -> None:
             stop_background()
         else:
             check_status()
+        return
+    
+    # Log command
+    if command == "log":
+        pattern = None
+        tail = 50  # Default to last 50 lines
+        level = None
+        
+        # Parse log options
+        args = sys.argv[2:]
+        i = 0
+        while i < len(args):
+            if args[i] == "--tail" and i + 1 < len(args):
+                try:
+                    tail = int(args[i + 1])
+                except ValueError:
+                    print(f"Invalid tail value: {args[i + 1]}")
+                    sys.exit(1)
+                i += 2
+            elif args[i] == "--level" and i + 1 < len(args):
+                level = args[i + 1]
+                i += 2
+            elif not args[i].startswith("--"):
+                pattern = args[i]
+                i += 1
+            else:
+                print(f"Unknown option: {args[i]}")
+                print_usage()
+                sys.exit(1)
+        
+        search_log(pattern=pattern, tail=tail, level=level)
+        return
+    
+    # Database command
+    if command == "db":
+        if len(sys.argv) < 3:
+            print("Usage: python build.py db <subcommand|sql>")
+            print("Subcommands: tables, campaigns")
+            print("Or provide a SQL query in quotes")
+            sys.exit(1)
+        
+        subcommand = sys.argv[2]
+        
+        if subcommand == "tables":
+            list_tables()
+        elif subcommand == "campaigns":
+            show_campaigns()
+        else:
+            # Treat as SQL query
+            query_db(subcommand)
         return
     
     if command not in ["build", "publish", "watch", "run", "start"]:
