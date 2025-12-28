@@ -5,6 +5,7 @@
 @using Riddle.Web.Models
 @using Riddle.Web.Components.Chat
 @using Riddle.Web.Components.Debug
+@using Riddle.Web.Components.Characters
 @implements IDisposable
 @inject ICampaignService CampaignService
 @inject IGameStateService GameStateService
@@ -87,34 +88,11 @@
                         <!-- Party Panel -->
                         <Card Size="CardSize.ExtraLarge" class="max-w-none">
                             <div class="p-4">
-                                <h3 class="font-bold text-gray-900 dark:text-white mb-3">
-                                    <UsersIcon Class="inline-block w-4 h-4 mr-2" />
-                                    Party (@campaign.PartyState.Count)
-                                </h3>
-                                @if (campaign.PartyState.Any())
-                                {
-                                    <ul class="space-y-2">
-                                        @foreach (var character in campaign.PartyState)
-                                        {
-                                            <li class="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded">
-                                                <div>
-                                                    <p class="font-medium text-gray-900 dark:text-white text-sm">@character.Name</p>
-                                                    <p class="text-xs text-gray-500 dark:text-gray-400">@character.Type • AC @character.ArmorClass</p>
-                                                </div>
-                                                <span class="text-xs font-medium text-green-600 dark:text-green-400">
-                                                    @character.CurrentHp/@character.MaxHp HP
-                                                </span>
-                                            </li>
-                                        }
-                                    </ul>
-                                }
-                                else
-                                {
-                                    <p class="text-sm text-gray-500 dark:text-gray-400">No characters added yet.</p>
-                                    <Button Size="ButtonSize.Small" Color="ButtonColor.Light" Class="mt-2 w-full">
-                                        <PlusIcon Class="h-4 w-4 mr-1" /> Add Character
-                                    </Button>
-                                }
+                                <CharacterList 
+                                    Characters="@campaign.PartyState"
+                                    OnAddClick="@OpenAddCharacterModal"
+                                    OnEdit="@OpenEditCharacterModal"
+                                    OnRemove="@HandleRemoveCharacter" />
                             </div>
                         </Card>
                         
@@ -195,6 +173,12 @@
                     </div>
                 </div>
             </div>
+            
+            <!-- Character Form Modal -->
+            <CharacterFormModal 
+                @bind-Show="_showCharacterModal"
+                EditingCharacter="@_editingCharacter"
+                OnSave="@HandleSaveCharacter" />
         }
     </Authorized>
     <NotAuthorized>
@@ -209,6 +193,10 @@
     private CampaignInstance? campaign;
     private bool isLoading = true;
     private string? currentUserId;
+    
+    // Character management state
+    private bool _showCharacterModal;
+    private Character? _editingCharacter;
 
     protected override async Task OnInitializedAsync()
     {
@@ -294,5 +282,63 @@
             { TotalDays: < 30 } => $"{(int)(timeSpan.TotalDays / 7)}w ago",
             _ => dateTime.ToString("MMM d, yyyy")
         };
+    }
+    
+    // Character Management Methods
+    private void OpenAddCharacterModal()
+    {
+        _editingCharacter = null;
+        _showCharacterModal = true;
+    }
+    
+    private void OpenEditCharacterModal(Character character)
+    {
+        _editingCharacter = character;
+        _showCharacterModal = true;
+    }
+    
+    private async Task HandleSaveCharacter(Character character)
+    {
+        if (campaign == null) return;
+        
+        // Get the current party list (deserialized from JSON)
+        var party = campaign.PartyState;
+        
+        if (_editingCharacter == null)
+        {
+            // Add new character
+            party.Add(character);
+        }
+        else
+        {
+            // Update existing character in the list
+            var index = party.FindIndex(c => c.Id == character.Id);
+            if (index >= 0)
+            {
+                party[index] = character;
+            }
+        }
+        
+        // Set back to serialize to JSON
+        campaign.PartyState = party;
+        
+        // Save to database
+        await CampaignService.UpdateCampaignAsync(campaign);
+        StateHasChanged();
+    }
+    
+    private async Task HandleRemoveCharacter(Character character)
+    {
+        if (campaign == null) return;
+        
+        // Get the current party list (deserialized from JSON)
+        var party = campaign.PartyState;
+        party.RemoveAll(c => c.Id == character.Id);
+        
+        // Set back to serialize to JSON
+        campaign.PartyState = party;
+        
+        await CampaignService.UpdateCampaignAsync(campaign);
+        StateHasChanged();
     }
 }
