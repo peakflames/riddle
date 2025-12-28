@@ -35,7 +35,11 @@ public class CharacterService : ICharacterService
             return false;
         }
 
-        var character = campaign.PartyState.FirstOrDefault(c => c.Id == characterId);
+        // CRITICAL: Get the list ONCE and hold reference - each access to PartyState
+        // deserializes JSON fresh, so modifications to a previous access are lost!
+        var partyState = campaign.PartyState;
+        
+        var character = partyState.FirstOrDefault(c => c.Id == characterId);
         if (character == null)
         {
             _logger.LogWarning("Character {CharacterId} not found in campaign {CampaignId}", characterId, campaignId);
@@ -49,12 +53,12 @@ public class CharacterService : ICharacterService
             return false;
         }
 
-        // Claim the character
+        // Claim the character - this modifies the object in our local list
         character.PlayerId = playerId;
         character.PlayerName = playerName;
         
-        // Save - the PartyState setter handles JSON serialization
-        campaign.PartyState = campaign.PartyState;
+        // Set the modified list back to trigger JSON serialization via the setter
+        campaign.PartyState = partyState;
         
         await _context.SaveChangesAsync();
         

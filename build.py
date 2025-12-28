@@ -524,6 +524,73 @@ def show_campaigns() -> None:
     """)
 
 
+def show_characters(campaign_id: Optional[str] = None) -> None:
+    """Show characters from PartyStateJson with claim status
+    
+    Args:
+        campaign_id: Optional campaign ID to filter by. If None, shows most recent campaign.
+    """
+    import json
+    
+    if not DB_PATH.exists():
+        print(f"Database not found: {DB_PATH}")
+        return
+    
+    try:
+        conn = sqlite3.connect(str(DB_PATH))
+        cursor = conn.cursor()
+        
+        if campaign_id:
+            cursor.execute(
+                "SELECT Id, Name, PartyStateJson FROM CampaignInstances WHERE Id = ?",
+                (campaign_id,)
+            )
+        else:
+            cursor.execute(
+                "SELECT Id, Name, PartyStateJson FROM CampaignInstances ORDER BY CreatedAt DESC LIMIT 1"
+            )
+        
+        row = cursor.fetchone()
+        if not row:
+            print("No campaigns found")
+            conn.close()
+            return
+        
+        campaign_id, campaign_name, party_json = row
+        print(f"Campaign: {campaign_name}")
+        print(f"ID: {campaign_id}")
+        print("-" * 80)
+        
+        if not party_json:
+            print("No party data")
+            conn.close()
+            return
+        
+        characters = json.loads(party_json)
+        
+        # Print header
+        print(f"{'Name':<25} {'Type':<6} {'Class':<12} {'Level':<6} {'PlayerId':<40} {'PlayerName':<20}")
+        print("-" * 120)
+        
+        for char in characters:
+            name = char.get('Name', 'Unknown')[:24]
+            char_type = char.get('Type', '?')[:5]
+            char_class = (char.get('Class') or 'Unknown')[:11]
+            level = str(char.get('Level', 1))[:5]
+            player_id = (char.get('PlayerId') or '-')[:39]
+            player_name = (char.get('PlayerName') or '-')[:19]
+            
+            print(f"{name:<25} {char_type:<6} {char_class:<12} {level:<6} {player_id:<40} {player_name:<20}")
+        
+        print(f"\n--- {len(characters)} character(s) ---")
+        conn.close()
+    
+    except json.JSONDecodeError as e:
+        print(f"Error parsing PartyStateJson: {e}")
+    except Exception as e:
+        print(f"Error: {e}")
+
+
 def print_usage() -> None:
     """Print usage information"""
     print("Usage: python build.py [command] [options]")
@@ -547,12 +614,15 @@ def print_usage() -> None:
     print("Database Commands:")
     print("  db tables                - List all database tables")
     print("  db campaigns             - Show campaign instances")
+    print("  db characters            - Show characters from most recent campaign")
+    print("  db characters <id>       - Show characters from specific campaign")
     print("  db \"<sql>\"               - Execute custom SQL query")
     print("")
     print("Examples:")
     print("  python build.py log character")
     print("  python build.py log --level error --tail 20")
     print("  python build.py db \"SELECT * FROM CampaignInstances\"")
+    print("  python build.py db characters 019B654D-3B7C-7973-A3EE-BBD5C335F9C1")
 
 
 def main() -> None:
@@ -613,6 +683,10 @@ def main() -> None:
             list_tables()
         elif subcommand == "campaigns":
             show_campaigns()
+        elif subcommand == "characters":
+            # Optional campaign ID as next argument
+            campaign_id = sys.argv[3] if len(sys.argv) > 3 else None
+            show_characters(campaign_id)
         else:
             # Treat as SQL query
             query_db(subcommand)

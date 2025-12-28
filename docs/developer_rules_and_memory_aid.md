@@ -51,11 +51,14 @@ Use the Python automation:
 ### Database Commands (for verification)
 - `python build.py db tables` — list all database tables
 - `python build.py db campaigns` — show campaign instances with party state preview
+- `python build.py db characters` — show characters from most recent campaign (with PlayerId claim status)
+- `python build.py db characters <campaign-id>` — show characters from specific campaign
 - `python build.py db "SELECT * FROM CampaignInstances"` — execute custom SQL query
 
 **When to use these commands:**
 - **log commands**: Use when debugging runtime issues, checking if operations succeeded, or investigating errors
 - **db campaigns**: Use to verify database persistence after UI actions (e.g., after adding characters, check if PartyDataLen increased)
+- **db characters**: Use to verify character claims are persisted (PlayerId should show user GUID when claimed)
 - **db "SQL"**: Use for detailed data inspection when verifying features work correctly
 
 ## Coding Standards
@@ -134,6 +137,26 @@ Use the Python automation:
 - When creating services that use DbContext, inject `RiddleDbContext` directly
 - For computed properties on models (like `PartyState` backed by `PartyStateJson`), use `[NotMapped]` attribute
 - Always call `SaveChangesAsync()` after mutations
+
+### CRITICAL: JSON-Backed [NotMapped] Property Pattern
+When a model uses `[NotMapped]` properties that serialize/deserialize JSON (like `PartyState` backed by `PartyStateJson`), **each access to the getter deserializes JSON fresh** - modifications to a previous access are LOST!
+
+```csharp
+// ❌ WRONG - modifications lost because second access creates new list
+var character = campaign.PartyState.FirstOrDefault(c => c.Id == id);
+character.PlayerId = userId;  // Modifies object in list we'll discard
+campaign.PartyState = campaign.PartyState.ToList();  // Deserializes AGAIN - changes gone!
+```
+
+```csharp
+// ✅ CORRECT - get list ONCE, modify, set back
+var partyState = campaign.PartyState;  // Get once and hold reference
+var character = partyState.FirstOrDefault(c => c.Id == id);
+character.PlayerId = userId;  // Modifies object in our held reference
+campaign.PartyState = partyState;  // Set modified list back (triggers serialization)
+```
+
+**Rule:** Always capture JSON-backed list properties in a local variable before modifying.
 
 ### Blazor Server Authentication Patterns
 - Get current user ID via `AuthenticationStateProvider.GetAuthenticationStateAsync()`
