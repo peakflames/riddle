@@ -374,9 +374,18 @@ Create or update the objective-specific verification checklist:
 <approval_gate>
 **STOP AND WAIT FOR EXPLICIT USER APPROVAL**
 
+**CRITICAL: Before asking for approval, verify checklist is complete:**
+```
+read_file docs/verification/phase{N}-obj{M}-checklist.md
+```
+- **ALL** acceptance criteria must be `[x]`
+- **ALL** verification steps must be `[x]`  
+- If ANY item shows `[ ]`, complete it FIRST before asking for approval
+- The commit is NOT the completion milestone - the full checklist is
+
 Present to user:
 1. Summary of changes made
-2. Verification checklist status
+2. Verification checklist status (must show ALL items `[x]`)
 3. Git diff summary
 4. Request: "Ready to push to origin? Please confirm."
 
