@@ -108,7 +108,9 @@ Elara Moonwhisper         PC     Unknown      1      -                          
 ## Approvals
 - [x] Changes reviewed by user
 - [x] Character editing and display verified/accepted
-- [ ] Approved for push to origin
-- [ ] Ensured Application is stopped
-- [ ] Merged to develop
-- [ ] Feature branch deleted, proceeding to Update Version and Changelog
+- [x] Approved for push to origin
+- [x] Ensured Application is stopped
+- [x] Merged to develop (a1e5890)
+- [x] Feature branch deleted
+- [x] Version bumped to v0.6.0 (bdf4dfb)
+- [x] Git tag v0.6.0 created and pushed
