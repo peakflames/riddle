@@ -15,6 +15,9 @@ Project Riddle is a LLM-driven Dungeon Master assistant for D&D 5th Edition buil
 - **LLM Tornado SDK**: `C:\Users\tschavey\projects\github\LlmTornado`
 - **Flowbite Blazor Admin Dashboard (WASM Standalone)**: `C:\Users\tschavey\projects\peakflames\flowbite-blazor-admin-dashboard`
 
+## Project Reference Documentation
+- **Flowbite Blazor Component Reference**: `docs/flowbite_blazor_docs.md` - API reference for Flowbite Blazor components (enums, sizes, colors, common patterns)
+
 ## Project Structure Guidelines
 
 ### Solution Structure

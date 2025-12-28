@@ -276,6 +276,7 @@ Only after user approval:
 ### Component/Library API Verification
 - **ALWAYS** verify component API signatures before use (enums, sizes, colors)
 - Check reference projects or documentation for exact property names
+- **Reference:** `docs/flowbite_blazor_docs.md` contains Flowbite Blazor API reference
 - Common pitfalls:
   - Enum values: `SpinnerSize.Xl` not `SpinnerSize.ExtraLarge`
   - Context conflicts: Add `Context="editContext"` to EditForm inside AuthorizeView
@@ -467,6 +468,8 @@ git push origin feature/phase{N}-obj{M}-{desc}
 
 <common_pitfalls>
 ### Flowbite Blazor Component APIs
+See full reference at `docs/flowbite_blazor_docs.md`
+
 | Issue | Wrong | Correct |
 |-------|-------|---------|
 | SpinnerSize | `SpinnerSize.ExtraLarge` | `SpinnerSize.Xl` |
