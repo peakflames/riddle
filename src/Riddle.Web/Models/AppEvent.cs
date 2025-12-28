@@ -24,5 +24,6 @@ public enum AppEventType
     ToolCall,        // LLM requested a tool call
     ToolResult,      // Tool execution result
     StateUpdate,     // Game state was updated
+    TokenUsage,      // Token usage statistics from LLM
     Error            // Error occurred
 }

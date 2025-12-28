@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2025-12-28
+
+### Added
+- **Token Usage Tracking Infrastructure**
+  - `TokenUsage` event type added to `AppEventType` enum
+  - `OnUsageReceived` and `OnFinished` callbacks in `RiddleLlmService` for capturing token counts
+  - Orange dollar icon badge for usage events in Event Log panel
+  - Detailed usage breakdown: Prompt tokens, Completion tokens, Total tokens
+  - Support for cache tokens and reasoning tokens when available
+
+### Technical
+- Integrated LLM Tornado SDK's `ChatStreamOptions.IncludeUsage` for streaming usage data
+- Fallback handling when providers don't return usage data in streaming mode
+- Helper method `LogUsage()` for consistent usage logging and event emission
+
+### Notes
+- OpenRouter via Grok model does not currently return token usage in streaming mode
+- Event Log shows "Tokens: N/A" with explanation when provider doesn't support streaming usage
+
 ## [0.3.1] - 2025-12-28
 
 ### Added
@@ -98,7 +117,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flowbite Blazor component library reference documentation
 - Incremental phase implementation workflow for development
 
-[Unreleased]: https://github.com/peakflames/riddle/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/peakflames/riddle/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/peakflames/riddle/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/peakflames/riddle/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/peakflames/riddle/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/peakflames/riddle/compare/v0.1.0...v0.2.0

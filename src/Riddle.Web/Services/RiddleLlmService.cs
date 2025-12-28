@@ -167,6 +167,37 @@ public class RiddleLlmService : IRiddleLlmService
                     "LLM", 
                     "Continuing after tool execution");
                 await chat.StreamResponseRich(handler);
+            },
+            OnUsageReceived = async usage =>
+            {
+                LogUsage(usage, "OnUsageReceived");
+                await ValueTask.CompletedTask;
+            },
+            OnFinished = async finishedData =>
+            {
+                // Log usage data (even if 0 to debug provider support)
+                _logger.LogInformation(
+                    "Stream finished - Reason: {Reason}, HasUsage: {HasUsage}, Prompt: {Prompt}, Completion: {Completion}, Total: {Total}",
+                    finishedData.FinishReason,
+                    finishedData.Usage.TotalTokens > 0,
+                    finishedData.Usage.PromptTokens,
+                    finishedData.Usage.CompletionTokens,
+                    finishedData.Usage.TotalTokens);
+                
+                if (finishedData.Usage.TotalTokens > 0)
+                {
+                    LogUsage(finishedData.Usage, "OnFinished");
+                }
+                else
+                {
+                    // Provider doesn't support usage in streaming - emit placeholder event
+                    _appEventService.AddEvent(
+                        AppEventType.TokenUsage,
+                        "Usage",
+                        "Tokens: N/A",
+                        "Provider does not return usage data in streaming mode");
+                }
+                await ValueTask.CompletedTask;
             }
         });
 
@@ -247,6 +278,33 @@ public class RiddleLlmService : IRiddleLlmService
             - Adapt style based on PartyPreferences.
             <</tone_and_style>>
             """;
+    }
+
+    private void LogUsage(ChatUsage usage, string source)
+    {
+        _logger.LogInformation(
+            "[{Source}] Token usage - Prompt: {Prompt}, Completion: {Completion}, Total: {Total}",
+            source, usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens);
+        
+        var details = $"Prompt: {usage.PromptTokens:N0} | Completion: {usage.CompletionTokens:N0} | Total: {usage.TotalTokens:N0}";
+        
+        // Add cache info if available
+        if (usage.CacheReadTokens > 0 || usage.CacheCreationTokens > 0)
+        {
+            details += $"\nCache: {usage.CacheReadTokens:N0} read, {usage.CacheCreationTokens:N0} created";
+        }
+        
+        // Add reasoning tokens if available (for models like o1)
+        if (usage.CompletionTokensDetails?.ReasoningTokens > 0)
+        {
+            details += $"\nReasoning: {usage.CompletionTokensDetails.ReasoningTokens:N0} tokens";
+        }
+        
+        _appEventService.AddEvent(
+            AppEventType.TokenUsage,
+            "Usage",
+            $"Tokens: {usage.TotalTokens:N0}",
+            details);
     }
 
     private List<Tool> BuildToolDefinitions()
