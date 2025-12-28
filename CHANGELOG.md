@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2025-12-28
+
+### Added
+- **LLM Integration (Phase 2 Complete)**
+  - LLM Tornado SDK integration with OpenRouter API
+  - `IGameStateService`/`GameStateService` for game state CRUD operations
+  - `IToolExecutor`/`ToolExecutor` for routing LLM tool calls
+  - `IRiddleLlmService`/`RiddleLlmService` for LLM communication with streaming
+  - 7 LLM tools implemented:
+    - `get_game_state` - Retrieves full campaign state for context recovery
+    - `update_character_state` - Updates character HP, conditions, initiative
+    - `update_game_log` - Records events to narrative log
+    - `display_read_aloud_text` - Sets Read Aloud Text Box content
+    - `present_player_choices` - Sets interactive player choices
+    - `log_player_roll` - Records dice roll results
+    - `update_scene_image` - Updates scene image URI
+  - DM Chat UI component using Flowbite Blazor Chat components
+  - Real-time streaming token display from LLM responses
+  - System prompt with D&D 5e rules and narrative engine directives
+
+### Technical
+- OpenRouter configuration via user secrets/environment variables
+- Tool execution with JSON argument parsing and result formatting
+- Conversation continuity after tool execution
+- Error handling and logging throughout LLM pipeline
+
 ## [0.2.0] - 2025-12-28
 
 ### Changed
@@ -51,6 +77,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flowbite Blazor component library reference documentation
 - Incremental phase implementation workflow for development
 
-[Unreleased]: https://github.com/peakflames/riddle/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/peakflames/riddle/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/peakflames/riddle/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/peakflames/riddle/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/peakflames/riddle/releases/tag/v0.1.0
