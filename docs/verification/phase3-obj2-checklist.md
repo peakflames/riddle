@@ -55,6 +55,6 @@ Task<CampaignInstance?> RegenerateInviteCodeAsync(Guid campaignId, string userId
 None - implementation went smoothly.
 
 ## User Approval
-- [ ] Changes reviewed by user
-- [ ] Approved for push to origin
-- [ ] Merged to develop
+- [x] Changes reviewed by user
+- [x] Approved for push to origin
+- [x] Merged to develop

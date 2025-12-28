@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2025-12-28
+
+### Added
+- **Phase 3: Party Management & Character Creation (Objectives 1-2)**
+  - Expanded Character model with full D&D 5e fields:
+    - Ability scores (Strength, Dexterity, Constitution, Intelligence, Wisdom, Charisma)
+    - Combat stats (ArmorClass, MaxHp, CurrentHp, TemporaryHp, Initiative, Speed)
+    - Skills & proficiencies (saving throws, skills, tools, languages)
+    - Spellcasting support (cantrips, spells known, spell slots)
+    - Equipment & inventory (weapons, equipment, currency)
+    - Roleplay fields (personality traits, ideals, bonds, flaws, backstory)
+    - Player linking (PlayerId, PlayerName, IsClaimed)
+    - Computed ability modifiers
+  - Invite code system for campaign sharing:
+    - Auto-generated 8-character alphanumeric invite codes
+    - `GetByInviteCodeAsync()` to look up campaigns by code
+    - `RegenerateInviteCodeAsync()` to create new invite codes
+    - Unique database index on InviteCode column
+- Gameplay guide in README.md for DMs and players
+
+### Technical
+- EF Core migration `AddInviteCodeToCampaign` for InviteCode column
+- UUID v7 IDs via `Guid.CreateVersion7()` for time-sortable character IDs
+- Character model maintains backward compatibility (existing data unaffected)
+
 ## [0.4.1] - 2025-12-28
 
 ### Fixed
@@ -152,7 +177,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flowbite Blazor component library reference documentation
 - Incremental phase implementation workflow for development
 
-[Unreleased]: https://github.com/peakflames/riddle/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/peakflames/riddle/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/peakflames/riddle/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/peakflames/riddle/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/peakflames/riddle/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/peakflames/riddle/compare/v0.3.1...v0.3.2
