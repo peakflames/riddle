@@ -72,7 +72,9 @@ Implement the DM-to-LLM chat interface using Flowbite Blazor Chat components int
 ## Commits
 | Hash | Message |
 |------|---------|
-| (pending) | feat(chat): add DM chat UI component using Flowbite Chat |
+| e53b0bf | feat(chat): add DM chat UI component using Flowbite Chat |
+| b795875 | fix(chat): resolve textarea disabled bug and improve Send button styling |
+| 81da638 | Merge feature/phase2-obj6-dm-chat: DM Chat UI Component with bug fixes |
 
 ## Issues Encountered
 | Issue | Resolution |
@@ -89,5 +91,5 @@ Implement the DM-to-LLM chat interface using Flowbite Blazor Chat components int
 
 ## User Approval
 - [x] Changes reviewed by user
-- [ ] Approved for push to origin
-- [ ] Merged to develop
+- [x] Approved for push to origin
+- [x] Merged to develop (81da638)
