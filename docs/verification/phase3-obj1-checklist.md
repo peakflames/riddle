@@ -77,12 +77,12 @@ Add D&D 5e fields to the Character model including ability scores, race, class, 
 ## Commits
 | Hash | Message |
 |------|---------|
-| (pending) | feat(models): expand Character with D&D 5e fields |
+| df7d7c7 | feat(models): expand Character with D&D 5e fields |
 
 ## Issues Encountered
 None - straightforward model expansion with sensible defaults.
 
 ## User Approval
-- [ ] Changes reviewed by user
-- [ ] Approved for push to origin
-- [ ] Merged to develop
+- [x] Changes reviewed by user
+- [x] Approved for push to origin
+- [x] Merged to develop
