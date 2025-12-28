@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2025-12-28
+
+### Added
+- **Phase 3: Party Management & Character Creation (Objective 5)**
+  - Player Join Flow:
+    - `/join` page with manual invite code entry
+    - `/join/{InviteCode}` route for direct link joining
+    - Multi-step workflow: code validation → authentication → character selection
+    - Automatic redirect to Player Dashboard after claiming character
+  - Character Service (`ICharacterService`/`CharacterService`):
+    - `GetAvailableCharactersAsync()` - Get unclaimed PCs
+    - `ClaimCharacterAsync()` - Claim a character for a player
+    - `GetPlayerCharactersAsync()` - Get player's claimed characters
+    - `ValidateInviteCodeAsync()` - Validate invite codes
+  - Player Dashboard (`/player/{CampaignId}`):
+    - Full character card display with all D&D 5e properties
+    - Stats, abilities, skills, equipment, spells, roleplay fields
+    - Responsive grid layout with Flowbite Blazor components
+  - Sample Characters:
+    - Elara Moonshadow (Half-Elf Cleric L5) - full spellcaster with backstory
+    - Zeke Shadowstep (Lightfoot Halfling Rogue L5) - rogue with full skills
+  - Build CLI Enhancements (`build.py`):
+    - `db update "<name>" <property> "<value>"` - Direct character property updates
+    - `db create-character "@file.json"` - Create character from JSON file
+    - `db delete-character "<name>"` - Remove character by name
+    - `db character-template` - Show JSON template for character creation
+
+### Fixed
+- Flowbite Blazor Textarea binding in TabPanels - use native HTML textarea with @bind
+- JSON `[NotMapped]` property pattern - capture list in local variable before modifying
+
+### Technical
+- `StackedLayout.razor` for consistent page structure
+- `PlayerCharacterCard.razor` and `AbilityScoreDisplay.razor` components
+- Enhanced `CharacterFormModal.razor` with roleplay tab and native textareas
+- Documented Flowbite Textarea TabPanel bug in developer memory aid
+
 ## [0.5.1] - 2025-12-28
 
 ### Added
@@ -201,7 +238,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flowbite Blazor component library reference documentation
 - Incremental phase implementation workflow for development
 
-[Unreleased]: https://github.com/peakflames/riddle/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/peakflames/riddle/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/peakflames/riddle/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/peakflames/riddle/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/peakflames/riddle/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/peakflames/riddle/compare/v0.4.0...v0.4.1
