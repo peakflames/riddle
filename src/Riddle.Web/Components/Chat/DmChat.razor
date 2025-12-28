@@ -1,4 +1,5 @@
 @* DmChat.razor - DM-to-LLM chat interface using Flowbite Chat components *@
+@* Non-streaming implementation aligned with Flowbite Blazor AI Chat patterns *@
 @using Riddle.Web.Services
 @inject IRiddleLlmService LlmService
 @inject ILogger<DmChat> Logger
@@ -24,26 +25,35 @@
                                  From="@message.Role"
                                  AvatarInitials="@(message.Role == ChatMessageRole.User ? "DM" : "R")">
                         <ChatMessageContent Variant="@(message.Role == ChatMessageRole.User ? ChatMessageVariant.Contained : ChatMessageVariant.Flat)">
-                            <ChatResponse Text="@message.Content" Role="@message.Role" />
-                            @if (message.IsStreaming && !string.IsNullOrEmpty(message.Content))
+                            @if (!string.IsNullOrEmpty(message.Reasoning))
                             {
-                                <span class="inline-block w-1.5 h-4 bg-purple-500 animate-pulse ml-0.5"></span>
+                                <Reasoning DefaultOpen="false">
+                                    <ReasoningTrigger />
+                                    <ReasoningContent Text="@message.Reasoning" />
+                                </Reasoning>
                             }
+                            <ChatResponse Text="@message.Content" Role="@message.Role" />
                         </ChatMessageContent>
                         
-                        @if (!message.IsStreaming && message.Role == ChatMessageRole.Assistant)
+                        @if (message.Role == ChatMessageRole.Assistant)
                         {
                             <ChatActions Class="justify-start -ml-3">
                                 <ChatAction Tooltip="Copy" OnClick="@(() => CopyMessageAsync(message.Content))">
                                     <FileCopyAltIcon Class="h-4 w-4" aria-hidden="true" />
                                 </ChatAction>
+                                @if (message.TotalTokens.HasValue)
+                                {
+                                    <span class="text-xs text-gray-400 dark:text-gray-500 ml-2">
+                                        @message.TotalTokens.Value.ToString("N0") tokens
+                                    </span>
+                                }
                             </ChatActions>
                         }
                     </ChatMessage>
                 }
             }
 
-            @if (_isBusy && (_currentAssistantMessage == null || string.IsNullOrEmpty(_currentAssistantMessage.Content)))
+            @if (_isBusy)
             {
                 <div class="flex items-center gap-2 px-4 pb-4 text-sm text-gray-500 dark:text-gray-400">
                     <Loader />
@@ -56,7 +66,7 @@
     </Conversation>
 
     <PromptInput OnSubmit="HandleSubmitAsync"
-                 Text="@_inputText"
+                 Text="@(_inputText ?? string.Empty)"
                  TextChanged="HandleTextChanged">
         <PromptInputBody>
             <PromptInputTextarea Placeholder="Describe the action or ask Riddle for advice..." />
@@ -87,7 +97,6 @@
     private bool _isBusy;
     private string _busyLabel = "Riddle is thinking...";
     private PromptSubmissionStatus _submissionStatus = PromptSubmissionStatus.Idle;
-    private DmChatMessage? _currentAssistantMessage;
 
     private Task HandleTextChanged(string value)
     {
@@ -112,83 +121,64 @@
         );
         _messages.Add(userMessage);
 
-        // Clear input and set busy state
-        _inputText = string.Empty;
+        // Set busy state and clear input (like ChatAiPage does)
         _isBusy = true;
-        _busyLabel = "Connecting to Riddle...";
+        _busyLabel = "Riddle is thinking...";
         _submissionStatus = PromptSubmissionStatus.Submitting;
+        _inputText = string.Empty;
         await InvokeAsync(StateHasChanged);
-
-        // Create assistant message placeholder
-        _currentAssistantMessage = new DmChatMessage(
-            Id: Guid.NewGuid(),
-            Role: ChatMessageRole.Assistant,
-            Content: string.Empty,
-            IsStreaming: true
-        );
-        _messages.Add(_currentAssistantMessage);
 
         try
         {
-            _busyLabel = "Riddle is thinking...";
-            _submissionStatus = PromptSubmissionStatus.Streaming;
-            await InvokeAsync(StateHasChanged);
+            // Non-streaming: Get full response
+            var response = await LlmService.ProcessDmInputAsync(CampaignId, userText);
 
-            await LlmService.ProcessDmInputAsync(
-                CampaignId,
-                userText,
-                async token =>
-                {
-                    _currentAssistantMessage = _currentAssistantMessage with
-                    {
-                        Content = _currentAssistantMessage.Content + token
-                    };
-                    // Update the message in the list
-                    var index = _messages.FindIndex(m => m.Id == _currentAssistantMessage.Id);
-                    if (index >= 0)
-                    {
-                        _messages[index] = _currentAssistantMessage;
-                    }
-                    await InvokeAsync(StateHasChanged);
-                });
-
-            // Mark streaming complete
-            if (_currentAssistantMessage != null)
+            if (response.IsSuccess)
             {
-                _currentAssistantMessage = _currentAssistantMessage with { IsStreaming = false };
-                var index = _messages.FindIndex(m => m.Id == _currentAssistantMessage.Id);
-                if (index >= 0)
-                {
-                    _messages[index] = _currentAssistantMessage;
-                }
+                var assistantMessage = new DmChatMessage(
+                    Id: Guid.NewGuid(),
+                    Role: ChatMessageRole.Assistant,
+                    Content: response.Content,
+                    Reasoning: response.Reasoning,
+                    PromptTokens: response.PromptTokens,
+                    CompletionTokens: response.CompletionTokens,
+                    TotalTokens: response.TotalTokens,
+                    ToolCallCount: response.ToolCallCount,
+                    DurationMs: response.DurationMs
+                );
+                _messages.Add(assistantMessage);
+            }
+            else
+            {
+                // Error response
+                var errorMessage = new DmChatMessage(
+                    Id: Guid.NewGuid(),
+                    Role: ChatMessageRole.Assistant,
+                    Content: $"**Error:** {response.ErrorMessage}\n\nPlease check your API configuration and try again."
+                );
+                _messages.Add(errorMessage);
+                _submissionStatus = PromptSubmissionStatus.Error;
             }
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error processing DM input");
             
-            // Update or add error message
-            if (_currentAssistantMessage != null)
-            {
-                _currentAssistantMessage = _currentAssistantMessage with
-                {
-                    Content = $"**Error:** {ex.Message}\n\nPlease check your API configuration and try again.",
-                    IsStreaming = false
-                };
-                var index = _messages.FindIndex(m => m.Id == _currentAssistantMessage.Id);
-                if (index >= 0)
-                {
-                    _messages[index] = _currentAssistantMessage;
-                }
-            }
-            
+            var errorMessage = new DmChatMessage(
+                Id: Guid.NewGuid(),
+                Role: ChatMessageRole.Assistant,
+                Content: $"**Error:** {ex.Message}\n\nPlease check your API configuration and try again."
+            );
+            _messages.Add(errorMessage);
             _submissionStatus = PromptSubmissionStatus.Error;
         }
         finally
         {
             _isBusy = false;
-            _submissionStatus = PromptSubmissionStatus.Idle;
-            _currentAssistantMessage = null;
+            if (_submissionStatus != PromptSubmissionStatus.Error)
+            {
+                _submissionStatus = PromptSubmissionStatus.Idle;
+            }
             await InvokeAsync(StateHasChanged);
         }
     }
@@ -212,5 +202,10 @@
         Guid Id,
         ChatMessageRole Role,
         string Content,
-        bool IsStreaming = false);
+        string? Reasoning = null,
+        int? PromptTokens = null,
+        int? CompletionTokens = null,
+        int? TotalTokens = null,
+        int ToolCallCount = 0,
+        long? DurationMs = null);
 }

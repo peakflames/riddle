@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2025-12-28
+
+### Fixed
+- Reasoning dropdown now collapsed by default using `DefaultOpen="false"` on Flowbite `Reasoning` component
+- Prompt textbox now clears after sending message (added `_inputText = string.Empty` to match ChatAiPage pattern)
+
+## [0.4.0] - 2025-12-28
+
+### Changed
+- **BREAKING**: Transitioned DM Chat from streaming to non-streaming LLM responses
+  - More stable and predictable behavior
+  - Reliable token usage tracking (providers return usage in non-streaming mode)
+  - Aligns with Flowbite Blazor AI Chat component patterns
+  - Simpler error handling and UI state management
+
+### Added
+- `DmChatResponse` record type for structured LLM response data
+  - `Content`, `IsSuccess`, `ErrorMessage` for response handling
+  - `PromptTokens`, `CompletionTokens`, `TotalTokens` for usage tracking
+  - `ToolCallCount`, `DurationMs` for performance metrics
+- Loading spinner with "Riddle is thinking..." indicator during LLM processing
+- Token count display on assistant messages in chat UI
+- Copy message action button on assistant responses
+
+### Technical
+- `IRiddleLlmService.ProcessDmInputAsync()` now returns `DmChatResponse` instead of using streaming callback
+- `RiddleLlmService` uses `GetResponseRich()` instead of `StreamResponseRich()`
+- Tool calls handled in synchronous loop with `MaxToolIterations` (10) safety limit
+- Token usage extracted from `ChatRichResponse.Result.Usage` (reliable in non-streaming mode)
+- `DmChat.razor` updated with Flowbite Conversation/PromptInput components
+
+### Removed
+- Streaming token-by-token display (replaced with full message rendering)
+- `onStreamToken` callback parameter from `ProcessDmInputAsync()`
+
 ## [0.3.2] - 2025-12-28
 
 ### Added
@@ -117,7 +152,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flowbite Blazor component library reference documentation
 - Incremental phase implementation workflow for development
 
-[Unreleased]: https://github.com/peakflames/riddle/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/peakflames/riddle/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/peakflames/riddle/compare/v0.4.0...v0.4.1
+[0.4.0]: https://github.com/peakflames/riddle/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/peakflames/riddle/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/peakflames/riddle/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/peakflames/riddle/compare/v0.2.0...v0.3.0

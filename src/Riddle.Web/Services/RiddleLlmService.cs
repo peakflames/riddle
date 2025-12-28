@@ -1,6 +1,6 @@
+using System.Diagnostics;
 using LlmTornado;
 using LlmTornado.Chat;
-using LlmTornado.Chat.Models;
 using LlmTornado.ChatFunctions;
 using LlmTornado.Code;
 using LlmTornado.Common;
@@ -10,7 +10,7 @@ namespace Riddle.Web.Services;
 
 /// <summary>
 /// LLM service using OpenRouter via LLM Tornado SDK.
-/// Coordinates DM input processing, tool calling, and streaming responses.
+/// Coordinates DM input processing, tool calling, and non-streaming responses.
 /// </summary>
 public class RiddleLlmService : IRiddleLlmService
 {
@@ -20,6 +20,11 @@ public class RiddleLlmService : IRiddleLlmService
     private readonly IAppEventService _appEventService;
     private readonly ILogger<RiddleLlmService> _logger;
     private readonly string _defaultModel;
+    
+    /// <summary>
+    /// Maximum tool call iterations to prevent infinite loops.
+    /// </summary>
+    private const int MaxToolIterations = 10;
 
     public RiddleLlmService(
         IConfiguration config,
@@ -47,167 +52,200 @@ public class RiddleLlmService : IRiddleLlmService
         _logger.LogInformation("RiddleLlmService initialized with model: {Model}", _defaultModel);
     }
 
-    public async Task ProcessDmInputAsync(
+    public async Task<DmChatResponse> ProcessDmInputAsync(
         Guid campaignId, 
         string dmMessage,
-        Func<string, Task> onStreamToken,
         CancellationToken ct = default)
     {
-        var campaign = await _stateService.GetCampaignAsync(campaignId, ct);
-        if (campaign == null)
+        var stopwatch = Stopwatch.StartNew();
+        var totalToolCalls = 0;
+        
+        try
         {
-            throw new InvalidOperationException($"Campaign {campaignId} not found");
-        }
-
-        var systemPrompt = BuildSystemPrompt(campaign);
-        var tools = BuildToolDefinitions();
-
-        var chat = _api.Chat.CreateConversation(new ChatRequest
-        {
-            Model = _defaultModel,
-            Tools = tools,
-            ToolChoice = null, // Auto - let the model decide when to use tools
-            Temperature = 0.7
-        });
-
-        chat.AppendSystemMessage(systemPrompt);
-        chat.AppendUserInput(dmMessage);
-
-        _logger.LogInformation("Processing DM input for campaign {CampaignId}: {Message}", 
-            campaignId, dmMessage.Length > 100 ? dmMessage[..100] + "..." : dmMessage);
-
-        // Emit LLM request event
-        _appEventService.AddEvent(
-            AppEventType.LlmRequest, 
-            "LLM", 
-            $"Processing DM input ({dmMessage.Length} chars)",
-            dmMessage.Length > 500 ? dmMessage[..500] + "..." : dmMessage);
-
-        var tokenCount = 0;
-        await chat.StreamResponseRich(new ChatStreamEventHandler
-        {
-            MessageTokenHandler = async token =>
+            var campaign = await _stateService.GetCampaignAsync(campaignId, ct);
+            if (campaign == null)
             {
-                if (token != null)
-                {
-                    tokenCount++;
-                    await onStreamToken(token);
-                    
-                    // Emit batched token events (every 50 tokens)
-                    if (tokenCount % 50 == 0)
-                    {
-                        _appEventService.AddEvent(
-                            AppEventType.LlmResponse, 
-                            "LLM", 
-                            $"Streaming response ({tokenCount} tokens)");
-                    }
-                }
-            },
-            FunctionCallHandler = async calls =>
+                return new DmChatResponse(
+                    Content: string.Empty,
+                    IsSuccess: false,
+                    ErrorMessage: $"Campaign {campaignId} not found");
+            }
+
+            var systemPrompt = BuildSystemPrompt(campaign);
+            var tools = BuildToolDefinitions();
+
+            var chat = _api.Chat.CreateConversation(new ChatRequest
             {
-                _logger.LogInformation("LLM requested {Count} tool call(s)", calls.Count);
+                Model = _defaultModel,
+                Tools = tools,
+                ToolChoice = null, // Auto - let the model decide when to use tools
+                Temperature = 0.7
+            });
+
+            chat.AppendSystemMessage(systemPrompt);
+            chat.AppendUserInput(dmMessage);
+
+            _logger.LogInformation("Processing DM input for campaign {CampaignId}: {Message}", 
+                campaignId, dmMessage.Length > 100 ? dmMessage[..100] + "..." : dmMessage);
+
+            // Emit LLM request event
+            _appEventService.AddEvent(
+                AppEventType.LlmRequest, 
+                "LLM", 
+                $"Processing DM input ({dmMessage.Length} chars)",
+                dmMessage.Length > 500 ? dmMessage[..500] + "..." : dmMessage);
+
+            // Non-streaming: Get full response
+            var response = await chat.GetResponseRich();
+            
+            // Handle tool calls in a loop (max iterations to prevent infinite loops)
+            var iteration = 0;
+            var functionBlocks = response?.Blocks?.Where(b => b.Type == ChatRichResponseBlockTypes.Function).ToList();
+            
+            while (functionBlocks != null && functionBlocks.Count > 0 && iteration < MaxToolIterations)
+            {
+                iteration++;
+                
+                _logger.LogInformation("LLM requested {Count} tool call(s) (iteration {Iteration})", 
+                    functionBlocks.Count, iteration);
                 
                 // Emit tool call event
                 _appEventService.AddEvent(
                     AppEventType.ToolCall, 
                     "LLM", 
-                    $"LLM requested {calls.Count} tool call(s)",
-                    string.Join("\n", calls.Select(c => $"• {c.Name}")));
+                    $"LLM requested {functionBlocks.Count} tool call(s)",
+                    string.Join("\n", functionBlocks.Select(c => $"• {c.FunctionCall?.Name ?? "unknown"}")));
                 
-                foreach (var call in calls)
+                foreach (var block in functionBlocks)
                 {
-                    _logger.LogInformation("Executing tool: {Tool} with args: {Args}", 
-                        call.Name, call.Arguments?.Length > 200 ? call.Arguments[..200] + "..." : call.Arguments);
+                    var functionName = block.FunctionCall?.Name ?? "unknown";
+                    var functionArgs = block.FunctionCall?.Arguments ?? "{}";
+                    var toolCallId = block.FunctionCall?.ToolCall?.Id ?? functionName;
+                    
+                    _logger.LogInformation("Executing tool: {Tool} (ID: {ToolCallId}) with args: {Args}", 
+                        functionName, toolCallId, functionArgs.Length > 200 ? functionArgs[..200] + "..." : functionArgs);
                     
                     // Emit individual tool execution event
                     _appEventService.AddEvent(
                         AppEventType.ToolCall, 
-                        call.Name, 
-                        $"Executing tool: {call.Name}",
-                        call.Arguments);
+                        functionName, 
+                        $"Executing tool: {functionName}",
+                        functionArgs);
                     
+                    string result;
+                    bool invocationSucceeded;
                     try
                     {
-                        var result = await _toolExecutor.ExecuteAsync(
+                        result = await _toolExecutor.ExecuteAsync(
                             campaignId, 
-                            call.Name, 
-                            call.Arguments ?? "{}",
+                            functionName, 
+                            functionArgs,
                             ct);
                         
-                        call.Result = new FunctionResult(call, result, null);
-                        _logger.LogDebug("Tool {Tool} completed successfully", call.Name);
+                        invocationSucceeded = true;
+                        _logger.LogDebug("Tool {Tool} completed successfully", functionName);
                         
                         // Emit tool result event
                         _appEventService.AddEvent(
                             AppEventType.ToolResult, 
-                            call.Name, 
-                            $"Tool completed: {call.Name}",
+                            functionName, 
+                            $"Tool completed: {functionName}",
                             result.Length > 500 ? result[..500] + "..." : result);
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Tool {Tool} failed", call.Name);
-                        call.Result = new FunctionResult(call, $"{{\"error\": \"{ex.Message}\"}}", null);
+                        _logger.LogError(ex, "Tool {Tool} failed", functionName);
+                        result = $"{{\"error\": \"{ex.Message}\"}}";
+                        invocationSucceeded = false;
                         
                         // Emit error event
                         _appEventService.AddEvent(
                             AppEventType.Error, 
-                            call.Name, 
-                            $"Tool failed: {call.Name}",
+                            functionName, 
+                            $"Tool failed: {functionName}",
                             ex.Message,
                             isError: true);
                     }
+                    
+                    // Add tool result to conversation with proper ToolCallId for provider compatibility
+                    chat.AddToolMessage(toolCallId, result, invocationSucceeded);
+                    totalToolCalls++;
                 }
-            },
-            AfterFunctionCallsResolvedHandler = async (results, handler) =>
-            {
+                
                 _logger.LogInformation("Continuing conversation after tool execution");
                 _appEventService.AddEvent(
                     AppEventType.LlmResponse, 
                     "LLM", 
                     "Continuing after tool execution");
-                await chat.StreamResponseRich(handler);
-            },
-            OnUsageReceived = async usage =>
-            {
-                LogUsage(usage, "OnUsageReceived");
-                await ValueTask.CompletedTask;
-            },
-            OnFinished = async finishedData =>
-            {
-                // Log usage data (even if 0 to debug provider support)
-                _logger.LogInformation(
-                    "Stream finished - Reason: {Reason}, HasUsage: {HasUsage}, Prompt: {Prompt}, Completion: {Completion}, Total: {Total}",
-                    finishedData.FinishReason,
-                    finishedData.Usage.TotalTokens > 0,
-                    finishedData.Usage.PromptTokens,
-                    finishedData.Usage.CompletionTokens,
-                    finishedData.Usage.TotalTokens);
                 
-                if (finishedData.Usage.TotalTokens > 0)
-                {
-                    LogUsage(finishedData.Usage, "OnFinished");
-                }
-                else
-                {
-                    // Provider doesn't support usage in streaming - emit placeholder event
-                    _appEventService.AddEvent(
-                        AppEventType.TokenUsage,
-                        "Usage",
-                        "Tokens: N/A",
-                        "Provider does not return usage data in streaming mode");
-                }
-                await ValueTask.CompletedTask;
+                // Get next response after tool results
+                response = await chat.GetResponseRich();
+                functionBlocks = response?.Blocks?.Where(b => b.Type == ChatRichResponseBlockTypes.Function).ToList();
             }
-        });
+            
+            stopwatch.Stop();
 
-        // Emit final response event
-        if (tokenCount > 0)
-        {
+            // Extract response content - use Text property or concatenate message blocks
+            var content = response?.Text ?? string.Empty;
+            
+            // Extract reasoning/thinking content if available (for models like DeepSeek, o1)
+            var reasoning = response?.Result?.Choices?.FirstOrDefault()?.Message?.Reasoning;
+            if (!string.IsNullOrEmpty(reasoning))
+            {
+                _logger.LogInformation("Reasoning content available ({Length} chars)", reasoning.Length);
+                _appEventService.AddEvent(
+                    AppEventType.LlmResponse,
+                    "Reasoning",
+                    $"Model reasoning ({reasoning.Length} chars)",
+                    reasoning.Length > 500 ? reasoning[..500] + "..." : reasoning);
+            }
+            
+            // Extract usage data from the underlying ChatResult (reliable in non-streaming mode!)
+            var usage = response?.Result?.Usage;
+            
+            if (usage != null)
+            {
+                LogUsage(usage);
+            }
+            else
+            {
+                _logger.LogWarning("No usage data returned in response");
+            }
+
+            // Emit final response event
             _appEventService.AddEvent(
                 AppEventType.LlmResponse, 
                 "LLM", 
-                $"Response complete ({tokenCount} tokens)");
+                $"Response complete ({content.Length} chars, {totalToolCalls} tool calls)",
+                $"Duration: {stopwatch.ElapsedMilliseconds}ms");
+
+            return new DmChatResponse(
+                Content: content,
+                IsSuccess: true,
+                Reasoning: reasoning,
+                PromptTokens: usage?.PromptTokens,
+                CompletionTokens: usage?.CompletionTokens,
+                TotalTokens: usage?.TotalTokens,
+                ToolCallCount: totalToolCalls,
+                DurationMs: stopwatch.ElapsedMilliseconds);
+        }
+        catch (Exception ex)
+        {
+            stopwatch.Stop();
+            _logger.LogError(ex, "Error processing DM input");
+            
+            _appEventService.AddEvent(
+                AppEventType.Error, 
+                "LLM", 
+                "LLM request failed",
+                ex.Message,
+                isError: true);
+            
+            return new DmChatResponse(
+                Content: string.Empty,
+                IsSuccess: false,
+                ErrorMessage: ex.Message,
+                DurationMs: stopwatch.ElapsedMilliseconds);
         }
     }
 
@@ -280,11 +318,11 @@ public class RiddleLlmService : IRiddleLlmService
             """;
     }
 
-    private void LogUsage(ChatUsage usage, string source)
+    private void LogUsage(ChatUsage usage)
     {
         _logger.LogInformation(
-            "[{Source}] Token usage - Prompt: {Prompt}, Completion: {Completion}, Total: {Total}",
-            source, usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens);
+            "Token usage - Prompt: {Prompt}, Completion: {Completion}, Total: {Total}",
+            usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens);
         
         var details = $"Prompt: {usage.PromptTokens:N0} | Completion: {usage.CompletionTokens:N0} | Total: {usage.TotalTokens:N0}";
         
