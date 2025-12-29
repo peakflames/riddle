@@ -1,16 +1,18 @@
 using System.Text;
 using System.Text.Json;
+using Riddle.Web.Hubs;
 using Riddle.Web.Models;
 
 namespace Riddle.Web.Services;
 
 /// <summary>
 /// Routes LLM tool calls to appropriate handlers.
-/// Implements all 7 game state manipulation tools.
+/// Implements game state manipulation and combat management tools.
 /// </summary>
 public class ToolExecutor : IToolExecutor
 {
     private readonly IGameStateService _stateService;
+    private readonly ICombatService _combatService;
     private readonly ILogger<ToolExecutor> _logger;
 
     /// <summary>
@@ -91,9 +93,13 @@ public class ToolExecutor : IToolExecutor
         ["IsClaimed"] = c => c.IsClaimed,
     };
 
-    public ToolExecutor(IGameStateService stateService, ILogger<ToolExecutor> logger)
+    public ToolExecutor(
+        IGameStateService stateService, 
+        ICombatService combatService,
+        ILogger<ToolExecutor> logger)
     {
         _stateService = stateService;
+        _combatService = combatService;
         _logger = logger;
     }
 
@@ -121,6 +127,12 @@ public class ToolExecutor : IToolExecutor
                 "get_player_roll_log" => await ExecuteGetPlayerRollLogAsync(campaignId, argumentsJson, ct),
                 "get_character_property_names" => ExecuteGetCharacterPropertyNamesAsync(),
                 "get_character_properties" => await ExecuteGetCharacterPropertiesAsync(campaignId, argumentsJson, ct),
+                // Combat Management Tools
+                "start_combat" => await ExecuteStartCombatAsync(campaignId, argumentsJson, ct),
+                "end_combat" => await ExecuteEndCombatAsync(campaignId, ct),
+                "advance_turn" => await ExecuteAdvanceTurnAsync(campaignId, ct),
+                "add_combatant" => await ExecuteAddCombatantAsync(campaignId, argumentsJson, ct),
+                "remove_combatant" => await ExecuteRemoveCombatantAsync(campaignId, argumentsJson, ct),
                 _ => JsonSerializer.Serialize(new { error = $"Unknown tool: {toolName}" })
             };
 
@@ -671,5 +683,337 @@ public class ToolExecutor : IToolExecutor
         _logger.LogInformation("Retrieved {PropCount} properties for {CharCount} characters", 
             propNames.Count, characterIds.Count);
         return sb.ToString();
+    }
+
+    // ==================== Combat Management Tools ====================
+
+    /// <summary>
+    /// Tool: start_combat - Initiates combat encounter with enemies and PC initiatives
+    /// </summary>
+    private async Task<string> ExecuteStartCombatAsync(Guid campaignId, string argumentsJson, CancellationToken ct)
+    {
+        var args = JsonSerializer.Deserialize<JsonElement>(argumentsJson);
+        
+        // Check if combat is already active
+        var existingCombat = await _combatService.GetCombatStateAsync(campaignId, ct);
+        if (existingCombat?.IsActive == true)
+        {
+            return "Error: Combat already active. Call end_combat first to start new combat.";
+        }
+
+        if (!args.TryGetProperty("enemies", out var enemiesElement))
+        {
+            return JsonSerializer.Serialize(new { error = "Missing required parameter: enemies" });
+        }
+        
+        if (!args.TryGetProperty("pc_initiatives", out var pcInitiativesElement))
+        {
+            return JsonSerializer.Serialize(new { error = "Missing required parameter: pc_initiatives" });
+        }
+
+        var combatants = new List<CombatantInfo>();
+        var warnings = new List<string>();
+
+        // Get party state for PC data
+        var campaign = await _stateService.GetCampaignAsync(campaignId, ct);
+        if (campaign == null)
+        {
+            return JsonSerializer.Serialize(new { error = "Campaign not found" });
+        }
+
+        // Process PC initiatives
+        foreach (var pcProp in pcInitiativesElement.EnumerateObject())
+        {
+            var characterId = pcProp.Name;
+            var initiative = pcProp.Value.GetInt32();
+            
+            // Clamp initiative to valid range (1-30)
+            var clampedInitiative = Math.Clamp(initiative, 1, 30);
+            if (clampedInitiative != initiative)
+            {
+                warnings.Add($"Initiative for {characterId} clamped from {initiative} to {clampedInitiative}");
+            }
+
+            var character = campaign.PartyState.FirstOrDefault(c => c.Id == characterId);
+            if (character == null)
+            {
+                warnings.Add($"PC {characterId} not found in party state, skipping");
+                continue;
+            }
+
+            combatants.Add(new CombatantInfo(
+                Id: character.Id,
+                Name: character.Name,
+                Type: "PC",
+                Initiative: clampedInitiative,
+                CurrentHp: character.CurrentHp,
+                MaxHp: character.MaxHp,
+                IsDefeated: character.CurrentHp <= 0,
+                IsSurprised: false
+            ));
+        }
+
+        // Process enemies
+        var enemyIndex = 0;
+        foreach (var enemy in enemiesElement.EnumerateArray())
+        {
+            enemyIndex++;
+            
+            var name = enemy.TryGetProperty("name", out var nameEl) 
+                ? nameEl.GetString()! 
+                : $"Enemy {enemyIndex}";
+            
+            var initiative = enemy.TryGetProperty("initiative", out var initEl) 
+                ? initEl.GetInt32() 
+                : 10;
+            
+            var maxHp = enemy.TryGetProperty("max_hp", out var maxHpEl) 
+                ? maxHpEl.GetInt32() 
+                : 10;
+            
+            var currentHp = enemy.TryGetProperty("current_hp", out var curHpEl) 
+                ? curHpEl.GetInt32() 
+                : maxHp;
+            
+            var ac = enemy.TryGetProperty("ac", out var acEl) 
+                ? acEl.GetInt32() 
+                : 10;
+
+            // Clamp initiative
+            var clampedInit = Math.Clamp(initiative, 1, 30);
+            if (clampedInit != initiative)
+            {
+                warnings.Add($"Initiative for {name} clamped from {initiative} to {clampedInit}");
+            }
+
+            combatants.Add(new CombatantInfo(
+                Id: $"enemy_{Guid.NewGuid():N}",
+                Name: name,
+                Type: "Enemy",
+                Initiative: clampedInit,
+                CurrentHp: currentHp,
+                MaxHp: maxHp,
+                IsDefeated: currentHp <= 0,
+                IsSurprised: false
+            ));
+        }
+
+        if (combatants.Count == 0)
+        {
+            return "Error: No valid combatants provided. Check that PC IDs exist in party state.";
+        }
+
+        // Start combat
+        var combatState = await _combatService.StartCombatAsync(campaignId, combatants, ct);
+
+        // Log to narrative log
+        var pcCount = combatants.Count(c => c.Type == "PC");
+        var enemyCount = combatants.Count(c => c.Type == "Enemy");
+        var logEntry = new LogEntry
+        {
+            Entry = $"[Combat] Combat initiated: {pcCount} PCs vs {enemyCount} enemies",
+            Importance = "standard"
+        };
+        await _stateService.AddLogEntryAsync(campaignId, logEntry, ct);
+
+        // Build response
+        var combatantSummary = string.Join(", ", combatState.TurnOrder.Select(c => $"{c.Name} ({c.Type})"));
+        var result = $"Combat started with {combatants.Count} combatants: {combatantSummary}. Turn order established.";
+        
+        if (warnings.Count > 0)
+        {
+            result += $"\n\nWarnings:\n{string.Join("\n", warnings.Select(w => $"• {w}"))}";
+        }
+
+        _logger.LogInformation("Combat started: {Count} combatants", combatants.Count);
+        return result;
+    }
+
+    /// <summary>
+    /// Tool: end_combat - Ends the current combat encounter
+    /// </summary>
+    private async Task<string> ExecuteEndCombatAsync(Guid campaignId, CancellationToken ct)
+    {
+        var combatState = await _combatService.GetCombatStateAsync(campaignId, ct);
+        if (combatState?.IsActive != true)
+        {
+            return "Error: No active combat to end.";
+        }
+
+        var roundCount = combatState.RoundNumber;
+        
+        await _combatService.EndCombatAsync(campaignId, ct);
+
+        // Log to narrative log
+        var logEntry = new LogEntry
+        {
+            Entry = $"[Combat] Combat ended after {roundCount} round(s)",
+            Importance = "standard"
+        };
+        await _stateService.AddLogEntryAsync(campaignId, logEntry, ct);
+
+        _logger.LogInformation("Combat ended after {Rounds} rounds", roundCount);
+        return $"Combat ended after {roundCount} round(s). Combat Tracker cleared.";
+    }
+
+    /// <summary>
+    /// Tool: advance_turn - Advances to the next combatant's turn
+    /// </summary>
+    private async Task<string> ExecuteAdvanceTurnAsync(Guid campaignId, CancellationToken ct)
+    {
+        var combatState = await _combatService.GetCombatStateAsync(campaignId, ct);
+        if (combatState?.IsActive != true)
+        {
+            return "Error: No active combat. Call start_combat first.";
+        }
+
+        var previousRound = combatState.RoundNumber;
+        var (newTurnIndex, currentCombatantId) = await _combatService.AdvanceTurnAsync(campaignId, ct);
+
+        // Get updated state for round number
+        var updatedState = await _combatService.GetCombatStateAsync(campaignId, ct);
+        var currentRound = updatedState?.RoundNumber ?? previousRound;
+        
+        var currentCombatant = updatedState?.TurnOrder
+            .FirstOrDefault(c => c.Id == currentCombatantId);
+        var combatantName = currentCombatant?.Name ?? currentCombatantId;
+
+        // Log to narrative log
+        var roundChanged = currentRound > previousRound;
+        var logEntry = new LogEntry
+        {
+            Entry = roundChanged 
+                ? $"[Combat] Round {currentRound} begins. {combatantName}'s turn"
+                : $"[Combat] Turn advanced: {combatantName}'s turn",
+            Importance = "minor"
+        };
+        await _stateService.AddLogEntryAsync(campaignId, logEntry, ct);
+
+        _logger.LogInformation("Turn advanced to {Combatant} (Round {Round})", combatantName, currentRound);
+        return $"Turn advanced: {combatantName}'s turn (Round {currentRound})";
+    }
+
+    /// <summary>
+    /// Tool: add_combatant - Adds a combatant to active combat
+    /// </summary>
+    private async Task<string> ExecuteAddCombatantAsync(Guid campaignId, string argumentsJson, CancellationToken ct)
+    {
+        var combatState = await _combatService.GetCombatStateAsync(campaignId, ct);
+        if (combatState?.IsActive != true)
+        {
+            return "Error: No active combat. Call start_combat first.";
+        }
+
+        var args = JsonSerializer.Deserialize<JsonElement>(argumentsJson);
+        
+        if (!args.TryGetProperty("name", out var nameEl))
+        {
+            return JsonSerializer.Serialize(new { error = "Missing required parameter: name" });
+        }
+        
+        if (!args.TryGetProperty("initiative", out var initEl))
+        {
+            return JsonSerializer.Serialize(new { error = "Missing required parameter: initiative" });
+        }
+        
+        if (!args.TryGetProperty("max_hp", out var maxHpEl))
+        {
+            return JsonSerializer.Serialize(new { error = "Missing required parameter: max_hp" });
+        }
+        
+        if (!args.TryGetProperty("is_enemy", out var isEnemyEl))
+        {
+            return JsonSerializer.Serialize(new { error = "Missing required parameter: is_enemy" });
+        }
+
+        var name = nameEl.GetString()!;
+        var initiative = initEl.GetInt32();
+        var maxHp = maxHpEl.GetInt32();
+        var isEnemy = isEnemyEl.GetBoolean();
+        
+        var currentHp = args.TryGetProperty("current_hp", out var curHpEl) 
+            ? curHpEl.GetInt32() 
+            : maxHp;
+        
+        var ac = args.TryGetProperty("ac", out var acEl) 
+            ? acEl.GetInt32() 
+            : 10;
+
+        // Clamp initiative
+        var clampedInit = Math.Clamp(initiative, 1, 30);
+        var initWarning = clampedInit != initiative 
+            ? $" (initiative clamped from {initiative} to {clampedInit})" 
+            : "";
+
+        var combatant = new CombatantInfo(
+            Id: $"{(isEnemy ? "enemy" : "ally")}_{Guid.NewGuid():N}",
+            Name: name,
+            Type: isEnemy ? "Enemy" : "Ally",
+            Initiative: clampedInit,
+            CurrentHp: currentHp,
+            MaxHp: maxHp,
+            IsDefeated: currentHp <= 0,
+            IsSurprised: false
+        );
+
+        await _combatService.AddCombatantAsync(campaignId, combatant, ct);
+
+        // Log to narrative log
+        var logEntry = new LogEntry
+        {
+            Entry = $"[Combat] {name} joined combat (initiative: {clampedInit})",
+            Importance = "minor"
+        };
+        await _stateService.AddLogEntryAsync(campaignId, logEntry, ct);
+
+        _logger.LogInformation("Added combatant {Name} to combat", name);
+        return $"{name} joined combat at initiative {clampedInit}{initWarning}";
+    }
+
+    /// <summary>
+    /// Tool: remove_combatant - Removes a combatant from combat
+    /// </summary>
+    private async Task<string> ExecuteRemoveCombatantAsync(Guid campaignId, string argumentsJson, CancellationToken ct)
+    {
+        var combatState = await _combatService.GetCombatStateAsync(campaignId, ct);
+        if (combatState?.IsActive != true)
+        {
+            return "Error: No active combat.";
+        }
+
+        var args = JsonSerializer.Deserialize<JsonElement>(argumentsJson);
+        
+        if (!args.TryGetProperty("combatant_name", out var nameEl))
+        {
+            return JsonSerializer.Serialize(new { error = "Missing required parameter: combatant_name" });
+        }
+
+        var combatantName = nameEl.GetString()!;
+        var reason = args.TryGetProperty("reason", out var reasonEl) 
+            ? reasonEl.GetString() ?? "removed" 
+            : "removed";
+
+        // Find combatant by name or ID
+        var combatant = combatState.TurnOrder.FirstOrDefault(c => 
+            c.Name.Equals(combatantName, StringComparison.OrdinalIgnoreCase) ||
+            c.Id.Equals(combatantName, StringComparison.OrdinalIgnoreCase));
+
+        if (combatant == null)
+        {
+            return $"Error: Combatant '{combatantName}' not found in combat.";
+        }
+
+        await _combatService.RemoveCombatantAsync(campaignId, combatant.Id, ct);
+
+        // Log to narrative log
+        var logEntry = new LogEntry
+        {
+            Entry = $"[Combat] {combatant.Name} {reason}",
+            Importance = "minor"
+        };
+        await _stateService.AddLogEntryAsync(campaignId, logEntry, ct);
+
+        _logger.LogInformation("Removed combatant {Name} from combat ({Reason})", combatant.Name, reason);
+        return $"{combatant.Name} {reason} from combat.";
     }
 }

@@ -374,6 +374,47 @@ public class RiddleLlmService : IRiddleLlmService
             - If this is a new conversation, use the game data and game log to provide a short recap of what the campaign previous doing when we last playing the game
             </other_tips_and_tricks>
 
+            <combat_protocol>
+            **Combat Management Tools:**
+            You have direct control over combat via these tools:
+
+            1. `start_combat` - Initiates combat encounter
+               - Provide enemy stats (name, initiative, max_hp, ac)
+               - Provide PC initiative values (from DM-reported rolls)
+               - This displays a visual Combat Tracker to ALL players
+               - You don't need to describe turn order in chat - players SEE it
+
+            2. `advance_turn` - Moves to next combatant's turn
+               - Call this after resolving each combatant's action
+               - Auto-increments round when returning to top of order
+
+            3. `add_combatant` - Add enemy/ally mid-combat
+               - For reinforcements, summoned creatures, etc.
+               - Inserted at correct initiative order
+
+            4. `remove_combatant` - Remove combatant from battle
+               - For fled enemies, dismissed summons, etc.
+               - Do NOT use for defeated enemies (track HP instead)
+
+            5. `end_combat` - Ends the combat encounter
+               - Call when all enemies defeated/fled OR party retreats
+               - Clears Combat Tracker display
+
+            **Combat Workflow:**
+            1. When combat starts narratively → call `start_combat`
+            2. Announce whose turn it is based on Combat Tracker state
+            3. Player/DM describes action → you resolve mechanics
+            4. Update HP via `update_character_state` if damage dealt
+            5. Call `advance_turn` to move to next combatant
+            6. Repeat until combat resolved
+            7. Call `end_combat` to clear tracker
+
+            **Important:**
+            - All combat events are automatically logged to the narrative log
+            - The Combat Tracker is VISUAL - players see HP bars, turn order, current turn
+            - Don't repeat information that's already visible in the tracker
+            </combat_protocol>
+
             """;
     }
 
@@ -686,6 +727,83 @@ public class RiddleLlmService : IRiddleLlmService
                         }
                     },
                     required = new[] { "character_ids", "prop_names" }
+                })),
+            
+            // Combat Management Tools
+            new Tool(new ToolFunction(
+                "start_combat",
+                "Initiates a combat encounter with enemies and PC initiatives. Displays Combat Tracker to all players.",
+                new
+                {
+                    type = "object",
+                    properties = new
+                    {
+                        enemies = new
+                        {
+                            type = "array",
+                            items = new
+                            {
+                                type = "object",
+                                properties = new
+                                {
+                                    name = new { type = "string", description = "Enemy name (e.g., 'Goblin 1', 'Orc Chief')" },
+                                    initiative = new { type = "integer", description = "Initiative roll (1-30)" },
+                                    max_hp = new { type = "integer", description = "Maximum hit points" },
+                                    current_hp = new { type = "integer", description = "Current HP (defaults to max_hp if not provided)" },
+                                    ac = new { type = "integer", description = "Armor Class (defaults to 10)" }
+                                },
+                                required = new[] { "name", "initiative", "max_hp" }
+                            },
+                            description = "List of enemy combatants"
+                        },
+                        pc_initiatives = new
+                        {
+                            type = "object",
+                            description = "Map of character_id to initiative value for each PC",
+                            additionalProperties = new { type = "integer" }
+                        }
+                    },
+                    required = new[] { "enemies", "pc_initiatives" }
+                })),
+            
+            new Tool(new ToolFunction(
+                "end_combat",
+                "Ends the current combat encounter and clears the Combat Tracker.")),
+            
+            new Tool(new ToolFunction(
+                "advance_turn",
+                "Advances to the next combatant's turn. Auto-increments round when returning to top of order.")),
+            
+            new Tool(new ToolFunction(
+                "add_combatant",
+                "Adds a combatant to an active combat encounter (reinforcements, summons, etc.).",
+                new
+                {
+                    type = "object",
+                    properties = new
+                    {
+                        name = new { type = "string", description = "Combatant name" },
+                        initiative = new { type = "integer", description = "Initiative roll (1-30)" },
+                        max_hp = new { type = "integer", description = "Maximum hit points" },
+                        current_hp = new { type = "integer", description = "Current HP (defaults to max_hp)" },
+                        ac = new { type = "integer", description = "Armor Class (defaults to 10)" },
+                        is_enemy = new { type = "boolean", description = "true=enemy, false=ally/summon" }
+                    },
+                    required = new[] { "name", "initiative", "max_hp", "is_enemy" }
+                })),
+            
+            new Tool(new ToolFunction(
+                "remove_combatant",
+                "Removes a combatant from combat (fled, dismissed, etc.). Do NOT use for defeated enemies - track HP instead.",
+                new
+                {
+                    type = "object",
+                    properties = new
+                    {
+                        combatant_name = new { type = "string", description = "Name or character_id of the combatant to remove" },
+                        reason = new { type = "string", description = "Reason for removal (e.g., 'fled', 'dismissed', 'captured')" }
+                    },
+                    required = new[] { "combatant_name" }
                 }))
         ];
     }

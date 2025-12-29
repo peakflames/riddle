@@ -4,6 +4,7 @@
 @using Flowbite.Components
 @implements IAsyncDisposable
 
+@* Display-only combat tracker - combat is controlled by LLM via tools *@
 <Card Class="h-full">
     <div class="flex items-center justify-between mb-4">
         <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
@@ -20,116 +21,33 @@
     {
         <div class="text-center text-gray-500 dark:text-gray-400 py-8">
             <div class="text-4xl mb-3">🛡️</div>
-            <p class="mb-4">No active combat</p>
-            @if (IsDm)
-            {
-                <Button Color="ButtonColor.Primary" OnClick="() => _showStartModal = true">
-                    Start Combat
-                </Button>
-            }
+            <p>No active combat</p>
+            <p class="text-xs mt-2 italic">The DM will initiate combat when enemies appear</p>
         </div>
     }
     else
     {
-        <div class="space-y-2 mb-4">
+        <div class="space-y-2">
             @foreach (var (combatant, index) in Combat.TurnOrder.Select((c, i) => (c, i)))
             {
                 <CombatantCard 
                     Combatant="combatant" 
                     Position="@(index + 1)"
                     IsCurrentTurn="@(index == Combat.CurrentTurnIndex)"
-                    IsDm="IsDm"
-                    OnAdvanceTurn="AdvanceTurn"
-                    OnMarkDefeated="() => MarkDefeated(combatant.Id)" />
+                    IsDm="IsDm" />
             }
         </div>
         
         @if (IsDm)
         {
-            <div class="flex gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
-                <Button Color="ButtonColor.Light" OnClick="AdvanceTurn" Class="flex-1">
-                    ⏭️ Next Turn
-                </Button>
-                <Button Color="ButtonColor.Red" OnClick="EndCombat">
-                    End Combat
-                </Button>
+            <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <p class="text-xs text-gray-500 dark:text-gray-400 text-center italic">
+                    Combat is managed through chat commands
+                </p>
             </div>
         }
     }
 </Card>
-
-@* Start Combat Modal *@
-<Modal Show="_showStartModal" ShowChanged="value => _showStartModal = value" Size="ModalSize.Medium">
-    <ModalHeader>
-        <h3>Start Combat</h3>
-    </ModalHeader>
-    <ModalBody>
-        <div class="space-y-4">
-        <p class="text-gray-600 dark:text-gray-400">
-            Enter initiative rolls for each combatant. The turn order will be sorted by initiative (highest first).
-        </p>
-        
-        @if (_initiativeCombatants.Any())
-        {
-            <div class="space-y-3">
-                @foreach (var combatant in _initiativeCombatants)
-                {
-                    <div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                        <div class="flex-1">
-                            <span class="font-medium text-gray-900 dark:text-white">@combatant.Name</span>
-                            <span class="text-sm text-gray-500 dark:text-gray-400 ml-2">(@combatant.Type)</span>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <label class="text-sm text-gray-600 dark:text-gray-400">Initiative:</label>
-                            <input type="number" 
-                                   @bind="combatant.Initiative"
-                                   class="w-20 px-2 py-1 text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
-                        </div>
-                    </div>
-                }
-            </div>
-        }
-        else
-        {
-            <div class="text-center text-gray-500 dark:text-gray-400 py-4">
-                No combatants in party. Add characters to the party first.
-            </div>
-        }
-        
-        @* Add Enemy Section *@
-        <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
-            <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Add Enemy</h4>
-            <div class="flex gap-2">
-                <input type="text" 
-                       @bind="_newEnemyName"
-                       placeholder="Enemy name"
-                       class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
-                <input type="number" 
-                       @bind="_newEnemyHp"
-                       placeholder="HP"
-                       class="w-20 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
-                <input type="number" 
-                       @bind="_newEnemyInit"
-                       placeholder="Init"
-                       class="w-20 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
-                <Button Color="ButtonColor.Light" OnClick="AddEnemy">
-                    + Add
-                </Button>
-            </div>
-        </div>
-        </div>
-    </ModalBody>
-    <ModalFooter>
-        <div class="flex justify-end gap-2 w-full">
-            <Button Color="ButtonColor.Light" OnClick="() => _showStartModal = false">
-                Cancel
-            </Button>
-            <Button Color="ButtonColor.Primary" OnClick="StartCombatWithInitiative" Disabled="@(!_initiativeCombatants.Any())">
-                Start Combat
-            </Button>
-        </div>
-    </ModalFooter>
-</Modal>
 
 @code {
     [Parameter] 
@@ -148,50 +66,16 @@
     public List<Riddle.Web.Models.Character> PartyCharacters { get; set; } = [];
     
     [Inject] 
-    private ICombatService CombatService { get; set; } = null!;
-    
-    [Inject] 
     private NavigationManager Navigation { get; set; } = null!;
     
     [Inject]
     private ILogger<CombatTracker> Logger { get; set; } = null!;
     
     private HubConnection? _hubConnection;
-    private bool _showStartModal;
-    private List<InitiativeCombatant> _initiativeCombatants = [];
-    private string _newEnemyName = "";
-    private int _newEnemyHp = 10;
-    private int _newEnemyInit = 10;
 
     protected override async Task OnInitializedAsync()
     {
         await SetupSignalR();
-        PrepareInitiativeList();
-    }
-    
-    protected override void OnParametersSet()
-    {
-        // Update initiative list when party changes
-        if (!_showStartModal)
-        {
-            PrepareInitiativeList();
-        }
-    }
-
-    private void PrepareInitiativeList()
-    {
-        // Build combatant list from party characters
-        _initiativeCombatants = PartyCharacters
-            .Select(c => new InitiativeCombatant
-            {
-                Id = c.Id,
-                Name = c.Name,
-                Type = "PC",
-                Initiative = 10,
-                CurrentHp = c.CurrentHp,
-                MaxHp = c.MaxHp
-            })
-            .ToList();
     }
 
     private async Task SetupSignalR()
@@ -234,7 +118,7 @@
 
             await _hubConnection.StartAsync();
             
-            // Join campaign group
+            // Join campaign group to receive combat updates
             if (CampaignId != Guid.Empty)
             {
                 await _hubConnection.SendAsync("JoinCampaign", CampaignId, "", null, IsDm);
@@ -243,98 +127,6 @@
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to setup SignalR connection for CombatTracker");
-        }
-    }
-
-    private void AddEnemy()
-    {
-        if (string.IsNullOrWhiteSpace(_newEnemyName)) return;
-        
-        _initiativeCombatants.Add(new InitiativeCombatant
-        {
-            Id = Guid.CreateVersion7().ToString(),
-            Name = _newEnemyName,
-            Type = "Enemy",
-            Initiative = _newEnemyInit,
-            CurrentHp = _newEnemyHp,
-            MaxHp = _newEnemyHp
-        });
-        
-        _newEnemyName = "";
-        _newEnemyHp = 10;
-        _newEnemyInit = 10;
-    }
-
-    private async Task StartCombatWithInitiative()
-    {
-        if (!_initiativeCombatants.Any()) return;
-        
-        var combatants = _initiativeCombatants
-            .Select(c => new CombatantInfo(
-                c.Id,
-                c.Name,
-                c.Type,
-                c.Initiative,
-                c.CurrentHp,
-                c.MaxHp,
-                false,
-                false
-            ))
-            .ToList();
-        
-        try
-        {
-            var payload = await CombatService.StartCombatAsync(CampaignId, combatants);
-            Combat = payload;
-            await CombatChanged.InvokeAsync(payload);
-            _showStartModal = false;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Failed to start combat");
-        }
-    }
-
-    private async Task AdvanceTurn()
-    {
-        if (Combat == null) return;
-        
-        try
-        {
-            var (newIndex, currentId) = await CombatService.AdvanceTurnAsync(CampaignId);
-            Combat = Combat with { CurrentTurnIndex = newIndex };
-            await CombatChanged.InvokeAsync(Combat);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Failed to advance turn");
-        }
-    }
-
-    private async Task MarkDefeated(string characterId)
-    {
-        try
-        {
-            await CombatService.MarkDefeatedAsync(CampaignId, characterId);
-            // State will be updated via SignalR
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Failed to mark combatant as defeated");
-        }
-    }
-
-    private async Task EndCombat()
-    {
-        try
-        {
-            await CombatService.EndCombatAsync(CampaignId);
-            Combat = null;
-            await CombatChanged.InvokeAsync(null);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Failed to end combat");
         }
     }
 
@@ -355,16 +147,5 @@
                 Logger.LogWarning(ex, "Error disposing SignalR connection");
             }
         }
-    }
-    
-    // Internal class for initiative entry
-    private class InitiativeCombatant
-    {
-        public string Id { get; set; } = "";
-        public string Name { get; set; } = "";
-        public string Type { get; set; } = "PC";
-        public int Initiative { get; set; } = 10;
-        public int CurrentHp { get; set; } = 10;
-        public int MaxHp { get; set; } = 10;
     }
 }

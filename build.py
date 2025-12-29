@@ -337,8 +337,14 @@ def run_dotnet_command(dotnet_path: str, command: str) -> None:
         elif command == "watch":
             print("Starting project with hot reload...")
             print("Press Ctrl+C to stop watching...")
+
+            # Set environment for Development mode
+            env = os.environ.copy()
+            env["ASPNETCORE_ENVIRONMENT"] = "Development"
+
             subprocess.run(
-                [dotnet_path, "watch", "--project", PROJECT_PATH, "--no-restore"]
+                [dotnet_path, "watch", "--project", PROJECT_PATH, "--no-restore", "-c", "Development"],
+                env=env
             )
         
         elif command == "run":
