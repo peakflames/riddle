@@ -10,7 +10,8 @@
 @using Riddle.Web.Components.Shared
 @using Riddle.Web.Components.Combat
 @using Riddle.Web.Hubs
-@implements IDisposable
+@using Microsoft.AspNetCore.SignalR.Client
+@implements IAsyncDisposable
 @inject ICampaignService CampaignService
 @inject ICharacterService CharacterService
 @inject IGameStateService GameStateService
@@ -399,6 +400,12 @@
     
     // Combat state
     private CombatStatePayload? _combatState;
+    
+    // SignalR connection for player events
+    private HubConnection? _hubConnection;
+    
+    // Player choices submitted (from players)
+    private List<PlayerChoicePayload> _playerChoicesSubmitted = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -464,9 +471,18 @@
         });
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         GameStateService.OnCampaignChanged -= HandleCampaignChanged;
+        if (_hubConnection != null)
+        {
+            try
+            {
+                await _hubConnection.SendAsync("LeaveCampaign", CampaignId);
+            }
+            catch { /* Ignore errors during cleanup */ }
+            await _hubConnection.DisposeAsync();
+        }
     }
 
     private async Task LoadCampaignAsync()
@@ -484,7 +500,32 @@
         if (campaign != null)
         {
             _combatState = await CombatService.GetCombatStateAsync(CampaignId);
+            
+            // Setup SignalR connection for real-time player events
+            await SetupSignalRAsync();
         }
+    }
+    
+    private async Task SetupSignalRAsync()
+    {
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/gamehub"))
+            .WithAutomaticReconnect()
+            .Build();
+        
+        // Receive player choice submissions
+        _hubConnection.On<PlayerChoicePayload>(GameHubEvents.PlayerChoiceSubmitted, async payload =>
+        {
+            // Add to list (remove old choices from same character)
+            _playerChoicesSubmitted.RemoveAll(c => c.CharacterId == payload.CharacterId);
+            _playerChoicesSubmitted.Add(payload);
+            await InvokeAsync(StateHasChanged);
+        });
+        
+        await _hubConnection.StartAsync();
+        
+        // Join campaign as DM
+        await _hubConnection.SendAsync("JoinCampaign", CampaignId, currentUserId, null, true);
     }
 
     private string GetLocationDisplay()

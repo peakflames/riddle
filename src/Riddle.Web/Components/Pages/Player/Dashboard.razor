@@ -393,13 +393,14 @@
     
     private async Task SelectChoice(string choice)
     {
-        // Mark choice as selected (will be sent via SignalR in future)
+        if (selectedCharacter == null || _hubConnection == null) return;
+        
+        // Mark choice as selected
         hasSelectedChoice = true;
         selectedChoice = choice;
         
-        // TODO: Phase 4 - Send choice to DM via SignalR
-        // await GameHub.SendChoiceAsync(CampaignId, selectedCharacter!.Id, choice);
-        await Task.CompletedTask;
+        // Send choice to DM via SignalR
+        await _hubConnection.SendAsync("SubmitChoice", CampaignId, selectedCharacter.Id.ToString(), selectedCharacter.Name, choice);
     }
     
     private void GoHome() => Navigation.NavigateTo("/");
@@ -436,6 +437,18 @@
         _hubConnection.On(GameHubEvents.CombatEnded, async () =>
         {
             _combatState = null;
+            await InvokeAsync(StateHasChanged);
+        });
+        
+        // Player choices received from DM/LLM
+        _hubConnection.On<List<string>>(GameHubEvents.PlayerChoicesReceived, async choices =>
+        {
+            if (campaign != null)
+            {
+                campaign.ActivePlayerChoices = choices;
+                hasSelectedChoice = false;
+                selectedChoice = null;
+            }
             await InvokeAsync(StateHasChanged);
         });
         
