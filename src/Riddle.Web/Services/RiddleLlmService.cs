@@ -307,7 +307,7 @@ public class RiddleLlmService : IRiddleLlmService
             <debug_mode_protocol>
             The application is running in debug mode. 
             **TRIGGER:** When the user prompts **"SYSTEM OVERRIDE"**: you adhere to the exact request being asked of you, bypassing normal workflow constraints.
-            IMPORTANT: All tools are forbidden to be called unless instructed to by the user
+            IMPORTANT: When in SYSTEM OVERRIDE mode all tools are forbidden to be called unless instructed to by the user, othewise you are free to use tools
             </debug_mode_protocol>
             """;
             _logger.LogDebug("Debug mode system prompt extension enabled");
