@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2025-12-29
+
+### Added
+- **Conversation History Support**
+  - LLM now receives full conversation history for context continuity
+  - Previous messages preserved across chat interactions within session
+  - `LlmConversationMessage` record for structured message history
+
+- **File Attachment Support**
+  - Drag-and-drop file attachments in DM Chat
+  - Image attachments (PNG, JPG, GIF, WebP) sent to LLM as base64 multipart messages
+  - Text file attachments (.txt, .md, .markdown, .log) included as content
+  - 5MB file size limit with validation
+  - PDF attachments rejected with user-friendly error message
+  - `LlmAttachment` record for attachment data modeling
+
+- **Enhanced DmChat Component**
+  - `PromptInputHeader` with `PromptInputAttachments` for file management
+  - Attachment preview in chat messages (images displayed, files show name/size)
+  - Visual validation feedback for unsupported attachments
+
+### Changed
+- `IRiddleLlmService.ProcessDmInputAsync()` signature extended with optional `conversationHistory` and `attachments` parameters
+- `RiddleLlmService` builds multipart messages when attachments include images
+- Preserves existing 12 tool calling functionality while adding multimodal support
+
+### Technical
+- `DmChat.razor` refactored to code-behind pattern (`DmChat.razor.cs`) for maintainability
+- Attachment helper methods ported from Flowbite Blazor ChatAiPage reference implementation
+- `LlmConversationMessage` and `LlmAttachment` records in Models folder
+- Base64 encoding for image data with proper MIME type handling
+
 ## [0.8.0] - 2025-12-29
 
 ### Added
@@ -301,7 +333,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flowbite Blazor component library reference documentation
 - Incremental phase implementation workflow for development
 
-[Unreleased]: https://github.com/peakflames/riddle/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/peakflames/riddle/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/peakflames/riddle/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/peakflames/riddle/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/peakflames/riddle/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/peakflames/riddle/compare/v0.5.1...v0.6.0

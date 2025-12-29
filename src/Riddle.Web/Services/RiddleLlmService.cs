@@ -4,6 +4,7 @@ using LlmTornado.Chat;
 using LlmTornado.ChatFunctions;
 using LlmTornado.Code;
 using LlmTornado.Common;
+using LlmTornado.Images;
 using Riddle.Web.Models;
 
 namespace Riddle.Web.Services;
@@ -25,6 +26,11 @@ public class RiddleLlmService : IRiddleLlmService
     /// Maximum tool call iterations to prevent infinite loops.
     /// </summary>
     private const int MaxToolIterations = 10;
+    
+    /// <summary>
+    /// Maximum characters for plain text attachment content.
+    /// </summary>
+    private const int PlainTextAttachmentMaxChars = 20_000;
 
     public RiddleLlmService(
         IConfiguration config,
@@ -55,6 +61,8 @@ public class RiddleLlmService : IRiddleLlmService
     public async Task<DmChatResponse> ProcessDmInputAsync(
         Guid campaignId, 
         string dmMessage,
+        IReadOnlyList<LlmConversationMessage>? conversationHistory = null,
+        IReadOnlyList<LlmAttachment>? attachments = null,
         CancellationToken ct = default)
     {
         var stopwatch = Stopwatch.StartNew();
@@ -83,7 +91,45 @@ public class RiddleLlmService : IRiddleLlmService
             });
 
             chat.AppendSystemMessage(systemPrompt);
-            chat.AppendUserInput(dmMessage);
+            
+            // Add conversation history for context (critical for multi-turn conversations)
+            if (conversationHistory is { Count: > 0 })
+            {
+                foreach (var msg in conversationHistory)
+                {
+                    if (msg.Role.Equals("user", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // For user messages with attachments, use multipart format
+                        if (msg.Attachments is { Count: > 0 })
+                        {
+                            var parts = BuildMessageParts(msg.Content, msg.Attachments);
+                            chat.AppendUserInput(parts);
+                        }
+                        else
+                        {
+                            chat.AppendUserInput(msg.Content);
+                        }
+                    }
+                    else
+                    {
+                        // Assistant messages are text only
+                        chat.AppendMessage(ChatMessageRoles.Assistant, msg.Content);
+                    }
+                }
+                
+                _logger.LogInformation("Added {Count} history messages for context", conversationHistory.Count);
+            }
+            
+            // Add current user message with any attachments
+            if (attachments is { Count: > 0 })
+            {
+                var parts = BuildMessageParts(dmMessage, attachments);
+                chat.AppendUserInput(parts);
+            }
+            else
+            {
+                chat.AppendUserInput(dmMessage);
+            }
 
             _logger.LogInformation("Processing DM input for campaign {CampaignId}: {Message}", 
                 campaignId, dmMessage.Length > 100 ? dmMessage[..100] + "..." : dmMessage);
@@ -261,40 +307,39 @@ public class RiddleLlmService : IRiddleLlmService
             : "No characters registered";
 
         return $"""
-            <<role_definition>>
+            <role_definition>
             You are "Riddle," an expert Dungeon Master and Narrative Engine for D&D 5th Edition campaigns.
             You are currently running the "{campaign.CampaignModule}" campaign for "{campaign.Name}".
-            <</role_definition>>
+            </role_definition>
 
-            <<system_constraints>>
+            <system_constraints>
             **Context Window & Memory:**
             - You are stateless. Every conversation may be a fresh start.
             - **MANDATORY STARTUP:** Your first tool calls MUST be `get_game_state()` followed by `get_game_log()` to understand the current reality and recent events.
             - **NO HALLUCINATION:** Never guess HP, conditions, or locations. Use only data from GameState.
             - **MANDATORY LOGGING:** Call `update_game_log()` after major events to preserve history.
-            <</system_constraints>>
+            </system_constraints>
 
-            <<interaction_model>>
+            <interaction_model>
             1. **The Software:** Holds UI, character sheets, dice rollers, and persistent state.
             2. **You (Riddle):** The "Brain." You calculate mechanics, generate narrative, and decide outcomes.
             3. **The Human DM:** Provides player actions and dice rolls. They do not calculate mechanics.
-            <</interaction_model>>
+            </interaction_model>
 
-            <<workflow_protocol>>
+            <workflow_protocol>
             For each DM input:
-            1. **Recover:** Call `get_game_state()` if this is a new conversation.
+            1. **Recover:** Call `get_game_state()` and get_game_log() if this is a new conversation.
             2. **Analyze Context:** Check `PartyPreferences` for tone/combat level, `ActiveQuests` for hooks.
             3. **Process:** Apply D&D 5e rules. Calculate DCs, attack rolls, damage internally.
             4. **Persist:** Call `update_game_log()` for events. Call `update_character_state()` for HP/condition changes.
             5. **Output:**
-               - Use `display_read_aloud_text()` for atmospheric narration. Read Aloud Text (RAT)
-               - Use `present_player_choices()` for decision points.
+               - Use `display_read_aloud_text()` for atmospheric narration. Read Aloud Text (RAT). Generally this should be a short phrase. Emojis are supported but keep it subtle.
+               - Use `present_player_choices()` for decision points and communicate options of what the player can do next.
                - Use `log_player_roll()` to show mechanical results.
-               - For DM-only info (e.g., hidden enemy stats), reply in chat directly.
-               - For DM-only read aloud text (e.g. given the Human DM the words to say to keep the game move or play-by-play action), replay in the Chat using 📢 followed by the text
-            <</workflow_protocol>>
+               - For DM-only info (e.g., hidden enemy stats), reply in chat directly. Emojis where useful
+            </workflow_protocol>
 
-            <<current_game_state>>
+            <current_game_state>
             **Campaign:** {campaign.Name}
             **Module:** {campaign.CampaignModule}
             **Location:** {campaign.CurrentLocationId}
@@ -309,16 +354,26 @@ public class RiddleLlmService : IRiddleLlmService
             - Roleplay Focus: {campaign.Preferences.RoleplayFocus}
             - Pacing: {campaign.Preferences.Pacing}
             - Tone: {campaign.Preferences.Tone}
-            <</current_game_state>>
+            </current_game_state>
 
-            <<tone_and_style>>
+            <tone_and_style>
             - Be a helpful mentor to the novice DM.
             - Explain the "why" behind mechanics briefly.
             - Be evocative and atmospheric in read-aloud text.
             - Adapt style based on PartyPreferences.
             - Avoid table formatting
-            - Prefer to always provide a DM-Only read aloud text in the chat when possible
-            <</tone_and_style>>
+            - Never reveal story secrets to character players
+            </tone_and_style>
+
+            <story_secrets>
+            - AVOID revealing story secrets to charcter player in their choices
+            - AVOID revealing story secrets to charcter player in the Read-Aloud Text.
+            </story_secrets>
+
+            <other_tips_and_tricks>
+            - If this is a new conversation, use the game data and game log to provide a short recap of what the campaign previous doing when we last playing the game
+            </other_tips_and_tricks>
+
             """;
     }
 
@@ -347,6 +402,124 @@ public class RiddleLlmService : IRiddleLlmService
             "Usage",
             $"Tokens: {usage.TotalTokens:N0}",
             details);
+    }
+
+    /// <summary>
+    /// Builds message parts for multimodal content (text + attachments).
+    /// </summary>
+    private List<ChatMessagePart> BuildMessageParts(string text, IReadOnlyList<LlmAttachment> attachments)
+    {
+        var parts = new List<ChatMessagePart>();
+
+        // Add text content if present
+        if (!string.IsNullOrWhiteSpace(text))
+        {
+            parts.Add(new ChatMessagePart(text));
+        }
+
+        // Add attachments
+        foreach (var attachment in attachments)
+        {
+            var contentType = string.IsNullOrWhiteSpace(attachment.ContentType)
+                ? "application/octet-stream"
+                : attachment.ContentType;
+
+            if (attachment.IsImage)
+            {
+                // Image attachments: use data URL format
+                var dataUrl = $"data:{contentType};base64,{attachment.Base64Data}";
+                parts.Add(new ChatMessagePart(dataUrl, ImageDetail.Auto, contentType));
+                _logger.LogDebug("Added image attachment: {FileName} ({Size} bytes)", 
+                    attachment.FileName, attachment.Size);
+            }
+            else if (attachment.IsPlainText && !string.IsNullOrWhiteSpace(attachment.TextContent))
+            {
+                // Plain text attachments: include content inline with truncation
+                var truncated = attachment.TextContent.Length > PlainTextAttachmentMaxChars
+                    ? attachment.TextContent[..PlainTextAttachmentMaxChars]
+                    : attachment.TextContent;
+                var labeledContent = $"Attachment ({attachment.FileName}):\n{truncated}";
+                parts.Add(new ChatMessagePart(labeledContent));
+                _logger.LogDebug("Added text attachment: {FileName} ({Length} chars)", 
+                    attachment.FileName, truncated.Length);
+            }
+            else
+            {
+                // Other attachments: include as base64 document
+                parts.Add(new ChatMessagePart(attachment.Base64Data, DocumentLinkTypes.Base64));
+                _logger.LogDebug("Added binary attachment: {FileName}", attachment.FileName);
+            }
+        }
+
+        return parts;
+    }
+
+    /// <summary>
+    /// Creates a ChatMessage from an LlmConversationMessage, handling multipart content for attachments.
+    /// </summary>
+    private ChatMessage CreateChatMessage(LlmConversationMessage message)
+    {
+        var role = message.Role.ToLowerInvariant() switch
+        {
+            "user" => ChatMessageRoles.User,
+            "assistant" => ChatMessageRoles.Assistant,
+            "system" => ChatMessageRoles.System,
+            _ => ChatMessageRoles.User
+        };
+
+        var parts = new List<ChatMessagePart>();
+
+        // Add text content if present
+        if (!string.IsNullOrWhiteSpace(message.Content))
+        {
+            parts.Add(new ChatMessagePart(message.Content));
+        }
+
+        // Add attachments if present
+        if (message.Attachments is { Count: > 0 })
+        {
+            foreach (var attachment in message.Attachments)
+            {
+                var contentType = string.IsNullOrWhiteSpace(attachment.ContentType)
+                    ? "application/octet-stream"
+                    : attachment.ContentType;
+
+                if (attachment.IsImage)
+                {
+                    // Image attachments: use data URL format
+                    var dataUrl = $"data:{contentType};base64,{attachment.Base64Data}";
+                    parts.Add(new ChatMessagePart(dataUrl, ImageDetail.Auto, contentType));
+                    _logger.LogDebug("Added image attachment: {FileName} ({Size} bytes)", 
+                        attachment.FileName, attachment.Size);
+                    continue;
+                }
+
+                if (attachment.IsPlainText && !string.IsNullOrWhiteSpace(attachment.TextContent))
+                {
+                    // Plain text attachments: include content inline with truncation
+                    var truncated = attachment.TextContent.Length > PlainTextAttachmentMaxChars
+                        ? attachment.TextContent[..PlainTextAttachmentMaxChars]
+                        : attachment.TextContent;
+                    var labeledContent = $"Attachment ({attachment.FileName}):\n{truncated}";
+                    parts.Add(new ChatMessagePart(labeledContent));
+                    _logger.LogDebug("Added text attachment: {FileName} ({Length} chars)", 
+                        attachment.FileName, truncated.Length);
+                    continue;
+                }
+
+                // Other attachments: include as base64 document
+                parts.Add(new ChatMessagePart(attachment.Base64Data, DocumentLinkTypes.Base64));
+                _logger.LogDebug("Added binary attachment: {FileName}", attachment.FileName);
+            }
+        }
+
+        // Return simple message if no parts, or multipart message if we have content
+        if (parts.Count == 0)
+        {
+            return new ChatMessage(role, message.Content ?? string.Empty);
+        }
+
+        return new ChatMessage(role, parts);
     }
 
     private List<Tool> BuildToolDefinitions()

@@ -14,10 +14,14 @@ public interface IRiddleLlmService
     /// </summary>
     /// <param name="campaignId">The campaign context</param>
     /// <param name="dmMessage">The DM's message</param>
+    /// <param name="conversationHistory">Previous messages for context (excluding system prompt)</param>
+    /// <param name="attachments">File attachments for the current message</param>
     /// <param name="ct">Cancellation token</param>
     /// <returns>The assistant's response with usage statistics</returns>
     Task<DmChatResponse> ProcessDmInputAsync(
         Guid campaignId, 
         string dmMessage,
+        IReadOnlyList<LlmConversationMessage>? conversationHistory = null,
+        IReadOnlyList<LlmAttachment>? attachments = null,
         CancellationToken ct = default);
 }
