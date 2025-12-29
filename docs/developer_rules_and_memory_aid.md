@@ -133,6 +133,34 @@ Use the Python automation:
 ### UUID/GUID
 - Use `Guid.CreateVersion7()` for time-sortable IDs (requires .NET 9+)
 
+### Dynamic App Version Display
+**Don't hardcode version strings in UI components.** Use reflection to read from `AssemblyInformationalVersionAttribute`:
+
+```csharp
+@using System.Reflection
+
+private string AppInformationalVersion
+{
+    get
+    {
+        var appVersion = Assembly.GetExecutingAssembly()
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "Unknown";
+        
+        // Strip Git commit hash suffix (e.g., "0.9.0+abc123" → "0.9.0")
+        var plusCharIndex = appVersion.IndexOf('+');
+        if (plusCharIndex > -1)
+        {
+            appVersion = appVersion.Substring(0, plusCharIndex);
+        }
+        return appVersion;
+    }
+}
+```
+
+Then in markup: `<Badge>v@($"{AppInformationalVersion}")</Badge>`
+
+Version is set in `.csproj` via `<Version>` or `<InformationalVersion>` property.
+
 ### Flowbite Blazor Component APIs
 - **SpinnerSize**: Use `SpinnerSize.Xl`, not `SpinnerSize.ExtraLarge`
 - **BadgeColor**: Requires explicit `@using Flowbite.Blazor.Enums` in some contexts. Note: `BadgeColor.Dark` does NOT exist - use `BadgeColor.Gray` for dark tones

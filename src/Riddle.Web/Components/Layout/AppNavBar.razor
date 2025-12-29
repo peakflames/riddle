@@ -1,4 +1,5 @@
 @inherits FlowbiteComponentBase
+@using System.Reflection
 
 <!-- Header (begin) -->
 <header class="z-40 w-full mx-auto bg-white border-b border-gray-200 dark:border-gray-700 dark:bg-gray-800">
@@ -32,10 +33,12 @@
                 </button>
             }
 
-            <NavbarBrand Href="/">
+            <NavbarBrand Href="/" >
                 <img src="/favicon.png" class="mr-3 h-6 sm:h-9" alt="Riddle Logo" />
-                <span class="self-center text-xl font-semibold whitespace-nowrap dark:text-white">Riddle</span>
-                <span class="ml-2 text-xs text-gray-400 dark:text-gray-500">v0.9.0-alpha</span>
+                <div class="flex items-center space-x-2">
+                    <span class="self-center text-xl font-semibold whitespace-nowrap dark:text-white">Riddle</span>
+                    <Badge>v@($"{AppInformationalVersion}")</Badge>
+                </div>
             </NavbarBrand>
             
         </div>
@@ -154,5 +157,23 @@
     private void HandleLogout()
     {
         Navigation.NavigateTo("/Account/Logout", forceLoad: true);
+    }
+
+    private string AppInformationalVersion
+    {
+        get
+        {
+            var appVersion = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "Unknown";
+            
+            // if the version contains the '+' then the assembly version, then only
+            // display the content prior to the character.
+            var plusCharIndex = appVersion.IndexOf('+');
+            if (plusCharIndex > -1)
+            {
+                appVersion = appVersion.Substring(0, plusCharIndex);
+            }
+
+            return appVersion;
+        }
     }
 }
