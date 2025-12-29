@@ -127,6 +127,6 @@ Enable players to submit choices via SignalR and have the DM receive those choic
 ## Approvals
 - [x] Changes reviewed by user
 - [x] Approved for push to origin
-- [ ] Ensured Application is stopped
-- [ ] Merged to develop
-- [ ] Feature branch deleted
+- [x] Ensured Application is stopped
+- [x] Merged to develop
+- [x] Feature branch deleted
