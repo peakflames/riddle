@@ -1,0 +1,261 @@
+@page "/test/signalr"
+@using Microsoft.AspNetCore.SignalR.Client
+@using Riddle.Web.Hubs
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+
+<PageTitle>SignalR Test - Riddle</PageTitle>
+
+<div class="p-4 space-y-6 max-w-2xl">
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">SignalR Hub Test</h1>
+    
+    <div class="p-4 rounded-lg @(_isConnected ? "bg-green-100 dark:bg-green-900" : "bg-red-100 dark:bg-red-900")">
+        <div class="flex items-center gap-2">
+            <span class="@(_isConnected ? "bg-green-500" : "bg-red-500") w-3 h-3 rounded-full"></span>
+            <span class="font-medium @(_isConnected ? "text-green-800 dark:text-green-200" : "text-red-800 dark:text-red-200")">
+                @(_isConnected ? "Connected to GameHub" : "Disconnected")
+            </span>
+        </div>
+        @if (!string.IsNullOrEmpty(_connectionId))
+        {
+            <p class="text-sm mt-2 text-gray-600 dark:text-gray-400">Connection ID: @_connectionId</p>
+        }
+    </div>
+
+    <div class="space-y-4">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Test Actions</h2>
+        
+        <div class="flex flex-wrap gap-2">
+            @if (!_isConnected)
+            {
+                <button @onclick="ConnectAsync" 
+                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                        disabled="@_isConnecting">
+                    @(_isConnecting ? "Connecting..." : "Connect")
+                </button>
+            }
+            else
+            {
+                <button @onclick="DisconnectAsync" 
+                        class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                    Disconnect
+                </button>
+                
+                <button @onclick="JoinTestCampaign" 
+                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                        disabled="@_hasJoined">
+                    Join Test Campaign
+                </button>
+                
+                @if (_hasJoined)
+                {
+                    <button @onclick="LeaveTestCampaign" 
+                            class="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700">
+                        Leave Campaign
+                    </button>
+                    
+                    <button @onclick="SubmitTestChoice" 
+                            class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+                        Submit Test Choice
+                    </button>
+                }
+            }
+        </div>
+    </div>
+
+    <div class="space-y-2">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Event Log</h2>
+        <div class="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 h-64 overflow-y-auto font-mono text-sm">
+            @if (_eventLog.Count == 0)
+            {
+                <p class="text-gray-500">No events yet. Connect to the hub to start.</p>
+            }
+            else
+            {
+                @foreach (var entry in _eventLog)
+                {
+                    <div class="@(entry.IsError ? "text-red-600" : "text-gray-700 dark:text-gray-300")">
+                        <span class="text-gray-500">[@entry.Timestamp.ToString("HH:mm:ss")]</span> @entry.Message
+                    </div>
+                }
+            }
+        </div>
+        @if (_eventLog.Any())
+        {
+            <button @onclick="ClearLog" class="text-sm text-gray-500 hover:text-gray-700">Clear Log</button>
+        }
+    </div>
+</div>
+
+@code {
+    private HubConnection? _hubConnection;
+    private bool _isConnected;
+    private bool _isConnecting;
+    private bool _hasJoined;
+    private string? _connectionId;
+    private List<LogEntry> _eventLog = new();
+    
+    // Test data
+    private readonly Guid _testCampaignId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+    private readonly string _testUserId = "test-user-123";
+    private readonly string _testCharacterId = "test-character-456";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ConnectAsync();
+    }
+
+    private async Task ConnectAsync()
+    {
+        try
+        {
+            _isConnecting = true;
+            Log("Connecting to /gamehub...");
+            
+            _hubConnection = new HubConnectionBuilder()
+                .WithUrl(Navigation.ToAbsoluteUri("/gamehub"))
+                .WithAutomaticReconnect()
+                .Build();
+
+            // Subscribe to events
+            _hubConnection.On<PlayerConnectionPayload>(GameHubEvents.PlayerConnected, payload =>
+            {
+                Log($"PlayerConnected: {payload.PlayerName} ({payload.CharacterId})");
+                InvokeAsync(StateHasChanged);
+            });
+
+            _hubConnection.On<PlayerConnectionPayload>(GameHubEvents.PlayerDisconnected, payload =>
+            {
+                Log($"PlayerDisconnected: {payload.PlayerName}");
+                InvokeAsync(StateHasChanged);
+            });
+
+            _hubConnection.On<PlayerChoicePayload>(GameHubEvents.PlayerChoiceSubmitted, payload =>
+            {
+                Log($"PlayerChoiceSubmitted: {payload.CharacterName} chose '{payload.Choice}'");
+                InvokeAsync(StateHasChanged);
+            });
+
+            _hubConnection.Reconnecting += error =>
+            {
+                _isConnected = false;
+                Log("Reconnecting...", isError: error != null);
+                InvokeAsync(StateHasChanged);
+                return Task.CompletedTask;
+            };
+
+            _hubConnection.Reconnected += connectionId =>
+            {
+                _isConnected = true;
+                _connectionId = connectionId;
+                Log($"Reconnected with ID: {connectionId}");
+                InvokeAsync(StateHasChanged);
+                return Task.CompletedTask;
+            };
+
+            _hubConnection.Closed += error =>
+            {
+                _isConnected = false;
+                _hasJoined = false;
+                Log("Connection closed", isError: error != null);
+                InvokeAsync(StateHasChanged);
+                return Task.CompletedTask;
+            };
+
+            await _hubConnection.StartAsync();
+            _isConnected = true;
+            _connectionId = _hubConnection.ConnectionId;
+            Log($"Connected! Connection ID: {_connectionId}");
+        }
+        catch (Exception ex)
+        {
+            Log($"Connection failed: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            _isConnecting = false;
+        }
+    }
+
+    private async Task DisconnectAsync()
+    {
+        if (_hubConnection != null)
+        {
+            await _hubConnection.StopAsync();
+            _isConnected = false;
+            _hasJoined = false;
+            _connectionId = null;
+            Log("Disconnected");
+        }
+    }
+
+    private async Task JoinTestCampaign()
+    {
+        if (_hubConnection != null)
+        {
+            try
+            {
+                await _hubConnection.SendAsync("JoinCampaign", _testCampaignId, _testUserId, _testCharacterId, false);
+                _hasJoined = true;
+                Log($"Joined campaign {_testCampaignId} as player");
+            }
+            catch (Exception ex)
+            {
+                Log($"Join failed: {ex.Message}", isError: true);
+            }
+        }
+    }
+
+    private async Task LeaveTestCampaign()
+    {
+        if (_hubConnection != null)
+        {
+            try
+            {
+                await _hubConnection.SendAsync("LeaveCampaign", _testCampaignId);
+                _hasJoined = false;
+                Log($"Left campaign {_testCampaignId}");
+            }
+            catch (Exception ex)
+            {
+                Log($"Leave failed: {ex.Message}", isError: true);
+            }
+        }
+    }
+
+    private async Task SubmitTestChoice()
+    {
+        if (_hubConnection != null)
+        {
+            try
+            {
+                await _hubConnection.SendAsync("SubmitChoice", _testCampaignId, _testCharacterId, "Test Character", "Attack");
+                Log("Submitted choice: Attack");
+            }
+            catch (Exception ex)
+            {
+                Log($"Submit failed: {ex.Message}", isError: true);
+            }
+        }
+    }
+
+    private void Log(string message, bool isError = false)
+    {
+        _eventLog.Insert(0, new LogEntry(DateTime.Now, message, isError));
+        if (_eventLog.Count > 50) _eventLog.RemoveAt(_eventLog.Count - 1);
+    }
+
+    private void ClearLog() => _eventLog.Clear();
+
+    [Inject] private NavigationManager Navigation { get; set; } = null!;
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hubConnection != null)
+        {
+            await _hubConnection.DisposeAsync();
+        }
+    }
+
+    private record LogEntry(DateTime Timestamp, string Message, bool IsError);
+}
