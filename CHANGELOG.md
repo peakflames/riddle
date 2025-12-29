@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2025-12-29
+
+### Added
+- **Phase 4: Real-Time Game Hub (Objective 1)**
+  - SignalR GameHub (`/gamehub`) for real-time game communication:
+    - `JoinCampaign(campaignId, userId, characterId, isDm)` - Join campaign with group assignment
+    - `LeaveCampaign(campaignId)` - Leave campaign and notify DM
+    - `SubmitChoice(campaignId, characterId, characterName, choice)` - Submit player choices
+    - `OnDisconnectedAsync()` - Automatic cleanup on disconnect
+  - Connection tracking infrastructure:
+    - `IConnectionTracker`/`ConnectionTracker` singleton for in-memory connection state
+    - Track userId, characterId, and isDm per connection
+    - Map connections to campaign groups
+  - SignalR event contracts (`GameHubEvents.cs`):
+    - Event constants: `CharacterClaimed`, `PlayerConnected`, `PlayerDisconnected`, `PlayerChoiceSubmitted`, etc.
+    - Payload records: `CharacterClaimPayload`, `PlayerConnectionPayload`, `PlayerChoicePayload`, `CombatStatePayload`, `CombatantInfo`
+  - SignalR test page (`/test/signalr`) for hub verification
+  - Group naming convention: `campaign_{id}_dm`, `campaign_{id}_players`, `campaign_{id}_all`
+
+### Technical
+- Added `Microsoft.AspNetCore.SignalR.Client` NuGet package for client connections
+- SignalR services registered in Program.cs with `/gamehub` endpoint
+- `ConnectionTracker` uses `ConcurrentDictionary` for thread-safe state management
+
 ## [0.9.0] - 2025-12-29
 
 ### Added
@@ -333,7 +357,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flowbite Blazor component library reference documentation
 - Incremental phase implementation workflow for development
 
-[Unreleased]: https://github.com/peakflames/riddle/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/peakflames/riddle/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/peakflames/riddle/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/peakflames/riddle/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/peakflames/riddle/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/peakflames/riddle/compare/v0.6.0...v0.7.0
