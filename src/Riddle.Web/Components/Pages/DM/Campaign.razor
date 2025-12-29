@@ -68,9 +68,9 @@
                 </div>
                 
                 <!-- Main Content Area -->
-                <div class="grid gap-4 lg:grid-cols-3 lg:h-[calc(100vh-180px)]">
+                <div class="grid gap-4 lg:grid-cols-3 lg:h-full">
                     <!-- Left Column - DM Chat (Full Height) -->
-                    <div class="lg:col-span-2 h-full overflow-auto">
+                    <div class="lg:col-span-2 h-[calc(100vh-200px)] overflow-auto">
                         <Card Size="CardSize.ExtraLarge" class="max-w-none h-full">
                             <div class="p-4 h-full flex flex-col">
                                 <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-4 flex-none">
@@ -95,7 +95,7 @@
                             </TabListContent>
                             <TabPanelsContent>
                                 <TabPanel Index="0">
-                                    <div class="space-y-4 p-1">
+                                    <div class="space-y-4 p-1 h-[calc(100vh-280px)] overflow-auto">
                                     <!-- Read-Aloud Text -->
                                     <Card Size="CardSize.ExtraLarge" class="max-w-none">
                                         <div class="p-4">
@@ -275,7 +275,7 @@
                                 </TabPanel>
                                 
                                 <TabPanel Index="1">
-                                    <div class="space-y-4 p-1">
+                                    <div class="space-y-4 p-1 h-[calc(100vh-280px)] overflow-auto">
                                     <!-- Party Panel -->
                                     <Card Size="CardSize.ExtraLarge" class="max-w-none">
                                         <div class="p-4">
@@ -293,13 +293,13 @@
                                 </TabPanel>
                                 
                                 <TabPanel Index="2">
-                                    <div class="p-1">
+                                    <div class="p-1 h-[calc(100vh-280px)] overflow-auto">
                                     <Card Size="CardSize.ExtraLarge" class="max-w-none">
                                         <div class="p-4">
-                                            <h3 class="font-bold text-gray-900 dark:text-white mb-3">
-                                                <BookOpenIcon Class="inline-block w-4 h-4 mr-2" />
+                                            <h3 class="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                <BookOpenIcon Class="mt-1 w-4 h-4" />
                                                 Story Events
-                                                <Badge Color="BadgeColor.Gray" Size="BadgeSize.ExtraSmall" class="ml-2">@campaign.NarrativeLog.Count</Badge>
+                                                <Badge Color="BadgeColor.Gray" Size="BadgeSize.ExtraSmall">@campaign.NarrativeLog.Count</Badge>
                                             </h3>
                                             @if (campaign.NarrativeLog.Any())
                                             {
@@ -340,7 +340,7 @@
                                 </TabPanel>
                                 
                                 <TabPanel Index="3">
-                                    <div class="h-[calc(100vh-280px)] p-1">
+                                    <div class="p-1 h-[calc(100vh-280px)] overflow-auto">
                                         <AppEventLog Expanded="true" Class="h-full" />
                                     </div>
                                 </TabPanel>

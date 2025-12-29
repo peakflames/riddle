@@ -811,6 +811,10 @@ video {
   height: 2rem;
 }
 
+.h-\[calc\(100vh-200px\)\] {
+  height: calc(100vh - 200px);
+}
+
 .h-\[calc\(100vh-280px\)\] {
   height: calc(100vh - 280px);
 }
@@ -2458,8 +2462,8 @@ video {
     display: none;
   }
 
-  .lg\:h-\[calc\(100vh-180px\)\] {
-    height: calc(100vh - 180px);
+  .lg\:h-full {
+    height: 100%;
   }
 
   .lg\:max-h-56 {

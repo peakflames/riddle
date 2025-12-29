@@ -4,8 +4,9 @@
     <!-- Header -->
     <div class="flex items-center justify-between">
         <h3 class="font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <UsersIcon Class="h-4 w-4" />
-            Party (@Characters.Count)
+            <UsersIcon Class="mt-1 h-4 w-4" />
+            Party
+            <Badge Color="BadgeColor.Gray" Size="BadgeSize.ExtraSmall">@Characters.Count</Badge>
         </h3>
         <div class="flex items-center gap-2">
             @if (ShowInviteButton)
