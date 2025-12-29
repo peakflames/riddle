@@ -137,22 +137,74 @@
                                                 <h3 class="font-bold text-gray-900 dark:text-white flex items-center gap-2">
                                                     <CheckCircleIcon Class="w-4 h-4" />
                                                     Player Choices
-                                                    <Badge Color="BadgeColor.Gray" Size="BadgeSize.ExtraSmall">@(campaign.ActivePlayerChoices?.Count ?? 0)</Badge>
+                                                    @if (campaign.ActivePlayerChoices?.Any() == true)
+                                                    {
+                                                        <Badge Color="BadgeColor.Gray" Size="BadgeSize.ExtraSmall">
+                                                            @GetRespondedCount()/@GetTotalPlayersCount() responded
+                                                        </Badge>
+                                                    }
                                                 </h3>
                                             </div>
                                             @if (campaign.ActivePlayerChoices?.Any() == true)
                                             {
-                                                <div class="flex flex-wrap gap-2">
+                                                @* Per-Choice Breakdown with Player Names *@
+                                                <div class="space-y-2">
                                                     @foreach (var choice in campaign.ActivePlayerChoices)
                                                     {
-                                                        <span class="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-full bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-300 border border-primary-200 dark:border-primary-800">
-                                                            @choice
-                                                        </span>
+                                                        var playersWhoChose = GetPlayersWhoChose(choice);
+                                                        var hasResponses = playersWhoChose.Any();
+                                                        <div class="flex items-start gap-2 py-1.5">
+                                                            @* Bullet indicator - filled if someone chose this *@
+                                                            <span class="mt-0.5 flex-shrink-0">
+                                                                @if (hasResponses)
+                                                                {
+                                                                    <span class="inline-block w-2 h-2 rounded-full bg-primary-500"></span>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <span class="inline-block w-2 h-2 rounded-full border border-gray-400 dark:border-gray-500"></span>
+                                                                }
+                                                            </span>
+                                                            @* Choice text *@
+                                                            <span class="font-medium text-gray-900 dark:text-white text-sm min-w-[80px]">@choice</span>
+                                                            @* Player names who chose this option *@
+                                                            <div class="flex flex-wrap gap-1 flex-1">
+                                                                @foreach (var playerChoice in playersWhoChose)
+                                                                {
+                                                                    <Badge Color="BadgeColor.Success" Size="BadgeSize.ExtraSmall">
+                                                                        @playerChoice.CharacterName ✓
+                                                                    </Badge>
+                                                                }
+                                                            </div>
+                                                        </div>
                                                     }
                                                 </div>
-                                                <p class="text-xs text-gray-400 dark:text-gray-500 mt-3">
-                                                    These choices are visible to players. They will update in real-time.
-                                                </p>
+                                                
+                                                @* Waiting For Section *@
+                                                @if (GetWaitingPlayers() is var waitingPlayers && waitingPlayers.Any())
+                                                {
+                                                    <div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                                                        <div class="flex items-center gap-2 text-sm">
+                                                            <span class="text-gray-500 dark:text-gray-400">Waiting:</span>
+                                                            <div class="flex flex-wrap gap-1">
+                                                                @foreach (var player in waitingPlayers)
+                                                                {
+                                                                    <Badge Color="BadgeColor.Warning" Size="BadgeSize.ExtraSmall">
+                                                                        @player.Name
+                                                                    </Badge>
+                                                                }
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                                                        <Badge Color="BadgeColor.Success" Size="BadgeSize.Small">
+                                                            ✓ All players have responded
+                                                        </Badge>
+                                                    </div>
+                                                }
                                             }
                                             else
                                             {
@@ -444,7 +496,11 @@
                     break;
                 case "ActivePlayerChoices":
                     if (args.NewValue is List<string> choices)
+                    {
                         campaign.ActivePlayerChoices = choices;
+                        // Clear submitted choices when new choices are presented
+                        _playerChoicesSubmitted.Clear();
+                    }
                     break;
                 case "CurrentSceneImageUri":
                     campaign.CurrentSceneImageUri = args.NewValue as string;
@@ -723,4 +779,48 @@
         "building" or "escalating" => BadgeColor.Warning,
         _ => BadgeColor.Gray  // "normal", "steady", or unknown
     };
+    
+    // Player Choice Aggregation Helper Methods
+    
+    /// <summary>
+    /// Gets the total number of player characters (PCs) who can respond to choices.
+    /// </summary>
+    private int GetTotalPlayersCount()
+    {
+        return campaign?.PartyState.Count(c => c.Type == "PC") ?? 0;
+    }
+    
+    /// <summary>
+    /// Gets the count of unique players who have submitted a choice.
+    /// </summary>
+    private int GetRespondedCount()
+    {
+        return _playerChoicesSubmitted.Count;
+    }
+    
+    /// <summary>
+    /// Gets all player choice submissions for a specific choice option.
+    /// </summary>
+    private List<PlayerChoicePayload> GetPlayersWhoChose(string choice)
+    {
+        return _playerChoicesSubmitted
+            .Where(p => string.Equals(p.Choice, choice, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+    
+    /// <summary>
+    /// Gets the list of PC characters who have NOT yet submitted a choice.
+    /// </summary>
+    private List<Character> GetWaitingPlayers()
+    {
+        if (campaign == null) return [];
+        
+        var respondedCharacterIds = _playerChoicesSubmitted
+            .Select(p => p.CharacterId)
+            .ToHashSet();
+        
+        return campaign.PartyState
+            .Where(c => c.Type == "PC" && !respondedCharacterIds.Contains(c.Id.ToString()))
+            .ToList();
+    }
 }
