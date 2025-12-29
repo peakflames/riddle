@@ -55,10 +55,16 @@ Add real-time notifications for character claims, player connections via SignalR
 - Add connection tracking
 - This completes Phase 3 before moving to Phase 4
 
-**Option B: Defer to Phase 4**
+**Option B: Defer to Phase 4** ✅ SELECTED (December 29, 2025)
 - Phase 4 (SignalR & Real-time) has broader scope for SignalR
 - Combine Objective 7 into Phase 4 planning
 - Mark Phase 3 as complete with Objectives 1-6
+
+## Decision Outcome
+User selected **Option B**. Phase 3 Objective 7 has been deferred and incorporated into `docs/phase4_implementation_plan.md`:
+- Objective 1: GameHub with player connection events
+- Objective 2: NotificationService with CharacterClaimed broadcasting
+- Objective 7: Connection status tracking with online/offline indicators
 
 ## Notes
 The Phase 3 Implementation Plan mentions this as a medium-effort objective on Day 5, but it appears to have been deferred. The TODO comment in Dashboard.razor (`SelectChoice` method) acknowledges SignalR integration is pending.
