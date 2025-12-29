@@ -167,21 +167,22 @@ public class NotificationService : INotificationService
         _logger.LogInformation("Broadcasting CombatEnded to campaign {CampaignId}", campaignId);
 
         // Notify all participants when combat ends
+        // Note: No payload - client handler expects parameterless invocation
         await _hubContext.Clients
             .Group(AllGroup(campaignId))
-            .SendAsync(GameHubEvents.CombatEnded, ct);
+            .SendAsync(GameHubEvents.CombatEnded, cancellationToken: ct);
     }
 
-    public async Task NotifyTurnAdvancedAsync(Guid campaignId, int newTurnIndex, string currentCombatantId, CancellationToken ct = default)
+    public async Task NotifyTurnAdvancedAsync(Guid campaignId, int newTurnIndex, string currentCombatantId, int roundNumber, CancellationToken ct = default)
     {
         _logger.LogDebug(
-            "Broadcasting TurnAdvanced to campaign {CampaignId}: Turn {TurnIndex}, Combatant {CombatantId}",
-            campaignId, newTurnIndex, currentCombatantId);
+            "Broadcasting TurnAdvanced to campaign {CampaignId}: Round {RoundNumber}, Turn {TurnIndex}, Combatant {CombatantId}",
+            campaignId, roundNumber, newTurnIndex, currentCombatantId);
 
-        // Notify all participants of turn advancement
+        // Notify all participants of turn advancement (include roundNumber for UI update)
         await _hubContext.Clients
             .Group(AllGroup(campaignId))
-            .SendAsync(GameHubEvents.TurnAdvanced, newTurnIndex, currentCombatantId, ct);
+            .SendAsync(GameHubEvents.TurnAdvanced, newTurnIndex, currentCombatantId, roundNumber, ct);
     }
 
     public async Task NotifyInitiativeSetAsync(Guid campaignId, string characterId, int initiative, CancellationToken ct = default)

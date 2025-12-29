@@ -396,7 +396,7 @@ Create or update the objective-specific verification checklist:
 - [ ] Approved for push to origin
 - [ ] Ensured Application is stopped
 - [ ] Merged to develop
-- [ ] Feature branch deleted, proceeding to Update Version and Changelog
+- [ ] Feature branch deleted, then moving on to Update Version and Changelog
 
 ```
 </checklist_update>

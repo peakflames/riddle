@@ -54,10 +54,12 @@ Phase 4 implements the full SignalR infrastructure for Project Riddle, enabling 
 **Estimated Effort:** Medium
 **Files:** `Services/INotificationService.cs`, `Services/NotificationService.cs`
 
-### Objective 3: Combat Tracker Component
+### Objective 3: Combat Tracker Component ⚠️ SUPERSEDED BY OBJ 3.5
 **Scope:** Real-time turn order display with initiative management
 **Estimated Effort:** Large
 **Files:** `Components/Combat/CombatTracker.razor`, `Components/Combat/InitiativeList.razor`
+
+> **Historical Note:** This objective was originally designed for manual DM data entry via UI modal. During implementation, the Product Owner recognized this contradicted the BDD specifications in `04_CombatEncounter.feature`, which describe LLM-initiated combat (e.g., "When I tell Riddle 'Goblins attack!'"). Objective 3.5 was created to implement the correct LLM-driven approach, making the Combat Tracker a display-only component that reacts to SignalR events from LLM tool calls.
 
 ### Objective 4: Player Choice Submission
 **Scope:** Choice buttons to SignalR submission flow
@@ -78,6 +80,14 @@ Phase 4 implements the full SignalR infrastructure for Project Riddle, enabling 
 **Scope:** Online/offline indicators with reconnection handling
 **Estimated Effort:** Medium
 **Files:** `Services/ConnectionTracker.cs`, UI components
+
+### Objective 3.5: LLM-Driven Combat System ✅ COMPLETE
+**Scope:** Transform Combat Tracker from manual DM entry to LLM-driven control via tool calls
+**Estimated Effort:** Medium
+**Files:** `Services/ToolExecutor.cs`, `Services/RiddleLlmService.cs`, `Components/Combat/CombatTracker.razor`, `Components/Combat/CombatantCard.razor`
+**Status:** Complete - See `docs/verification/phase4-obj3.5-checklist.md`
+
+**Summary:** LLM now manages combat lifecycle via `start_combat`, `end_combat`, `advance_turn`, `add_combatant`, and `remove_combatant` tools. Combat Tracker is display-only, reactive to SignalR events.
 
 ---
 
@@ -1222,6 +1232,70 @@ The following items from Phase 3 Objective 7 are incorporated into Phase 4:
 | CharacterService broadcasting on claims | Objective 2 |
 | Connection status tracking | Objective 7 |
 | Online/offline indicators | Objective 7 |
+
+---
+
+## [Implementation Notes & Learnings]
+
+This section documents key learnings from implementing Phase 4 objectives that should inform future development.
+
+### SignalR Payload Design Guidelines
+
+When designing SignalR event payloads, **include ALL state that the client needs to render correctly**. Consider what UI elements depend on each event.
+
+**Example Issue:** `TurnAdvancedPayload` initially only included `CombatantId` and `NewIndex`, but the UI also needed `RoundNumber` to update the round counter. This caused the round display to become stale.
+
+**Resolution:** Added `RoundNumber` to the payload:
+```csharp
+// Before:
+record TurnAdvancedPayload(Guid CombatantId, int NewIndex);
+
+// After:
+record TurnAdvancedPayload(Guid CombatantId, int NewIndex, int RoundNumber);
+```
+
+### Blazor [Parameter] Mutation Anti-Pattern
+
+**NEVER directly modify `[Parameter]` properties in child components.** Parameters are owned by the parent component - modifying them locally creates a disconnected copy that doesn't trigger parent re-renders.
+
+**Example Issue:** `CombatTracker.razor` was setting `Combat = null` in the `CombatEnded` SignalR handler, but the parent component (`Campaign.razor`) wasn't aware of this change.
+
+**Resolution:** Only invoke the callback, let the parent manage state:
+```csharp
+// ❌ WRONG
+Combat = null;
+await CombatChanged.InvokeAsync(null);
+
+// ✅ CORRECT
+await CombatChanged.InvokeAsync(null);
+```
+
+### LLM Name Normalization for Tool Implementations
+
+LLMs often transform identifiers when using them as tool parameters. Most commonly:
+- Spaces → Underscores: `Elara Moonshadow` → `Elara_Moonshadow`
+- Mixed case variations
+
+**Resolution:** Always normalize LLM-provided identifiers before database lookups:
+```csharp
+var normalizedName = pcName.Replace("_", " ");
+var character = partyState.FirstOrDefault(c => 
+    c.Name.Equals(normalizedName, StringComparison.OrdinalIgnoreCase) ||
+    c.Name.Replace("_", " ").Equals(normalizedName, StringComparison.OrdinalIgnoreCase) ||
+    c.Id.ToString().Equals(pcName, StringComparison.OrdinalIgnoreCase));
+```
+
+### Debugging Tools Reference
+
+The following `build.py` commands were essential for debugging Phase 4 issues:
+
+| Command | Use Case |
+|---------|----------|
+| `python build.py log` | View recent app logs for errors/warnings |
+| `python build.py log <pattern>` | Search logs for specific issues |
+| `python build.py db party` | Verify character data in database |
+| `python build.py db characters` | Check character claim status |
+| `python build.py db campaigns` | View campaign state including PartyDataLen |
 
 ---
 

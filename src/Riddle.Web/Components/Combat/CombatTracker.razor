@@ -1,0 +1,167 @@
+@using Microsoft.AspNetCore.SignalR.Client
+@using Riddle.Web.Hubs
+@using Riddle.Web.Services
+@using Flowbite.Components
+@implements IAsyncDisposable
+
+@* Display-only combat tracker - combat is controlled by LLM via tools *@
+<Card Size="CardSize.ExtraLarge" class="max-w-none">
+    <div class="p-4">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <span class="text-lg">⚔️</span>
+                Combat Tracker
+            </h3>
+            @if (Combat?.IsActive == true)
+            {
+                <Badge Color="BadgeColor.Pink" Size="BadgeSize.Small">Round @Combat.RoundNumber</Badge>
+            }
+        </div>
+        
+        @if (Combat?.IsActive != true)
+        {
+            <div class="text-center text-gray-500 dark:text-gray-400 py-4">
+                <div class="text-3xl mb-2">🛡️</div>
+                <p class="text-sm">No active combat</p>
+                <p class="text-xs mt-1 italic">The DM will initiate combat when enemies appear</p>
+            </div>
+        }
+        else
+        {
+            <div class="space-y-1">
+            @foreach (var (combatant, index) in Combat.TurnOrder.Select((c, i) => (c, i)))
+            {
+                <CombatantCard 
+                    Combatant="combatant" 
+                    Position="@(index + 1)"
+                    IsCurrentTurn="@(index == Combat.CurrentTurnIndex)"
+                    IsDm="IsDm" />
+            }
+        </div>
+        
+            @if (IsDm)
+            {
+                <p class="text-xs text-gray-500 dark:text-gray-400 text-center italic mt-2">
+                    Combat managed via chat
+                </p>
+            }
+        }
+    </div>
+</Card>
+
+@code {
+    [Parameter] 
+    public Guid CampaignId { get; set; }
+    
+    [Parameter] 
+    public CombatStatePayload? Combat { get; set; }
+    
+    [Parameter] 
+    public EventCallback<CombatStatePayload?> CombatChanged { get; set; }
+    
+    [Parameter] 
+    public bool IsDm { get; set; }
+    
+    [Parameter]
+    public List<Riddle.Web.Models.Character> PartyCharacters { get; set; } = [];
+    
+    [Inject] 
+    private NavigationManager Navigation { get; set; } = null!;
+    
+    [Inject]
+    private ILogger<CombatTracker> Logger { get; set; } = null!;
+    
+    private HubConnection? _hubConnection;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await SetupSignalR();
+    }
+
+    private async Task SetupSignalR()
+    {
+        try
+        {
+            _hubConnection = new HubConnectionBuilder()
+                .WithUrl(Navigation.ToAbsoluteUri("/gamehub"))
+                .WithAutomaticReconnect([
+                    TimeSpan.Zero, 
+                    TimeSpan.FromSeconds(2), 
+                    TimeSpan.FromSeconds(5),
+                    TimeSpan.FromSeconds(10)
+                ])
+                .Build();
+
+            _hubConnection.On<CombatStatePayload>(GameHubEvents.CombatStarted, async payload =>
+            {
+                Logger.LogWarning("[CombatTracker] CombatStarted SignalR event RECEIVED for campaign {CampaignId}", CampaignId);
+                // Don't modify Combat directly - it's a [Parameter] owned by parent
+                // Just invoke the callback to notify parent to update its state
+                await InvokeAsync(async () =>
+                {
+                    await CombatChanged.InvokeAsync(payload);
+                });
+            });
+
+            _hubConnection.On<int, string, int>(GameHubEvents.TurnAdvanced, async (newIndex, currentId, roundNumber) =>
+            {
+                Logger.LogDebug("[CombatTracker] TurnAdvanced SignalR event RECEIVED: Round={RoundNumber}, newIndex={NewIndex}", roundNumber, newIndex);
+                if (Combat != null)
+                {
+                    // Create updated state with both turn index and round number
+                    var updatedState = Combat with { CurrentTurnIndex = newIndex, RoundNumber = roundNumber };
+                    await InvokeAsync(async () =>
+                    {
+                        await CombatChanged.InvokeAsync(updatedState);
+                    });
+                }
+            });
+
+            _hubConnection.On(GameHubEvents.CombatEnded, async () =>
+            {
+                Logger.LogWarning("[CombatTracker] CombatEnded SignalR event RECEIVED for campaign {CampaignId}", CampaignId);
+                Logger.LogWarning("[CombatTracker] Current Combat state before clear: IsActive={IsActive}, TurnOrder={TurnOrderCount}", 
+                    Combat?.IsActive, Combat?.TurnOrder?.Count);
+                
+                // Don't modify Combat directly - it's a [Parameter] owned by parent
+                // Just invoke the callback to notify parent to update its state
+                await InvokeAsync(async () =>
+                {
+                    await CombatChanged.InvokeAsync(null);
+                    Logger.LogWarning("[CombatTracker] CombatChanged callback invoked successfully");
+                });
+            });
+
+            await _hubConnection.StartAsync();
+            
+            // Join campaign group to receive combat updates
+            if (CampaignId != Guid.Empty)
+            {
+                await _hubConnection.SendAsync("JoinCampaign", CampaignId, "", null, IsDm);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to setup SignalR connection for CombatTracker");
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hubConnection != null)
+        {
+            try
+            {
+                if (CampaignId != Guid.Empty)
+                {
+                    await _hubConnection.SendAsync("LeaveCampaign", CampaignId);
+                }
+                await _hubConnection.DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Error disposing SignalR connection");
+            }
+        }
+    }
+}

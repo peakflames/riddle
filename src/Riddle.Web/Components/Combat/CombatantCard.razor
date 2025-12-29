@@ -1,0 +1,112 @@
+@using Riddle.Web.Hubs
+
+<div class="flex items-center justify-between p-3 rounded-lg border @(IsCurrentTurn ? "border-primary-500 bg-primary-50 dark:bg-primary-900/20" : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800")">
+    <div class="flex items-center gap-3">
+        @* Turn indicator *@
+        @if (IsCurrentTurn)
+        {
+            <div class="flex items-center justify-center w-8 h-8 rounded-full bg-primary-500 text-white text-sm font-bold">
+                ▶
+            </div>
+        }
+        else
+        {
+            <div class="flex items-center justify-center w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 text-sm font-semibold">
+                @Position
+            </div>
+        }
+        
+        @* Combatant info *@
+        <div class="flex flex-col">
+            <div class="flex items-center gap-2">
+                @* Type indicator *@
+                @if (Combatant.Type == "PC")
+                {
+                    <span class="text-lg">🧙</span>
+                }
+                else if (Combatant.Type == "NPC")
+                {
+                    <span class="text-lg">👤</span>
+                }
+                else
+                {
+                    <span class="text-lg">👹</span>
+                }
+                
+                <span class="font-medium text-gray-900 dark:text-white @(Combatant.IsDefeated ? "line-through opacity-50" : "")">
+                    @Combatant.Name
+                </span>
+                
+                @if (Combatant.IsSurprised)
+                {
+                    <span class="px-1.5 py-0.5 text-xs rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300">
+                        Surprised
+                    </span>
+                }
+                
+                @if (Combatant.IsDefeated)
+                {
+                    <span class="px-1.5 py-0.5 text-xs rounded bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                        ☠️ Defeated
+                    </span>
+                }
+            </div>
+            
+            <div class="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
+                <span>Init: @Combatant.Initiative</span>
+            </div>
+        </div>
+    </div>
+    
+    @* HP display *@
+    <div class="flex flex-col items-end">
+        <div class="flex items-center gap-1 text-sm font-medium">
+            <span class="@GetHpColorClass()">@Combatant.CurrentHp</span>
+            <span class="text-gray-400">/</span>
+            <span class="text-gray-600 dark:text-gray-400">@Combatant.MaxHp</span>
+        </div>
+        <div class="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+            <div class="h-full @GetHpBarColorClass() transition-all duration-300"
+                 style="width: @(Math.Max(0, Math.Min(100, (Combatant.CurrentHp * 100) / Math.Max(1, Combatant.MaxHp))))%">
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public CombatantInfo Combatant { get; set; } = null!;
+    
+    [Parameter]
+    public int Position { get; set; }
+    
+    [Parameter]
+    public bool IsCurrentTurn { get; set; }
+    
+    [Parameter]
+    public bool IsDm { get; set; }
+    
+    private string GetHpColorClass()
+    {
+        var percentage = (Combatant.CurrentHp * 100) / Math.Max(1, Combatant.MaxHp);
+        return percentage switch
+        {
+            <= 0 => "text-gray-500",
+            <= 25 => "text-red-600 dark:text-red-400",
+            <= 50 => "text-orange-600 dark:text-orange-400",
+            _ => "text-green-600 dark:text-green-400"
+        };
+    }
+    
+    private string GetHpBarColorClass()
+    {
+        var percentage = (Combatant.CurrentHp * 100) / Math.Max(1, Combatant.MaxHp);
+        return percentage switch
+        {
+            <= 0 => "bg-gray-400",
+            <= 25 => "bg-red-500",
+            <= 50 => "bg-orange-500",
+            _ => "bg-green-500"
+        };
+    }
+}
