@@ -8,6 +8,8 @@
 @using Riddle.Web.Components.Debug
 @using Riddle.Web.Components.Characters
 @using Riddle.Web.Components.Shared
+@using Riddle.Web.Components.Combat
+@using Riddle.Web.Hubs
 @implements IDisposable
 @inject ICampaignService CampaignService
 @inject ICharacterService CharacterService
@@ -96,6 +98,14 @@
                             <TabPanelsContent>
                                 <TabPanel Index="0">
                                     <div class="space-y-4 p-1 h-[calc(100vh-280px)] overflow-auto">
+                                    <!-- Combat Tracker -->
+                                    <CombatTracker 
+                                        CampaignId="@CampaignId"
+                                        Combat="@_combatState"
+                                        CombatChanged="@HandleCombatChanged"
+                                        IsDm="true"
+                                        PartyCharacters="@(campaign?.PartyState ?? [])" />
+                                    
                                     <!-- Read-Aloud Text -->
                                     <Card Size="CardSize.ExtraLarge" class="max-w-none">
                                         <div class="p-4">
@@ -384,6 +394,9 @@
     
     // Invite modal state
     private bool _showInviteModal;
+    
+    // Combat state
+    private CombatStatePayload? _combatState;
 
     protected override async Task OnInitializedAsync()
     {
@@ -561,6 +574,12 @@
     private void HandleInviteCodeRegenerated(string newCode)
     {
         // Campaign object is already updated by the modal
+        StateHasChanged();
+    }
+    
+    private void HandleCombatChanged(CombatStatePayload? payload)
+    {
+        _combatState = payload;
         StateHasChanged();
     }
     

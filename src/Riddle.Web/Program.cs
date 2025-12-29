@@ -113,6 +113,7 @@ builder.Services.AddScoped<ICharacterService, CharacterService>();
 builder.Services.AddScoped<IGameStateService, GameStateService>();
 builder.Services.AddScoped<IToolExecutor, ToolExecutor>();
 builder.Services.AddScoped<IRiddleLlmService, RiddleLlmService>();
+builder.Services.AddScoped<ICombatService, CombatService>();
 
 // SignalR notification service for broadcasting events to campaign participants
 builder.Services.AddScoped<INotificationService, NotificationService>();
