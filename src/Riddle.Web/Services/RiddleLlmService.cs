@@ -269,7 +269,7 @@ public class RiddleLlmService : IRiddleLlmService
             <<system_constraints>>
             **Context Window & Memory:**
             - You are stateless. Every conversation may be a fresh start.
-            - **MANDATORY STARTUP:** Your first tool call MUST be `get_game_state()` to understand the current reality.
+            - **MANDATORY STARTUP:** Your first tool calls MUST be `get_game_state()` followed by `get_game_log()` to understand the current reality and recent events.
             - **NO HALLUCINATION:** Never guess HP, conditions, or locations. Use only data from GameState.
             - **MANDATORY LOGGING:** Call `update_game_log()` after major events to preserve history.
             <</system_constraints>>
@@ -287,10 +287,11 @@ public class RiddleLlmService : IRiddleLlmService
             3. **Process:** Apply D&D 5e rules. Calculate DCs, attack rolls, damage internally.
             4. **Persist:** Call `update_game_log()` for events. Call `update_character_state()` for HP/condition changes.
             5. **Output:**
-               - Use `display_read_aloud_text()` for atmospheric narration.
+               - Use `display_read_aloud_text()` for atmospheric narration. Read Aloud Text (RAT)
                - Use `present_player_choices()` for decision points.
                - Use `log_player_roll()` to show mechanical results.
                - For DM-only info (e.g., hidden enemy stats), reply in chat directly.
+               - For DM-only read aloud text (e.g. given the Human DM the words to say to keep the game move or play-by-play action), replay in the Chat using 📢 followed by the text
             <</workflow_protocol>>
 
             <<current_game_state>>
@@ -315,6 +316,8 @@ public class RiddleLlmService : IRiddleLlmService
             - Explain the "why" behind mechanics briefly.
             - Be evocative and atmospheric in read-aloud text.
             - Adapt style based on PartyPreferences.
+            - Avoid table formatting
+            - Prefer to always provide a DM-Only read aloud text in the chat when possible
             <</tone_and_style>>
             """;
     }
@@ -395,13 +398,15 @@ public class RiddleLlmService : IRiddleLlmService
             
             new Tool(new ToolFunction(
                 "display_read_aloud_text",
-                "Sends atmospheric, boxed narrative text to the DM's Read Aloud Text Box.",
+                "Sends atmospheric, boxed narrative text to the DM's Read Aloud Text Box with optional tone and pacing hints.",
                 new
                 {
                     type = "object",
                     properties = new
                     {
-                        text = new { type = "string", description = "The prose to display in the Read Aloud Text Box" }
+                        text = new { type = "string", description = "The prose to display in the Read Aloud Text Box" },
+                        tone = new { type = "string", description = "Optional tone hint (e.g., 'ominous', 'cheerful', 'tense', 'mysterious', 'epic')" },
+                        pacing = new { type = "string", description = "Optional pacing hint (e.g., 'slow', 'normal', 'fast', 'building')" }
                     },
                     required = new[] { "text" }
                 })),
@@ -456,6 +461,58 @@ public class RiddleLlmService : IRiddleLlmService
                         description = new { type = "string", description = "Description for image generation or selection" }
                     },
                     required = new[] { "description" }
+                })),
+            
+            new Tool(new ToolFunction(
+                "get_game_log",
+                "Retrieves recent narrative log entries for context recovery. Returns markdown-formatted history.",
+                new
+                {
+                    type = "object",
+                    properties = new
+                    {
+                        limit = new { type = "integer", description = "Maximum entries to return (default 50, max 100)" }
+                    }
+                })),
+            
+            new Tool(new ToolFunction(
+                "get_player_roll_log",
+                "Retrieves recent dice roll results for all players. Returns markdown-formatted roll history.",
+                new
+                {
+                    type = "object",
+                    properties = new
+                    {
+                        limit = new { type = "integer", description = "Maximum rolls to return (default 50, max 100)" }
+                    }
+                })),
+            
+            new Tool(new ToolFunction(
+                "get_character_property_names",
+                "Returns a categorized list of all queryable character property names with type hints.")),
+            
+            new Tool(new ToolFunction(
+                "get_character_properties",
+                "Retrieves specific properties for one or more characters. Returns markdown table.",
+                new
+                {
+                    type = "object",
+                    properties = new
+                    {
+                        character_ids = new 
+                        { 
+                            type = "array", 
+                            items = new { type = "string" },
+                            description = "Character IDs to query" 
+                        },
+                        prop_names = new 
+                        { 
+                            type = "array", 
+                            items = new { type = "string" },
+                            description = "Property names to retrieve (use get_character_property_names for valid names)" 
+                        }
+                    },
+                    required = new[] { "character_ids", "prop_names" }
                 }))
         ];
     }

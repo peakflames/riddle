@@ -49,9 +49,9 @@ public interface IGameStateService
     Task AddLogEntryAsync(Guid campaignId, LogEntry entry, CancellationToken ct = default);
     
     /// <summary>
-    /// Update the campaign's read-aloud text
+    /// Update the campaign's read-aloud text with optional tone and pacing hints
     /// </summary>
-    Task SetReadAloudTextAsync(Guid campaignId, string text, CancellationToken ct = default);
+    Task SetReadAloudTextAsync(Guid campaignId, string text, string? tone, string? pacing, CancellationToken ct = default);
     
     /// <summary>
     /// Update the player choices displayed

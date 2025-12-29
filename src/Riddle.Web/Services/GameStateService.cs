@@ -89,9 +89,9 @@ public class GameStateService : IGameStateService
         await UpdateCampaignAsync(campaign, ct);
     }
 
-    public async Task SetReadAloudTextAsync(Guid campaignId, string text, CancellationToken ct = default)
+    public async Task SetReadAloudTextAsync(Guid campaignId, string text, string? tone, string? pacing, CancellationToken ct = default)
     {
-        _logger.LogDebug("Setting read-aloud text for campaign {CampaignId}", campaignId);
+        _logger.LogDebug("Setting read-aloud text for campaign {CampaignId} (tone: {Tone}, pacing: {Pacing})", campaignId, tone ?? "none", pacing ?? "none");
         
         var campaign = await GetCampaignAsync(campaignId, ct);
         if (campaign == null)
@@ -100,14 +100,32 @@ public class GameStateService : IGameStateService
         }
 
         campaign.CurrentReadAloudText = text;
+        campaign.CurrentReadAloudTone = tone;
+        campaign.CurrentReadAloudPacing = pacing;
         await UpdateCampaignAsync(campaign, ct);
         
-        // Notify subscribers of the change
+        // Notify subscribers of the text change
         OnCampaignChanged?.Invoke(new CampaignChangedEventArgs
         {
             CampaignId = campaignId,
             ChangedProperty = "CurrentReadAloudText",
             NewValue = text
+        });
+        
+        // Notify subscribers of the tone change
+        OnCampaignChanged?.Invoke(new CampaignChangedEventArgs
+        {
+            CampaignId = campaignId,
+            ChangedProperty = "CurrentReadAloudTone",
+            NewValue = tone
+        });
+        
+        // Notify subscribers of the pacing change
+        OnCampaignChanged?.Invoke(new CampaignChangedEventArgs
+        {
+            CampaignId = campaignId,
+            ChangedProperty = "CurrentReadAloudPacing",
+            NewValue = pacing
         });
     }
 

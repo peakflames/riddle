@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2025-12-29
+
+### Added
+- **Enhanced LLM Tool System**
+  - `display_read_aloud_text` tool now supports `tone` and `pacing` parameters for delivery guidance
+  - Four new query tools for LLM context recovery:
+    - `get_game_log` - Retrieves narrative log entries in markdown table format (limit param, default 50)
+    - `get_player_roll_log` - Retrieves dice roll history in markdown table format
+    - `get_character_property_names` - Returns categorized list of 45 queryable character properties
+    - `get_character_properties` - Retrieves specific properties for characters in markdown table
+
+- **Read-Aloud Text Tone/Pacing UI**
+  - Visual badges above read-aloud text showing tone (🎭) and pacing (⏱️)
+  - Color-coded tone badges: ominous=gray, tense=pink, mysterious=purple, cheerful=green, etc.
+  - Color-coded pacing badges: slow=blue, fast=pink, building=warning
+
+- **System Prompt Enhancement**
+  - LLM startup sequence now calls `get_game_log()` after `get_game_state()` for full context recovery
+  - Enables better session continuity when resuming campaigns
+
+### Technical
+- `CharacterPropertyGetters` static dictionary in `ToolExecutor` with 45 property mappings for safe character property access
+- `CurrentReadAloudTone` and `CurrentReadAloudPacing` properties on `CampaignInstance` model
+- EF Core migration `AddReadAloudTonePacing` for new database columns
+- Updated `IGameStateService.SetReadAloudTextAsync()` signature with tone/pacing parameters
+- Real-time UI updates via `OnCampaignChanged` events for tone/pacing changes
+
 ## [0.7.0] - 2025-12-28
 
 ### Added
@@ -274,7 +301,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flowbite Blazor component library reference documentation
 - Incremental phase implementation workflow for development
 
-[Unreleased]: https://github.com/peakflames/riddle/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/peakflames/riddle/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/peakflames/riddle/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/peakflames/riddle/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/peakflames/riddle/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/peakflames/riddle/compare/v0.5.0...v0.5.1

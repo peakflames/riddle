@@ -105,6 +105,24 @@
                                             </h3>
                                             @if (!string.IsNullOrEmpty(campaign.CurrentReadAloudText))
                                             {
+                                                @* Tone/Pacing badges *@
+                                                @if (!string.IsNullOrEmpty(campaign.CurrentReadAloudTone) || !string.IsNullOrEmpty(campaign.CurrentReadAloudPacing))
+                                                {
+                                                    <div class="flex flex-wrap gap-2 mb-2">
+                                                        @if (!string.IsNullOrEmpty(campaign.CurrentReadAloudTone))
+                                                        {
+                                                            <Badge Color="@GetToneBadgeColor(campaign.CurrentReadAloudTone)" Size="BadgeSize.Small">
+                                                                🎭 @campaign.CurrentReadAloudTone
+                                                            </Badge>
+                                                        }
+                                                        @if (!string.IsNullOrEmpty(campaign.CurrentReadAloudPacing))
+                                                        {
+                                                            <Badge Color="@GetPacingBadgeColor(campaign.CurrentReadAloudPacing)" Size="BadgeSize.Small">
+                                                                ⏱️ @campaign.CurrentReadAloudPacing
+                                                            </Badge>
+                                                        }
+                                                    </div>
+                                                }
                                                 <div class="bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-500 p-3 italic text-gray-700 dark:text-gray-300 text-sm">
                                                     @campaign.CurrentReadAloudText
                                                 </div>
@@ -396,6 +414,12 @@
                 case "CurrentReadAloudText":
                     campaign.CurrentReadAloudText = args.NewValue as string ?? "";
                     break;
+                case "CurrentReadAloudTone":
+                    campaign.CurrentReadAloudTone = args.NewValue as string;
+                    break;
+                case "CurrentReadAloudPacing":
+                    campaign.CurrentReadAloudPacing = args.NewValue as string;
+                    break;
                 case "ActivePlayerChoices":
                     if (args.NewValue is List<string> choices)
                         campaign.ActivePlayerChoices = choices;
@@ -609,4 +633,25 @@
             _ => $"{(int)(timeSpan.TotalDays / 7)}w"
         };
     }
+    
+    // Tone/Pacing Badge Helper Methods
+    private BadgeColor GetToneBadgeColor(string tone) => tone.ToLower() switch
+    {
+        "ominous" or "dark" or "sinister" => BadgeColor.Gray,  // Dark tone → Gray (darker visual)
+        "tense" or "urgent" or "dramatic" => BadgeColor.Pink,
+        "mysterious" or "eerie" or "suspenseful" => BadgeColor.Purple,
+        "cheerful" or "joyful" or "celebratory" => BadgeColor.Success,
+        "sad" or "somber" or "melancholic" => BadgeColor.Info,
+        "humorous" or "comedic" or "lighthearted" => BadgeColor.Warning,
+        "epic" or "heroic" or "triumphant" => BadgeColor.Primary,
+        _ => BadgeColor.Gray
+    };
+    
+    private BadgeColor GetPacingBadgeColor(string pacing) => pacing.ToLower() switch
+    {
+        "slow" or "deliberate" or "measured" => BadgeColor.Info,
+        "fast" or "rapid" or "urgent" => BadgeColor.Pink,
+        "building" or "escalating" => BadgeColor.Warning,
+        _ => BadgeColor.Gray  // "normal", "steady", or unknown
+    };
 }

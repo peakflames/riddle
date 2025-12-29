@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using Riddle.Web.Models;
 
@@ -11,6 +12,84 @@ public class ToolExecutor : IToolExecutor
 {
     private readonly IGameStateService _stateService;
     private readonly ILogger<ToolExecutor> _logger;
+
+    /// <summary>
+    /// Mapping of property names to getter functions for safe property access on Character.
+    /// </summary>
+    private static readonly Dictionary<string, Func<Character, object?>> CharacterPropertyGetters = new()
+    {
+        // Identity
+        ["Id"] = c => c.Id,
+        ["Name"] = c => c.Name,
+        ["Type"] = c => c.Type,
+        ["Race"] = c => c.Race,
+        ["Class"] = c => c.Class,
+        ["Level"] = c => c.Level,
+        ["Background"] = c => c.Background,
+        ["Alignment"] = c => c.Alignment,
+        
+        // Ability Scores
+        ["Strength"] = c => c.Strength,
+        ["Dexterity"] = c => c.Dexterity,
+        ["Constitution"] = c => c.Constitution,
+        ["Intelligence"] = c => c.Intelligence,
+        ["Wisdom"] = c => c.Wisdom,
+        ["Charisma"] = c => c.Charisma,
+        
+        // Modifiers (computed)
+        ["StrengthModifier"] = c => c.StrengthModifier,
+        ["DexterityModifier"] = c => c.DexterityModifier,
+        ["ConstitutionModifier"] = c => c.ConstitutionModifier,
+        ["IntelligenceModifier"] = c => c.IntelligenceModifier,
+        ["WisdomModifier"] = c => c.WisdomModifier,
+        ["CharismaModifier"] = c => c.CharismaModifier,
+        
+        // Combat
+        ["ArmorClass"] = c => c.ArmorClass,
+        ["MaxHp"] = c => c.MaxHp,
+        ["CurrentHp"] = c => c.CurrentHp,
+        ["TemporaryHp"] = c => c.TemporaryHp,
+        ["Initiative"] = c => c.Initiative,
+        ["Speed"] = c => c.Speed,
+        
+        // Skills & Proficiencies
+        ["PassivePerception"] = c => c.PassivePerception,
+        ["SavingThrowProficiencies"] = c => string.Join(", ", c.SavingThrowProficiencies),
+        ["SkillProficiencies"] = c => string.Join(", ", c.SkillProficiencies),
+        ["ToolProficiencies"] = c => string.Join(", ", c.ToolProficiencies),
+        ["Languages"] = c => string.Join(", ", c.Languages),
+        
+        // Spellcasting
+        ["IsSpellcaster"] = c => c.IsSpellcaster,
+        ["SpellcastingAbility"] = c => c.SpellcastingAbility,
+        ["SpellSaveDC"] = c => c.SpellSaveDC,
+        ["SpellAttackBonus"] = c => c.SpellAttackBonus,
+        ["Cantrips"] = c => string.Join(", ", c.Cantrips),
+        ["SpellsKnown"] = c => string.Join(", ", c.SpellsKnown),
+        
+        // Equipment
+        ["Equipment"] = c => string.Join(", ", c.Equipment),
+        ["Weapons"] = c => string.Join(", ", c.Weapons),
+        ["GoldPieces"] = c => c.GoldPieces,
+        
+        // Roleplay
+        ["PersonalityTraits"] = c => c.PersonalityTraits,
+        ["Ideals"] = c => c.Ideals,
+        ["Bonds"] = c => c.Bonds,
+        ["Flaws"] = c => c.Flaws,
+        ["Backstory"] = c => c.Backstory,
+        
+        // State
+        ["Conditions"] = c => string.Join(", ", c.Conditions),
+        ["StatusNotes"] = c => c.StatusNotes,
+        ["DeathSaveSuccesses"] = c => c.DeathSaveSuccesses,
+        ["DeathSaveFailures"] = c => c.DeathSaveFailures,
+        
+        // Player Linking
+        ["PlayerId"] = c => c.PlayerId,
+        ["PlayerName"] = c => c.PlayerName,
+        ["IsClaimed"] = c => c.IsClaimed,
+    };
 
     public ToolExecutor(IGameStateService stateService, ILogger<ToolExecutor> logger)
     {
@@ -38,6 +117,10 @@ public class ToolExecutor : IToolExecutor
                 "present_player_choices" => await ExecutePresentPlayerChoicesAsync(campaignId, argumentsJson, ct),
                 "log_player_roll" => await ExecuteLogPlayerRollAsync(campaignId, argumentsJson, ct),
                 "update_scene_image" => await ExecuteUpdateSceneImageAsync(campaignId, argumentsJson, ct),
+                "get_game_log" => await ExecuteGetGameLogAsync(campaignId, argumentsJson, ct),
+                "get_player_roll_log" => await ExecuteGetPlayerRollLogAsync(campaignId, argumentsJson, ct),
+                "get_character_property_names" => ExecuteGetCharacterPropertyNamesAsync(),
+                "get_character_properties" => await ExecuteGetCharacterPropertiesAsync(campaignId, argumentsJson, ct),
                 _ => JsonSerializer.Serialize(new { error = $"Unknown tool: {toolName}" })
             };
 
@@ -171,7 +254,7 @@ public class ToolExecutor : IToolExecutor
     }
 
     /// <summary>
-    /// Tool 4: display_read_aloud_text - Sends atmospheric text to the Read Aloud Text Box
+    /// Tool 4: display_read_aloud_text - Sends atmospheric text to the Read Aloud Text Box with optional tone/pacing
     /// </summary>
     private async Task<string> ExecuteDisplayReadAloudTextAsync(Guid campaignId, string argumentsJson, CancellationToken ct)
     {
@@ -183,10 +266,14 @@ public class ToolExecutor : IToolExecutor
         }
 
         var text = textElement.GetString()!;
-        await _stateService.SetReadAloudTextAsync(campaignId, text, ct);
+        var tone = args.TryGetProperty("tone", out var toneElement) ? toneElement.GetString() : null;
+        var pacing = args.TryGetProperty("pacing", out var pacingElement) ? pacingElement.GetString() : null;
+        
+        await _stateService.SetReadAloudTextAsync(campaignId, text, tone, pacing, ct);
 
-        _logger.LogInformation("Set read-aloud text ({Length} chars)", text.Length);
-        return JsonSerializer.Serialize(new { success = true, text_length = text.Length });
+        _logger.LogInformation("Set read-aloud text ({Length} chars, tone: {Tone}, pacing: {Pacing})", 
+            text.Length, tone ?? "none", pacing ?? "none");
+        return JsonSerializer.Serialize(new { success = true, text_length = text.Length, tone, pacing });
     }
 
     /// <summary>
@@ -305,5 +392,284 @@ public class ToolExecutor : IToolExecutor
         _logger.LogInformation("Set scene image: {ImageUri} (description: {Description})", 
             imageUri, description.Length > 30 ? description[..30] + "..." : description);
         return JsonSerializer.Serialize(new { success = true, image_uri = imageUri });
+    }
+
+    /// <summary>
+    /// Tool 8: get_game_log - Retrieves recent narrative log entries in markdown format
+    /// </summary>
+    private async Task<string> ExecuteGetGameLogAsync(Guid campaignId, string argumentsJson, CancellationToken ct)
+    {
+        var args = JsonSerializer.Deserialize<JsonElement>(argumentsJson);
+        
+        var limit = args.TryGetProperty("limit", out var limitElement) ? limitElement.GetInt32() : 50;
+        limit = Math.Min(Math.Max(1, limit), 100); // Clamp between 1-100
+
+        var campaign = await _stateService.GetCampaignAsync(campaignId, ct);
+        if (campaign == null)
+        {
+            return JsonSerializer.Serialize(new { error = "Campaign not found" });
+        }
+
+        var entries = campaign.NarrativeLog
+            .OrderByDescending(e => e.Timestamp)
+            .Take(limit)
+            .ToList();
+
+        if (!entries.Any())
+        {
+            return "# Game Log\n\n*No narrative events recorded yet.*";
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine("# Game Log");
+        sb.AppendLine();
+        sb.AppendLine("| Time | Importance | Event |");
+        sb.AppendLine("|------|------------|-------|");
+
+        foreach (var entry in entries)
+        {
+            var time = entry.Timestamp.ToString("HH:mm:ss");
+            var importance = entry.Importance ?? "standard";
+            var text = entry.Entry.Replace("|", "\\|").Replace("\n", " "); // Escape pipes and newlines
+            sb.AppendLine($"| {time} | {importance} | {text} |");
+        }
+
+        _logger.LogInformation("Retrieved {Count} game log entries", entries.Count);
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Tool 9: get_player_roll_log - Retrieves recent dice roll results in markdown format
+    /// </summary>
+    private async Task<string> ExecuteGetPlayerRollLogAsync(Guid campaignId, string argumentsJson, CancellationToken ct)
+    {
+        var args = JsonSerializer.Deserialize<JsonElement>(argumentsJson);
+        
+        var limit = args.TryGetProperty("limit", out var limitElement) ? limitElement.GetInt32() : 50;
+        limit = Math.Min(Math.Max(1, limit), 100); // Clamp between 1-100
+
+        var campaign = await _stateService.GetCampaignAsync(campaignId, ct);
+        if (campaign == null)
+        {
+            return JsonSerializer.Serialize(new { error = "Campaign not found" });
+        }
+
+        var rolls = campaign.RecentRolls.Take(limit).ToList();
+
+        if (!rolls.Any())
+        {
+            return "# Player Roll Log\n\n*No dice rolls recorded yet.*";
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine("# Player Roll Log");
+        sb.AppendLine();
+        sb.AppendLine("| Time | Character | Check Type | Result | Outcome |");
+        sb.AppendLine("|------|-----------|------------|--------|---------|");
+
+        foreach (var roll in rolls)
+        {
+            var time = roll.Timestamp.ToString("HH:mm:ss");
+            var character = roll.CharacterName.Replace("|", "\\|");
+            var checkType = roll.CheckType.Replace("|", "\\|");
+            sb.AppendLine($"| {time} | {character} | {checkType} | {roll.Result} | {roll.Outcome} |");
+        }
+
+        _logger.LogInformation("Retrieved {Count} roll log entries", rolls.Count);
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Tool 10: get_character_property_names - Returns categorized list of queryable property names
+    /// </summary>
+    private string ExecuteGetCharacterPropertyNamesAsync()
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("# Character Property Names");
+        sb.AppendLine();
+        sb.AppendLine("Use these property names with `get_character_properties` tool.");
+        sb.AppendLine();
+        
+        sb.AppendLine("## Identity");
+        sb.AppendLine("- `Id` (string) - Unique character identifier");
+        sb.AppendLine("- `Name` (string) - Character name");
+        sb.AppendLine("- `Type` (string) - \"PC\" or \"NPC\"");
+        sb.AppendLine("- `Race` (string) - Character race");
+        sb.AppendLine("- `Class` (string) - Character class");
+        sb.AppendLine("- `Level` (int) - Character level");
+        sb.AppendLine("- `Background` (string) - Character background");
+        sb.AppendLine("- `Alignment` (string) - Character alignment");
+        sb.AppendLine();
+        
+        sb.AppendLine("## Ability Scores");
+        sb.AppendLine("- `Strength`, `Dexterity`, `Constitution`, `Intelligence`, `Wisdom`, `Charisma` (int)");
+        sb.AppendLine("- `StrengthModifier`, `DexterityModifier`, `ConstitutionModifier` (int) - Computed");
+        sb.AppendLine("- `IntelligenceModifier`, `WisdomModifier`, `CharismaModifier` (int) - Computed");
+        sb.AppendLine();
+        
+        sb.AppendLine("## Combat");
+        sb.AppendLine("- `ArmorClass` (int) - AC value");
+        sb.AppendLine("- `MaxHp` (int) - Maximum hit points");
+        sb.AppendLine("- `CurrentHp` (int) - Current hit points");
+        sb.AppendLine("- `TemporaryHp` (int) - Temporary HP");
+        sb.AppendLine("- `Initiative` (int) - Initiative bonus");
+        sb.AppendLine("- `Speed` (int) - Movement speed in feet");
+        sb.AppendLine();
+        
+        sb.AppendLine("## Skills & Proficiencies");
+        sb.AppendLine("- `PassivePerception` (int) - Passive perception score");
+        sb.AppendLine("- `SavingThrowProficiencies` (string) - Comma-separated list");
+        sb.AppendLine("- `SkillProficiencies` (string) - Comma-separated list");
+        sb.AppendLine("- `ToolProficiencies` (string) - Comma-separated list");
+        sb.AppendLine("- `Languages` (string) - Comma-separated list");
+        sb.AppendLine();
+        
+        sb.AppendLine("## Spellcasting");
+        sb.AppendLine("- `IsSpellcaster` (bool) - Whether character can cast spells");
+        sb.AppendLine("- `SpellcastingAbility` (string) - INT, WIS, or CHA");
+        sb.AppendLine("- `SpellSaveDC` (int) - Spell save DC");
+        sb.AppendLine("- `SpellAttackBonus` (int) - Spell attack modifier");
+        sb.AppendLine("- `Cantrips` (string) - Comma-separated list");
+        sb.AppendLine("- `SpellsKnown` (string) - Comma-separated list");
+        sb.AppendLine();
+        
+        sb.AppendLine("## Equipment");
+        sb.AppendLine("- `Equipment` (string) - Comma-separated list of items");
+        sb.AppendLine("- `Weapons` (string) - Comma-separated list");
+        sb.AppendLine("- `GoldPieces` (int) - Gold pieces");
+        sb.AppendLine();
+        
+        sb.AppendLine("## Roleplay");
+        sb.AppendLine("- `PersonalityTraits` (string)");
+        sb.AppendLine("- `Ideals` (string)");
+        sb.AppendLine("- `Bonds` (string)");
+        sb.AppendLine("- `Flaws` (string)");
+        sb.AppendLine("- `Backstory` (string)");
+        sb.AppendLine();
+        
+        sb.AppendLine("## State");
+        sb.AppendLine("- `Conditions` (string) - Comma-separated active conditions");
+        sb.AppendLine("- `StatusNotes` (string) - DM notes");
+        sb.AppendLine("- `DeathSaveSuccesses` (int) - 0-3");
+        sb.AppendLine("- `DeathSaveFailures` (int) - 0-3");
+        sb.AppendLine();
+        
+        sb.AppendLine("## Player Linking");
+        sb.AppendLine("- `PlayerId` (string) - Linked player user ID");
+        sb.AppendLine("- `PlayerName` (string) - Linked player display name");
+        sb.AppendLine("- `IsClaimed` (bool) - Whether claimed by a player");
+
+        _logger.LogInformation("Retrieved character property names");
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Tool 11: get_character_properties - Retrieves specific properties for characters
+    /// </summary>
+    private async Task<string> ExecuteGetCharacterPropertiesAsync(Guid campaignId, string argumentsJson, CancellationToken ct)
+    {
+        var args = JsonSerializer.Deserialize<JsonElement>(argumentsJson);
+        
+        if (!args.TryGetProperty("character_ids", out var characterIdsElement))
+        {
+            return JsonSerializer.Serialize(new { error = "Missing required parameter: character_ids" });
+        }
+        
+        if (!args.TryGetProperty("prop_names", out var propNamesElement))
+        {
+            return JsonSerializer.Serialize(new { error = "Missing required parameter: prop_names" });
+        }
+
+        var characterIds = characterIdsElement.EnumerateArray()
+            .Select(e => e.GetString()!)
+            .ToList();
+        
+        var propNames = propNamesElement.EnumerateArray()
+            .Select(e => e.GetString()!)
+            .ToList();
+
+        if (!characterIds.Any())
+        {
+            return JsonSerializer.Serialize(new { error = "character_ids array is empty" });
+        }
+
+        if (!propNames.Any())
+        {
+            return JsonSerializer.Serialize(new { error = "prop_names array is empty" });
+        }
+
+        // Validate property names
+        var invalidProps = propNames.Where(p => !CharacterPropertyGetters.ContainsKey(p)).ToList();
+        if (invalidProps.Any())
+        {
+            return JsonSerializer.Serialize(new { 
+                error = $"Invalid property names: {string.Join(", ", invalidProps)}. Use get_character_property_names for valid names." 
+            });
+        }
+
+        var campaign = await _stateService.GetCampaignAsync(campaignId, ct);
+        if (campaign == null)
+        {
+            return JsonSerializer.Serialize(new { error = "Campaign not found" });
+        }
+
+        var partyState = campaign.PartyState;
+        
+        // Build markdown table
+        var sb = new StringBuilder();
+        sb.AppendLine("# Character Properties");
+        sb.AppendLine();
+        
+        // Header row
+        sb.Append("| Character |");
+        foreach (var prop in propNames)
+        {
+            sb.Append($" {prop} |");
+        }
+        sb.AppendLine();
+        
+        // Separator row
+        sb.Append("|-----------|");
+        foreach (var _ in propNames)
+        {
+            sb.Append("--------|");
+        }
+        sb.AppendLine();
+        
+        // Data rows
+        foreach (var charId in characterIds)
+        {
+            var character = partyState.FirstOrDefault(c => c.Id == charId);
+            if (character == null)
+            {
+                sb.Append($"| {charId} (not found) |");
+                foreach (var _ in propNames)
+                {
+                    sb.Append(" N/A |");
+                }
+                sb.AppendLine();
+                continue;
+            }
+            
+            sb.Append($"| {character.Name} |");
+            foreach (var prop in propNames)
+            {
+                var getter = CharacterPropertyGetters[prop];
+                var value = getter(character);
+                var displayValue = value?.ToString() ?? "";
+                // Escape pipes and truncate long values
+                displayValue = displayValue.Replace("|", "\\|");
+                if (displayValue.Length > 50)
+                {
+                    displayValue = displayValue[..47] + "...";
+                }
+                sb.Append($" {displayValue} |");
+            }
+            sb.AppendLine();
+        }
+
+        _logger.LogInformation("Retrieved {PropCount} properties for {CharCount} characters", 
+            propNames.Count, characterIds.Count);
+        return sb.ToString();
     }
 }

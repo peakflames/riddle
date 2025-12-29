@@ -135,7 +135,7 @@ Use the Python automation:
 
 ### Flowbite Blazor Component APIs
 - **SpinnerSize**: Use `SpinnerSize.Xl`, not `SpinnerSize.ExtraLarge`
-- **BadgeColor**: Requires explicit `@using Flowbite.Blazor.Enums` in some contexts
+- **BadgeColor**: Requires explicit `@using Flowbite.Blazor.Enums` in some contexts. Note: `BadgeColor.Dark` does NOT exist - use `BadgeColor.Gray` for dark tones
 - **CardSize**: Use `CardSize.ExtraLarge`, not `CardSize.XLarge`
 - **EditForm Context Conflicts**: When EditForm is inside AuthorizeView, add `Context="editContext"` parameter to EditForm to avoid context name collision
 - **Icon Components**: Use Flowbite icon components (e.g., `<BookOpenIcon Class="w-5 h-5" />`) from Flowbite.Blazor.Icons namespace

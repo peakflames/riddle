@@ -161,6 +161,18 @@ public class CampaignInstance
     [MaxLength(5000)]
     public string? CurrentReadAloudText { get; set; }
     
+    /// <summary>
+    /// Tone hint for the current read-aloud text (e.g., "ominous", "cheerful", "urgent")
+    /// </summary>
+    [MaxLength(50)]
+    public string? CurrentReadAloudTone { get; set; }
+    
+    /// <summary>
+    /// Pacing hint for the current read-aloud text (e.g., "slow", "normal", "fast")
+    /// </summary>
+    [MaxLength(50)]
+    public string? CurrentReadAloudPacing { get; set; }
+    
     // Navigation property for PlaySessions
     /// <summary>
     /// Collection of individual play sessions (game nights) within this campaign
