@@ -35,4 +35,25 @@ public class CombatEncounter
     /// Character IDs of entities that are surprised
     /// </summary>
     public List<string> SurprisedEntities { get; set; } = new();
+    
+    /// <summary>
+    /// Full combatant details (persisted to survive server restart)
+    /// Key: combatant ID, Value: combatant details
+    /// </summary>
+    public Dictionary<string, CombatantDetails> Combatants { get; set; } = new();
+}
+
+/// <summary>
+/// Persisted combatant details for combat encounters
+/// </summary>
+public class CombatantDetails
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Type { get; set; } = "Enemy"; // "PC", "NPC", "Enemy"
+    public int Initiative { get; set; }
+    public int CurrentHp { get; set; }
+    public int MaxHp { get; set; }
+    public int AC { get; set; } = 10;
+    public bool IsDefeated { get; set; }
 }

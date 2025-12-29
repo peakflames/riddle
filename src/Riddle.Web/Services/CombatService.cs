@@ -6,17 +6,14 @@ using Riddle.Web.Models;
 namespace Riddle.Web.Services;
 
 /// <summary>
-/// Service for managing combat encounters with real-time SignalR notifications
+/// Service for managing combat encounters with real-time SignalR notifications.
+/// Combatant details are persisted in CombatEncounter.Combatants (survives server restart).
 /// </summary>
 public class CombatService : ICombatService
 {
     private readonly RiddleDbContext _context;
     private readonly INotificationService _notificationService;
     private readonly ILogger<CombatService> _logger;
-    
-    // In-memory cache of combatant details (since CombatEncounter only stores IDs)
-    // Key: CombatId, Value: Dictionary of characterId -> CombatantInfo
-    private static readonly Dictionary<string, Dictionary<string, CombatantInfo>> _combatantCache = new();
 
     public CombatService(
         RiddleDbContext context,
@@ -33,7 +30,7 @@ public class CombatService : ICombatService
         var campaign = await _context.CampaignInstances.FindAsync([campaignId], ct)
             ?? throw new InvalidOperationException($"Campaign {campaignId} not found");
 
-        // Create new combat encounter
+        // Create new combat encounter with persisted combatant details
         var combat = new CombatEncounter
         {
             IsActive = true,
@@ -42,11 +39,19 @@ public class CombatService : ICombatService
             TurnOrder = combatants
                 .OrderByDescending(c => c.Initiative)
                 .Select(c => c.Id)
-                .ToList()
+                .ToList(),
+            // Persist combatant details to DB (survives server restart)
+            Combatants = combatants.ToDictionary(c => c.Id, c => new CombatantDetails
+            {
+                Id = c.Id,
+                Name = c.Name,
+                Type = c.Type,
+                Initiative = c.Initiative,
+                CurrentHp = c.CurrentHp,
+                MaxHp = c.MaxHp,
+                IsDefeated = c.IsDefeated
+            })
         };
-
-        // Store combatant details in cache
-        _combatantCache[combat.Id] = combatants.ToDictionary(c => c.Id);
 
         // Persist to database
         campaign.ActiveCombat = combat;
@@ -54,7 +59,7 @@ public class CombatService : ICombatService
         await _context.SaveChangesAsync(ct);
 
         // Build payload
-        var payload = BuildCombatStatePayload(combat, combatants.OrderByDescending(c => c.Initiative).ToList());
+        var payload = BuildCombatStatePayload(combat);
 
         _logger.LogInformation(
             "Combat started: CampaignId={CampaignId}, CombatId={CombatId}, Combatants={Count}",
@@ -74,14 +79,13 @@ public class CombatService : ICombatService
         var combat = campaign.ActiveCombat
             ?? throw new InvalidOperationException("No active combat");
 
-        // Update initiative in cache if exists
-        if (_combatantCache.TryGetValue(combat.Id, out var combatants) &&
-            combatants.TryGetValue(characterId, out var existingCombatant))
+        // Update initiative in persisted combatants
+        if (combat.Combatants.TryGetValue(characterId, out var combatant))
         {
-            combatants[characterId] = existingCombatant with { Initiative = initiative };
+            combatant.Initiative = initiative;
             
             // Re-sort turn order by initiative
-            combat.TurnOrder = combatants.Values
+            combat.TurnOrder = combat.Combatants.Values
                 .Where(c => !c.IsDefeated)
                 .OrderByDescending(c => c.Initiative)
                 .Select(c => c.Id)
@@ -136,7 +140,7 @@ public class CombatService : ICombatService
             "Turn advanced: CampaignId={CampaignId}, Round={Round}, TurnIndex={TurnIndex}, CurrentCombatant={CombatantId}",
             campaignId, combat.RoundNumber, combat.CurrentTurnIndex, currentCombatantId);
 
-        await _notificationService.NotifyTurnAdvancedAsync(campaignId, combat.CurrentTurnIndex, currentCombatantId, ct);
+        await _notificationService.NotifyTurnAdvancedAsync(campaignId, combat.CurrentTurnIndex, currentCombatantId, combat.RoundNumber, ct);
 
         return (combat.CurrentTurnIndex, currentCombatantId);
     }
@@ -149,11 +153,11 @@ public class CombatService : ICombatService
         var combat = campaign.ActiveCombat
             ?? throw new InvalidOperationException("No active combat");
 
-        // Update cache
-        if (_combatantCache.TryGetValue(combat.Id, out var combatants) &&
-            combatants.TryGetValue(characterId, out var combatant))
+        // Update persisted combatant
+        if (combat.Combatants.TryGetValue(characterId, out var combatant))
         {
-            combatants[characterId] = combatant with { IsDefeated = true, CurrentHp = 0 };
+            combatant.IsDefeated = true;
+            combatant.CurrentHp = 0;
         }
 
         // Remove from turn order
@@ -184,18 +188,15 @@ public class CombatService : ICombatService
             campaignId, characterId);
 
         // Check if all enemies are defeated
-        if (combatants != null)
+        var activeEnemies = combat.Combatants.Values
+            .Where(c => c.Type == "Enemy" && !c.IsDefeated)
+            .ToList();
+        
+        if (!activeEnemies.Any())
         {
-            var activeEnemies = combatants.Values
-                .Where(c => c.Type == "Enemy" && !c.IsDefeated)
-                .ToList();
-            
-            if (!activeEnemies.Any())
-            {
-                _logger.LogInformation("All enemies defeated, ending combat");
-                await EndCombatAsync(campaignId, ct);
-                return;
-            }
+            _logger.LogInformation("All enemies defeated, ending combat");
+            await EndCombatAsync(campaignId, ct);
+            return;
         }
 
         // Broadcast updated combat state
@@ -210,12 +211,6 @@ public class CombatService : ICombatService
     {
         var campaign = await _context.CampaignInstances.FindAsync([campaignId], ct)
             ?? throw new InvalidOperationException($"Campaign {campaignId} not found");
-
-        var combat = campaign.ActiveCombat;
-        if (combat != null && _combatantCache.ContainsKey(combat.Id))
-        {
-            _combatantCache.Remove(combat.Id);
-        }
 
         campaign.ActiveCombat = null;
         campaign.LastActivityAt = DateTime.UtcNow;
@@ -235,45 +230,7 @@ public class CombatService : ICombatService
         if (campaign?.ActiveCombat == null)
             return null;
 
-        var combat = campaign.ActiveCombat;
-        
-        // Get combatant details from cache or build from party state
-        List<CombatantInfo> combatants;
-        if (_combatantCache.TryGetValue(combat.Id, out var cachedCombatants))
-        {
-            combatants = combat.TurnOrder
-                .Where(id => cachedCombatants.ContainsKey(id))
-                .Select(id => cachedCombatants[id])
-                .ToList();
-        }
-        else
-        {
-            // Rebuild from party state if cache was lost (e.g., server restart)
-            var partyState = campaign.PartyState;
-            combatants = combat.TurnOrder
-                .Select(id =>
-                {
-                    var character = partyState.FirstOrDefault(c => c.Id == id);
-                    if (character != null)
-                    {
-                        return new CombatantInfo(
-                            character.Id,
-                            character.Name,
-                            "PC",
-                            0, // Initiative unknown
-                            character.CurrentHp,
-                            character.MaxHp,
-                            character.CurrentHp <= 0,
-                            combat.SurprisedEntities.Contains(id)
-                        );
-                    }
-                    // Unknown combatant (likely enemy), create placeholder
-                    return new CombatantInfo(id, id, "Enemy", 0, 1, 1, false, combat.SurprisedEntities.Contains(id));
-                })
-                .ToList();
-        }
-
-        return BuildCombatStatePayload(combat, combatants);
+        return BuildCombatStatePayload(campaign.ActiveCombat);
     }
 
     public async Task AddCombatantAsync(Guid campaignId, CombatantInfo combatant, CancellationToken ct = default)
@@ -284,19 +241,23 @@ public class CombatService : ICombatService
         var combat = campaign.ActiveCombat
             ?? throw new InvalidOperationException("No active combat");
 
-        // Add to cache
-        if (!_combatantCache.TryGetValue(combat.Id, out var combatants))
+        // Add to persisted combatants
+        combat.Combatants[combatant.Id] = new CombatantDetails
         {
-            combatants = new Dictionary<string, CombatantInfo>();
-            _combatantCache[combat.Id] = combatants;
-        }
-        combatants[combatant.Id] = combatant;
+            Id = combatant.Id,
+            Name = combatant.Name,
+            Type = combatant.Type,
+            Initiative = combatant.Initiative,
+            CurrentHp = combatant.CurrentHp,
+            MaxHp = combatant.MaxHp,
+            IsDefeated = combatant.IsDefeated
+        };
 
         // Insert into turn order based on initiative
         var insertIndex = 0;
         for (var i = 0; i < combat.TurnOrder.Count; i++)
         {
-            if (combatants.TryGetValue(combat.TurnOrder[i], out var existing) && 
+            if (combat.Combatants.TryGetValue(combat.TurnOrder[i], out var existing) && 
                 existing.Initiative < combatant.Initiative)
             {
                 insertIndex = i;
@@ -330,11 +291,8 @@ public class CombatService : ICombatService
         var combat = campaign.ActiveCombat
             ?? throw new InvalidOperationException("No active combat");
 
-        // Remove from cache
-        if (_combatantCache.TryGetValue(combat.Id, out var combatants))
-        {
-            combatants.Remove(characterId);
-        }
+        // Remove from persisted combatants
+        combat.Combatants.Remove(characterId);
 
         // Remove from turn order
         var currentIndex = combat.CurrentTurnIndex;
@@ -378,18 +336,18 @@ public class CombatService : ICombatService
         var combat = campaign.ActiveCombat
             ?? throw new InvalidOperationException("No active combat");
 
-        // Update cache
-        if (_combatantCache.TryGetValue(combat.Id, out var combatants) &&
-            combatants.TryGetValue(characterId, out var combatant))
+        // Update persisted combatant
+        if (combat.Combatants.TryGetValue(characterId, out var combatant))
         {
             var wasDefeated = combatant.IsDefeated;
             var isNowDefeated = newHp <= 0;
             
-            combatants[characterId] = combatant with 
-            { 
-                CurrentHp = Math.Max(0, newHp),
-                IsDefeated = isNowDefeated 
-            };
+            combatant.CurrentHp = Math.Max(0, newHp);
+            combatant.IsDefeated = isNowDefeated;
+
+            campaign.ActiveCombat = combat;
+            campaign.LastActivityAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync(ct);
 
             // If just became defeated, handle removal from turn order
             if (!wasDefeated && isNowDefeated)
@@ -398,9 +356,6 @@ public class CombatService : ICombatService
                 return;
             }
         }
-
-        campaign.LastActivityAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync(ct);
 
         _logger.LogInformation(
             "Combatant HP updated: CampaignId={CampaignId}, CharacterId={CharacterId}, NewHp={NewHp}",
@@ -413,8 +368,30 @@ public class CombatService : ICombatService
             ct);
     }
 
-    private static CombatStatePayload BuildCombatStatePayload(CombatEncounter combat, List<CombatantInfo> combatants)
+    /// <summary>
+    /// Builds CombatStatePayload from persisted CombatEncounter data
+    /// </summary>
+    private static CombatStatePayload BuildCombatStatePayload(CombatEncounter combat)
     {
+        // Convert persisted CombatantDetails to CombatantInfo in turn order
+        var combatants = combat.TurnOrder
+            .Where(id => combat.Combatants.ContainsKey(id))
+            .Select(id =>
+            {
+                var c = combat.Combatants[id];
+                return new CombatantInfo(
+                    c.Id,
+                    c.Name,
+                    c.Type,
+                    c.Initiative,
+                    c.CurrentHp,
+                    c.MaxHp,
+                    c.IsDefeated,
+                    combat.SurprisedEntities.Contains(c.Id)
+                );
+            })
+            .ToList();
+
         return new CombatStatePayload(
             combat.Id,
             combat.IsActive,

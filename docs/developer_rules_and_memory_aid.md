@@ -224,6 +224,105 @@ campaign.PartyState = partyState;  // Set modified list back (triggers serializa
 - If any item shows `[ ]`, complete that step first (e.g., runtime testing, UI verification)
 - The commit is NOT the completion milestone - the full checklist is
 
+### Combat State Management Pattern
+**Combat state must be loaded from database on page initialization**, not just from SignalR events. The `CombatTracker` component receives state as a parameter from the parent page, so:
+
+1. **On page load/refresh**: The parent page (e.g., `Campaign.razor`) must call `CombatService.GetCombatStateAsync()` to load persisted combat state
+2. **During runtime**: SignalR events (`CombatStarted`, `TurnAdvanced`, `CombatEnded`) update the state in real-time
+3. **Issue symptoms**: Stale combat data after refresh, or `end_combat` not clearing UI
+
+```csharp
+// ✅ CORRECT - Load combat state on page initialization
+private async Task LoadCampaignAsync()
+{
+    campaign = await CampaignService.GetCampaignAsync(CampaignId);
+    if (campaign != null)
+    {
+        _combatState = await CombatService.GetCombatStateAsync(CampaignId);  // Load from DB!
+    }
+}
+```
+
+### LLM Tool Parameter Flexibility
+When LLM tools accept character identifiers, **always match by both ID (GUID) and Name with normalization**. LLMs naturally use display names, not GUIDs, and often transform separators:
+
+**Problem:** LLMs often replace spaces with underscores:
+- Stored name: `Elara Moonshadow`  
+- LLM sends: `Elara_Moonshadow`
+
+**Solution:** Normalize names for comparison by converting separators:
+
+```csharp
+// ✅ CORRECT - Match by ID OR normalized Name
+var character = campaign.PartyState.FirstOrDefault(c => 
+    c.Id == characterIdOrName || 
+    NormalizeName(c.Name) == NormalizeName(characterIdOrName));
+
+// Helper method
+private static string NormalizeName(string name)
+{
+    return name
+        .ToLowerInvariant()
+        .Replace('_', ' ')
+        .Replace('-', ' ')
+        .Trim();
+}
+```
+
+### CRITICAL: Persist State to Database, Not In-Memory
+**Never use `static Dictionary` for state that must survive server restart.** Blazor Server apps restart when the server reboots, code is deployed, or the app pool recycles - all in-memory static state is LOST.
+
+❌ **WRONG - In-memory cache:**
+```csharp
+// Lost on server restart!
+private static readonly Dictionary<string, CombatantInfo> _combatantCache = new();
+```
+
+✅ **CORRECT - Persist to database:**
+```csharp
+// CombatEncounter model with persisted Combatants dictionary
+public class CombatEncounter
+{
+    public Dictionary<string, CombatantDetails> Combatants { get; set; } = new();
+}
+```
+
+**Symptom:** After browser refresh, stale/missing data appears even though operations "succeeded" before restart.
+
+### CRITICAL: Blazor [Parameter] Mutation Anti-Pattern
+**Never directly modify `[Parameter]` properties in child components.** Parameters are owned by the parent component - modifying them locally creates a disconnected copy that doesn't trigger parent re-renders.
+
+❌ **WRONG - Modifying parameter directly:**
+```csharp
+// Child component
+[Parameter] public CombatStatePayload? Combat { get; set; }
+[Parameter] public EventCallback<CombatStatePayload?> CombatChanged { get; set; }
+
+_hubConnection.On(GameHubEvents.CombatEnded, async () =>
+{
+    Combat = null;  // WRONG! This creates a local copy, parent not notified properly
+    await CombatChanged.InvokeAsync(null);
+    await InvokeAsync(StateHasChanged);  // Re-renders with stale local state
+});
+```
+
+✅ **CORRECT - Only invoke callback, let parent manage state:**
+```csharp
+_hubConnection.On(GameHubEvents.CombatEnded, async () =>
+{
+    // Don't modify Combat directly - it's a [Parameter] owned by parent
+    // Just invoke the callback to notify parent to update its state
+    await InvokeAsync(async () =>
+    {
+        await CombatChanged.InvokeAsync(null);
+    });
+});
+```
+
+**Key principle:** Child components should ONLY notify parents via `EventCallback` - never modify `[Parameter]` values directly. The parent sets the parameter value, which flows down to the child via normal Blazor parameter binding.
+
+**Symptom:** UI doesn't update even though callbacks are invoked and SignalR events are received.
+
 ## Git Workflow
 - Branch from `develop`: `git checkout develop && git pull origin develop`.
 - Naming: `fix/issue-{id}-description`, `feature/issue-{id}-description`, or `enhancement/issue-{id}-description`.

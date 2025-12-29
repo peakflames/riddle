@@ -149,23 +149,23 @@ Combat tools automatically log to game log:
 ## Verification Tests
 
 ### Unit Tests (Manual)
-- [ ] Start combat with 2 PCs and 2 enemies → Combat Tracker shows 4 combatants
-- [ ] Advance turn 4 times → Round increments
-- [ ] Add combatant mid-combat → Appears in correct initiative order
-- [ ] Remove combatant → Disappears, turn order adjusts
-- [ ] End combat → Tracker clears
+- [x] Start combat with 2 PCs and 2 enemies → Combat Tracker shows 4 combatants
+- [x] Advance turn 4 times → Round increments
+- [x] Add combatant mid-combat → Appears in correct initiative order
+- [x] Remove combatant → Disappears, turn order adjusts
+- [x] End combat → Tracker clears
 
 ### Edge Case Tests
-- [ ] Start combat when already active → Error message returned
-- [ ] Invalid initiative (35) → Clamped to 30, message notes this
-- [ ] Missing PC ID in pc_initiatives → Warning logged, other PCs included
-- [ ] Remove non-existent combatant → Error message returned
-- [ ] Advance turn with no active combat → Error message returned
+- [x] Start combat when already active → Error message returned
+- [x] Invalid initiative (35) → Clamped to 30, message notes this
+- [x] Missing PC ID in pc_initiatives → Warning logged, other PCs included
+- [x] Remove non-existent combatant → Error message returned
+- [x] Advance turn with no active combat → Error message returned
 
 ### Integration Tests
-- [ ] LLM chat: "The goblins attack!" → LLM calls start_combat
-- [ ] LLM describes attack → Updates HP → Calls advance_turn
-- [ ] LLM says "combat ends" → Calls end_combat → Tracker clears
+- [x] LLM chat: "The goblins attack!" → LLM calls start_combat
+- [x] LLM describes attack → Updates HP → Calls advance_turn
+- [x] LLM says "combat ends" → Calls end_combat → Tracker clears
 
 ---
 
@@ -176,5 +176,93 @@ Combat tools automatically log to game log:
 4. `src/Riddle.Web/Components/Combat/CombatantCard.razor` - UI simplified to display-only
 
 ## Build Status
-- **Build:** ✅ SUCCESS with 7 warnings (unrelated nullable warnings in Campaign.razor)
+- **Build:** ✅ SUCCESS (0 warnings)
 - **Date:** 2025-12-29
+
+---
+
+## Implementation Notes (Debugging Session Learnings)
+
+### Issue A: CombatEnded SignalR Event Not Clearing UI
+**Symptom:** After LLM called `end_combat`, the Combat Tracker UI still showed combatants even though the SignalR event was received.
+
+**Root Cause:** `CombatTracker.razor` was directly mutating `[Parameter] Combat = null` in the SignalR handler.
+
+**Why It Failed:** In Blazor, `[Parameter]` properties are controlled by the parent component. Mutating them directly in a child component doesn't trigger the parent's re-render cycle.
+
+**Fix Applied:**
+```csharp
+// ❌ WRONG - was doing this
+Combat = null;
+await CombatChanged.InvokeAsync(null);
+
+// ✅ CORRECT - only invoke callback
+await CombatChanged.InvokeAsync(null);
+```
+
+**Lesson:** NEVER directly mutate `[Parameter]` properties. Always use `EventCallback` to communicate changes to the parent, letting the parent own the state.
+
+### Issue B: Round Number Not Updating During advance_turn
+**Symptom:** Round counter stayed at 1 even when combat progressed to round 2.
+
+**Root Cause:** `TurnAdvancedPayload` SignalR event didn't include `RoundNumber` property.
+
+**Why It Failed:** Client was updating turn index but had no way to know if the round had changed.
+
+**Fix Applied:**
+```csharp
+// File: src/Riddle.Web/Hubs/GameHubEvents.cs
+// Before:
+record TurnAdvancedPayload(Guid CombatantId, int NewIndex);
+
+// After:
+record TurnAdvancedPayload(Guid CombatantId, int NewIndex, int RoundNumber);
+```
+
+Also updated `CombatService.AdvanceTurnAsync()` to include round number in broadcast.
+
+**Lesson:** When designing SignalR payloads, include ALL state that the client needs to render correctly. Consider what UI elements depend on each event.
+
+### Issue C: PCs Not Found After end_combat → start_combat Cycle
+**Symptom:** After ending combat and starting new combat, warning showed "PC 'Elara_Moonshadow' not found in party state" even though character existed.
+
+**Root Cause:** LLM sent underscored names (`Elara_Moonshadow`) but characters were stored with spaces (`Elara Moonshadow`).
+
+**Debug Process:**
+1. Used `python build.py log` to see warning messages
+2. Used `python build.py db party` to verify characters existed in database
+3. Identified mismatch between LLM formatting and stored data
+
+**Fix Applied:**
+```csharp
+// File: src/Riddle.Web/Services/ToolExecutor.cs
+var normalizedPcName = pcName.Replace("_", " ");
+var character = partyState.FirstOrDefault(c => 
+    c.Name.Equals(normalizedPcName, StringComparison.OrdinalIgnoreCase) ||
+    c.Name.Replace("_", " ").Equals(normalizedPcName, StringComparison.OrdinalIgnoreCase) ||
+    c.Id.ToString().Equals(pcName, StringComparison.OrdinalIgnoreCase));
+```
+
+**Lesson:** Always normalize LLM-provided identifiers before database lookups. LLMs often transform separators (spaces → underscores) when using names as identifiers.
+
+### Issue D: CS8602 Null Reference Warnings
+**Symptom:** Build showed "Dereference of possibly null reference" warnings in Campaign.razor.
+
+**Root Cause:** Razor analyzer doesn't track null-state through if/else branches.
+
+**Fix Applied:** Added null-forgiving operators (`campaign!`) within else blocks where campaign is guaranteed non-null by control flow.
+
+**Lesson:** In Razor templates, the compiler's null-state analysis is conservative. Use `!` operator when you've verified non-null in the control flow.
+
+### Debugging Tools Used
+- `python build.py log` - Essential for viewing runtime errors and warnings
+- `python build.py db party` - Verified character data matched expectations
+- `python build.py db characters` - Checked character claim status
+
+
+## Approvals
+- [x] Changes reviewed by user
+- [x] Approved for push to origin
+- [x] Ensured Application is stopped
+- [ ] Merged to develop
+- [ ] Feature branch deleted, then moving on to Update Version and Changelog

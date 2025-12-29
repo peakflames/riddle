@@ -128,6 +128,7 @@ public class ToolExecutor : IToolExecutor
                 "get_character_property_names" => ExecuteGetCharacterPropertyNamesAsync(),
                 "get_character_properties" => await ExecuteGetCharacterPropertiesAsync(campaignId, argumentsJson, ct),
                 // Combat Management Tools
+                "get_combat_state" => await ExecuteGetCombatStateAsync(campaignId, ct),
                 "start_combat" => await ExecuteStartCombatAsync(campaignId, argumentsJson, ct),
                 "end_combat" => await ExecuteEndCombatAsync(campaignId, ct),
                 "advance_turn" => await ExecuteAdvanceTurnAsync(campaignId, ct),
@@ -688,6 +689,64 @@ public class ToolExecutor : IToolExecutor
     // ==================== Combat Management Tools ====================
 
     /// <summary>
+    /// Tool: get_combat_state - Returns current combat state information
+    /// </summary>
+    private async Task<string> ExecuteGetCombatStateAsync(Guid campaignId, CancellationToken ct)
+    {
+        var combatState = await _combatService.GetCombatStateAsync(campaignId, ct);
+        
+        if (combatState == null || !combatState.IsActive)
+        {
+            return "# Combat State\n\n**Status:** No active combat\n\nTo start combat, use the `start_combat` tool with enemies and PC initiatives.";
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine("# Combat State");
+        sb.AppendLine();
+        sb.AppendLine($"**Status:** Active");
+        sb.AppendLine($"**Round:** {combatState.RoundNumber}");
+        sb.AppendLine($"**Current Turn Index:** {combatState.CurrentTurnIndex}");
+        sb.AppendLine();
+        
+        // Turn Order Table
+        sb.AppendLine("## Turn Order");
+        sb.AppendLine();
+        sb.AppendLine("| # | Name | Type | Initiative | HP | Status |");
+        sb.AppendLine("|---|------|------|------------|----|---------");
+        
+        for (int i = 0; i < combatState.TurnOrder.Count; i++)
+        {
+            var combatant = combatState.TurnOrder[i];
+            var turnIndicator = i == combatState.CurrentTurnIndex ? "→" : (i + 1).ToString();
+            var hpDisplay = $"{combatant.CurrentHp}/{combatant.MaxHp}";
+            var status = combatant.IsDefeated ? "💀 Defeated" : 
+                         combatant.IsSurprised ? "⚠️ Surprised" : "✓ Active";
+            
+            sb.AppendLine($"| {turnIndicator} | {combatant.Name} | {combatant.Type} | {combatant.Initiative} | {hpDisplay} | {status} |");
+        }
+        sb.AppendLine();
+        
+        // Current Turn Info
+        if (combatState.CurrentTurnIndex >= 0 && combatState.CurrentTurnIndex < combatState.TurnOrder.Count)
+        {
+            var currentCombatant = combatState.TurnOrder[combatState.CurrentTurnIndex];
+            sb.AppendLine($"**Current Turn:** {currentCombatant.Name} ({currentCombatant.Type})");
+        }
+        
+        // Summary Stats
+        var pcCount = combatState.TurnOrder.Count(c => c.Type == "PC");
+        var enemyCount = combatState.TurnOrder.Count(c => c.Type == "Enemy");
+        var defeatedCount = combatState.TurnOrder.Count(c => c.IsDefeated);
+        
+        sb.AppendLine();
+        sb.AppendLine($"**Summary:** {pcCount} PCs, {enemyCount} enemies, {defeatedCount} defeated");
+
+        _logger.LogInformation("Retrieved combat state: Round {Round}, {Count} combatants", 
+            combatState.RoundNumber, combatState.TurnOrder.Count);
+        return sb.ToString();
+    }
+
+    /// <summary>
     /// Tool: start_combat - Initiates combat encounter with enemies and PC initiatives
     /// </summary>
     private async Task<string> ExecuteStartCombatAsync(Guid campaignId, string argumentsJson, CancellationToken ct)
@@ -724,20 +783,24 @@ public class ToolExecutor : IToolExecutor
         // Process PC initiatives
         foreach (var pcProp in pcInitiativesElement.EnumerateObject())
         {
-            var characterId = pcProp.Name;
+            var characterIdOrName = pcProp.Name;
             var initiative = pcProp.Value.GetInt32();
             
             // Clamp initiative to valid range (1-30)
             var clampedInitiative = Math.Clamp(initiative, 1, 30);
             if (clampedInitiative != initiative)
             {
-                warnings.Add($"Initiative for {characterId} clamped from {initiative} to {clampedInitiative}");
+                warnings.Add($"Initiative for {characterIdOrName} clamped from {initiative} to {clampedInitiative}");
             }
 
-            var character = campaign.PartyState.FirstOrDefault(c => c.Id == characterId);
+            // Match by ID (GUID) or by Name (case-insensitive, normalize separators)
+            // LLMs often use underscores (Elara_Moonshadow) while stored names use spaces (Elara Moonshadow)
+            var character = campaign.PartyState.FirstOrDefault(c => 
+                c.Id == characterIdOrName || 
+                NormalizeName(c.Name) == NormalizeName(characterIdOrName));
             if (character == null)
             {
-                warnings.Add($"PC {characterId} not found in party state, skipping");
+                warnings.Add($"PC '{characterIdOrName}' not found in party state (searched by ID and name), skipping");
                 continue;
             }
 
@@ -1015,5 +1078,21 @@ public class ToolExecutor : IToolExecutor
 
         _logger.LogInformation("Removed combatant {Name} from combat ({Reason})", combatant.Name, reason);
         return $"{combatant.Name} {reason} from combat.";
+    }
+
+    // ==================== Helper Methods ====================
+
+    /// <summary>
+    /// Normalizes character names for comparison by converting to lowercase and replacing
+    /// common separators (underscores, hyphens) with spaces.
+    /// LLMs often use underscores (Elara_Moonshadow) while stored names use spaces (Elara Moonshadow).
+    /// </summary>
+    private static string NormalizeName(string name)
+    {
+        return name
+            .ToLowerInvariant()
+            .Replace('_', ' ')
+            .Replace('-', ' ')
+            .Trim();
     }
 }

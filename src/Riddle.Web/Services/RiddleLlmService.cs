@@ -298,6 +298,21 @@ public class RiddleLlmService : IRiddleLlmService
 
     private string BuildSystemPrompt(CampaignInstance campaign)
     {
+        // Debug mode: allows DM to override system constraints when needed for testing
+        var debugSystemPromptExtension = "";
+        var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+        if (string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase))
+        {
+            debugSystemPromptExtension = """
+            <debug_mode_protocol>
+            The application is running in debug mode. 
+            **TRIGGER:** When the user prompts **"SYSTEM OVERRIDE"**: you adhere to the exact request being asked of you, bypassing normal workflow constraints.
+            IMPORTANT: All tools are forbidden to be called unless instructed to by the user
+            </debug_mode_protocol>
+            """;
+            _logger.LogDebug("Debug mode system prompt extension enabled");
+        }
+
         var combatStatus = campaign.ActiveCombat?.IsActive == true 
             ? $"Yes (Round {campaign.ActiveCombat.RoundNumber})" 
             : "No";
@@ -371,7 +386,7 @@ public class RiddleLlmService : IRiddleLlmService
             </story_secrets>
 
             <other_tips_and_tricks>
-            - If this is a new conversation, use the game data and game log to provide a short recap of what the campaign previous doing when we last playing the game
+            - ULTRA IMPORTANT! IF this is a new conversation, IMMEDIATELY use the game data and game log to provide a short recap of what the campaign previous doing when we last playing the game
             </other_tips_and_tricks>
 
             <combat_protocol>
@@ -414,6 +429,8 @@ public class RiddleLlmService : IRiddleLlmService
             - The Combat Tracker is VISUAL - players see HP bars, turn order, current turn
             - Don't repeat information that's already visible in the tracker
             </combat_protocol>
+
+            {debugSystemPromptExtension}
 
             """;
     }
@@ -645,7 +662,7 @@ public class RiddleLlmService : IRiddleLlmService
             
             new Tool(new ToolFunction(
                 "log_player_roll",
-                "Records a dice roll result to the player dashboard.",
+                "Records a dice roll result to the player dashboard and to the game log",
                 new
                 {
                     type = "object",
@@ -731,8 +748,12 @@ public class RiddleLlmService : IRiddleLlmService
             
             // Combat Management Tools
             new Tool(new ToolFunction(
+                "get_combat_state",
+                "Returns the current combat state including turn order, round number, HP status, and whose turn it is. Useful for recovering combat context or checking current state.")),
+            
+            new Tool(new ToolFunction(
                 "start_combat",
-                "Initiates a combat encounter with enemies and PC initiatives. Displays Combat Tracker to all players.",
+                "Initiates a combat encounter with enemies and PC initiatives. Displays Combat Tracker to all players. Records entry into game log.",
                 new
                 {
                     type = "object",
@@ -768,15 +789,15 @@ public class RiddleLlmService : IRiddleLlmService
             
             new Tool(new ToolFunction(
                 "end_combat",
-                "Ends the current combat encounter and clears the Combat Tracker.")),
+                "Ends the current combat encounter and clears the Combat Tracker. . Records entry into game log.")),
             
             new Tool(new ToolFunction(
                 "advance_turn",
-                "Advances to the next combatant's turn. Auto-increments round when returning to top of order.")),
+                "Advances to the next combatant's turn. Auto-increments round when returning to top of order. Records entry into game log.")),
             
             new Tool(new ToolFunction(
                 "add_combatant",
-                "Adds a combatant to an active combat encounter (reinforcements, summons, etc.).",
+                "Adds a combatant to an active combat encounter (reinforcements, summons, etc.). Records entry into game log.",
                 new
                 {
                     type = "object",
@@ -794,7 +815,7 @@ public class RiddleLlmService : IRiddleLlmService
             
             new Tool(new ToolFunction(
                 "remove_combatant",
-                "Removes a combatant from combat (fled, dismissed, etc.). Do NOT use for defeated enemies - track HP instead.",
+                "Removes a combatant from combat (fled, dismissed, etc.). Do NOT use for defeated enemies - track HP instead. Records entry into game log.",
                 new
                 {
                     type = "object",

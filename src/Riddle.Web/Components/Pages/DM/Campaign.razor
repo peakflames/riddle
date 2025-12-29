@@ -14,6 +14,7 @@
 @inject ICampaignService CampaignService
 @inject ICharacterService CharacterService
 @inject IGameStateService GameStateService
+@inject ICombatService CombatService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
 
@@ -69,10 +70,10 @@
                     <Badge Color="BadgeColor.Success">Active</Badge>
                 </div>
                 
-                <!-- Main Content Area -->
-                <div class="grid gap-4 lg:grid-cols-3 lg:h-full">
-                    <!-- Left Column - DM Chat (Full Height) -->
-                    <div class="lg:col-span-2 h-[calc(100vh-200px)] overflow-auto">
+                <!-- Main Content Area - 4 Column Layout -->
+                <div class="grid gap-4 lg:grid-cols-4 lg:h-full">
+                    <!-- Column 1 - DM Chat (Full Height) -->
+                    <div class="h-[calc(100vh-200px)] overflow-hidden">
                         <Card Size="CardSize.ExtraLarge" class="max-w-none h-full">
                             <div class="p-4 h-full flex flex-col">
                                 <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-4 flex-none">
@@ -86,27 +87,9 @@
                         </Card>
                     </div>
                     
-                    <!-- Right Column - Tabbed Sidebar -->
-                    <div class="h-full">
-                        <Tabs Class="w-full h-full">
-                            <TabListContent>
-                                <Tab Index="0">Game</Tab>
-                                <Tab Index="1">Party</Tab>
-                                <Tab Index="2">Narrative Log</Tab>
-                                <Tab Index="3">App Events</Tab>
-                            </TabListContent>
-                            <TabPanelsContent>
-                                <TabPanel Index="0">
-                                    <div class="space-y-4 p-1 h-[calc(100vh-280px)] overflow-auto">
-                                    <!-- Combat Tracker -->
-                                    <CombatTracker 
-                                        CampaignId="@CampaignId"
-                                        Combat="@_combatState"
-                                        CombatChanged="@HandleCombatChanged"
-                                        IsDm="true"
-                                        PartyCharacters="@(campaign?.PartyState ?? [])" />
-                                    
-                                    <!-- Read-Aloud Text -->
+                    <!-- Column 2 - Read-Aloud, Player Choices, Recent Rolls (scrollable) -->
+                    <div class="h-[calc(100vh-200px)] overflow-auto space-y-4">
+                        <!-- Read-Aloud Text -->
                                     <Card Size="CardSize.ExtraLarge" class="max-w-none">
                                         <div class="p-4">
                                             <h3 class="font-bold text-gray-900 dark:text-white mb-3">
@@ -145,8 +128,8 @@
                                             }
                                         </div>
                                     </Card>
-                                    
-                                    <!-- Player Choices (DM Preview) -->
+                        
+                        <!-- Player Choices (DM Preview) -->
                                     <Card Size="CardSize.ExtraLarge" class="max-w-none">
                                         <div class="p-4">
                                             <div class="flex items-center justify-between pb-3 border-b border-gray-200 dark:border-gray-700 mb-3">
@@ -184,8 +167,8 @@
                                             }
                                         </div>
                                     </Card>
-                                    
-                                    <!-- Recent Dice Rolls -->
+                        
+                        <!-- Recent Dice Rolls -->
                                     <Card Size="CardSize.ExtraLarge" class="max-w-none">
                                         <div class="p-4">
                                             <div class="flex items-center justify-between pb-3 border-b border-gray-200 dark:border-gray-700 mb-3">
@@ -203,7 +186,7 @@
                                                 @foreach (var roll in campaign.RecentRolls.Take(MaxRecentRolls))
                                                     {
                                                         <div class="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-800/50 text-sm">
-                                                            <span class="font-medium text-gray-900 dark:text-white truncate max-w-[80px]" title="@roll.CharacterName">@roll.CharacterName</span>
+                                                            <span class="font-medium text-gray-900 dark:text-white truncate max-w-[150px]" title="@roll.CharacterName">@roll.CharacterName</span>
                                                             <span class="text-gray-400 flex-shrink-0">|</span>
                                                             <span class="text-gray-600 dark:text-gray-400 truncate flex-1" title="@roll.CheckType">@roll.CheckType</span>
                                                             <span class="font-mono font-bold text-gray-900 dark:text-white flex-shrink-0 w-6 text-right">@roll.Result</span>
@@ -227,129 +210,148 @@
                                                     <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">
                                                         Rolls will appear here when the AI requests ability checks
                                                     </p>
-                                                </div>
+                                            </div>
                                             }
                                         </div>
                                     </Card>
-                                    
-                                    <!-- Active Quests -->
-                                    <Card Size="CardSize.ExtraLarge" class="max-w-none">
-                                        <div class="p-4">
-                                            <h3 class="font-bold text-gray-900 dark:text-white mb-3">
-                                                <ClipboardIcon Class="inline-block w-4 h-4 mr-2" />
-                                                Active Quests (@campaign.ActiveQuests.Count)
-                                            </h3>
-                                            @if (campaign.ActiveQuests.Any())
-                                            {
-                                                <ul class="space-y-2">
-                                                    @foreach (var quest in campaign.ActiveQuests)
-                                                    {
-                                                        <li class="p-2 bg-gray-50 dark:bg-gray-800 rounded">
-                                                            <p class="font-medium text-gray-900 dark:text-white text-sm">@quest.Title</p>
-                                                            <p class="text-xs text-gray-500 dark:text-gray-400">@quest.State</p>
-                                                        </li>
-                                                    }
-                                                </ul>
-                                            }
-                                            else
-                                            {
-                                                <p class="text-sm text-gray-500 dark:text-gray-400">No active quests.</p>
-                                            }
-                                        </div>
-                                    </Card>
-                                    
-                                    <!-- Campaign Info -->
-                                    <Card Size="CardSize.ExtraLarge" class="max-w-none">
-                                        <div class="p-4">
-                                            <h3 class="font-bold text-gray-900 dark:text-white mb-3">
-                                                <InfoCircleIcon Class="inline-block w-4 h-4 mr-2" />
-                                                Campaign Info
-                                            </h3>
-                                            <dl class="space-y-2 text-sm">
-                                                <div class="flex justify-between">
-                                                    <dt class="text-gray-500 dark:text-gray-400">Created</dt>
-                                                    <dd class="text-gray-900 dark:text-white">@campaign.CreatedAt.ToString("MMM d, yyyy")</dd>
-                                                </div>
-                                                <div class="flex justify-between">
-                                                    <dt class="text-gray-500 dark:text-gray-400">Last Activity</dt>
-                                                    <dd class="text-gray-900 dark:text-white">@GetTimeAgo(campaign.LastActivityAt)</dd>
-                                                </div>
-                                                <div class="flex justify-between">
-                                                    <dt class="text-gray-500 dark:text-gray-400">Milestones</dt>
-                                                    <dd class="text-gray-900 dark:text-white">@campaign.CompletedMilestones.Count completed</dd>
-                                                </div>
-                                            </dl>
-                                        </div>
-                                    </Card>
+                    </div>
+                    
+                    <!-- Column 3 - Combat Tracker, Party (scrollable) -->
+                    <div class="h-[calc(100vh-200px)] overflow-auto space-y-4">
+                        <!-- Combat Tracker -->
+                        <CombatTracker 
+                            CampaignId="@CampaignId"
+                            Combat="@_combatState"
+                            CombatChanged="@HandleCombatChanged"
+                            IsDm="true"
+                            PartyCharacters="@(campaign?.PartyState ?? [])" />
+                        
+                        <!-- Party Panel -->
+                        <Card Size="CardSize.ExtraLarge" class="max-w-none">
+                            <div class="p-4">
+                                <CharacterList 
+                                    Characters="@(campaign!.PartyState)"
+                                    OnAddClick="@OpenAddCharacterModal"
+                                    OnEdit="@OpenEditCharacterModal"
+                                    OnRemove="@HandleRemoveCharacter"
+                                    OnUnclaim="@HandleUnclaimCharacter"
+                                    ShowInviteButton="true"
+                                    OnInviteClick="@OpenInviteModal" />
+                            </div>
+                        </Card>
+                    </div>
+                    
+                    <!-- Column 4 - Tabbed Panel (Info, Game Log, App Events) -->
+                    <div class="h-[calc(100vh-200px)]">
+                        <Tabs Class="w-full h-full">
+                            <TabListContent>
+                                <Tab Index="0">Info</Tab>
+                                <Tab Index="1">Game Log</Tab>
+                                <Tab Index="2">App Events</Tab>
+                            </TabListContent>
+                            <TabPanelsContent>
+                                <TabPanel Index="0">
+                                    <div class="space-y-4 p-1 h-[calc(100vh-280px)] overflow-auto">
+                                        <!-- Active Quests -->
+                                        <Card Size="CardSize.ExtraLarge" class="max-w-none">
+                                            <div class="p-4">
+                                                <h3 class="font-bold text-gray-900 dark:text-white mb-3">
+                                                    <ClipboardIcon Class="inline-block w-4 h-4 mr-2" />
+                                                    Active Quests (@(campaign!.ActiveQuests.Count))
+                                                </h3>
+                                                @if (campaign.ActiveQuests.Any())
+                                                {
+                                                    <ul class="space-y-2">
+                                                        @foreach (var quest in campaign.ActiveQuests)
+                                                        {
+                                                            <li class="p-2 bg-gray-50 dark:bg-gray-800 rounded">
+                                                                <p class="font-medium text-gray-900 dark:text-white text-sm">@quest.Title</p>
+                                                                <p class="text-xs text-gray-500 dark:text-gray-400">@quest.State</p>
+                                                            </li>
+                                                        }
+                                                    </ul>
+                                                }
+                                                else
+                                                {
+                                                    <p class="text-sm text-gray-500 dark:text-gray-400">No active quests.</p>
+                                                }
+                                            </div>
+                                        </Card>
+                                        
+                                        <!-- Campaign Info -->
+                                        <Card Size="CardSize.ExtraLarge" class="max-w-none">
+                                            <div class="p-4">
+                                                <h3 class="font-bold text-gray-900 dark:text-white mb-3">
+                                                    <InfoCircleIcon Class="inline-block w-4 h-4 mr-2" />
+                                                    Campaign Info
+                                                </h3>
+                                                <dl class="space-y-2 text-sm">
+                                                    <div class="flex justify-between">
+                                                        <dt class="text-gray-500 dark:text-gray-400">Created</dt>
+                                                        <dd class="text-gray-900 dark:text-white">@campaign!.CreatedAt.ToString("MMM d, yyyy")</dd>
+                                                    </div>
+                                                    <div class="flex justify-between">
+                                                        <dt class="text-gray-500 dark:text-gray-400">Last Activity</dt>
+                                                        <dd class="text-gray-900 dark:text-white">@GetTimeAgo(campaign!.LastActivityAt)</dd>
+                                                    </div>
+                                                    <div class="flex justify-between">
+                                                        <dt class="text-gray-500 dark:text-gray-400">Milestones</dt>
+                                                        <dd class="text-gray-900 dark:text-white">@campaign!.CompletedMilestones.Count completed</dd>
+                                                    </div>
+                                                </dl>
+                                            </div>
+                                        </Card>
                                     </div>
                                 </TabPanel>
                                 
                                 <TabPanel Index="1">
-                                    <div class="space-y-4 p-1 h-[calc(100vh-280px)] overflow-auto">
-                                    <!-- Party Panel -->
-                                    <Card Size="CardSize.ExtraLarge" class="max-w-none">
-                                        <div class="p-4">
-                                            <CharacterList 
-                                                Characters="@campaign.PartyState"
-                                                OnAddClick="@OpenAddCharacterModal"
-                                                OnEdit="@OpenEditCharacterModal"
-                                                OnRemove="@HandleRemoveCharacter"
-                                                OnUnclaim="@HandleUnclaimCharacter"
-                                                ShowInviteButton="true"
-                                                OnInviteClick="@OpenInviteModal" />
-                                        </div>
-                                    </Card>
+                                    <div class="p-1 h-[calc(100vh-280px)] overflow-auto">
+                                        <Card Size="CardSize.ExtraLarge" class="max-w-none">
+                                            <div class="p-4">
+                                                <h3 class="font-bold text-gray-900 dark:text-white flex items-center gap-2 mb-3">
+                                                    <BookOpenIcon Class="mt-1 w-4 h-4" />
+                                                    Story Events
+                                                    <Badge Color="BadgeColor.Gray" Size="BadgeSize.ExtraSmall">@(campaign!.NarrativeLog?.Count ?? 0)</Badge>
+                                                </h3>
+                                                @if (campaign?.NarrativeLog?.Any() == true)
+                                                {
+                                                    <div class="space-y-3">
+                                                        @foreach (var entry in campaign.NarrativeLog!.OrderByDescending(e => e.Timestamp))
+                                                        {
+                                                            <div class="@GetNarrativeEntryClass(entry.Importance)">
+                                                                <div class="flex items-center gap-2 mb-1">
+                                                                    <Badge Color="@GetImportanceBadgeColor(entry.Importance)" Size="BadgeSize.ExtraSmall">
+                                                                        @entry.Importance
+                                                                    </Badge>
+                                                                    <span class="text-xs text-gray-400 dark:text-gray-500">
+                                                                        @GetTimeAgo(entry.Timestamp)
+                                                                    </span>
+                                                                </div>
+                                                                <p class="text-sm text-gray-700 dark:text-gray-300">
+                                                                    @entry.Entry
+                                                                </p>
+                                                            </div>
+                                                        }
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <div class="text-center py-8">
+                                                        <BookOpenIcon Class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-600 mb-3" />
+                                                        <p class="text-sm text-gray-500 dark:text-gray-400">
+                                                            No narrative events recorded yet.
+                                                        </p>
+                                                        <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                                            Story events will appear here as the adventure progresses.
+                                                        </p>
+                                                    </div>
+                                                }
+                                            </div>
+                                        </Card>
                                     </div>
                                 </TabPanel>
                                 
                                 <TabPanel Index="2">
-                                    <div class="p-1 h-[calc(100vh-280px)] overflow-auto">
-                                    <Card Size="CardSize.ExtraLarge" class="max-w-none">
-                                        <div class="p-4">
-                                            <h3 class="font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                                <BookOpenIcon Class="mt-1 w-4 h-4" />
-                                                Story Events
-                                                <Badge Color="BadgeColor.Gray" Size="BadgeSize.ExtraSmall">@campaign.NarrativeLog.Count</Badge>
-                                            </h3>
-                                            @if (campaign.NarrativeLog.Any())
-                                            {
-                                                <div class="space-y-3 max-h-[60vh] overflow-y-auto">
-                                                    @foreach (var entry in campaign.NarrativeLog.OrderByDescending(e => e.Timestamp))
-                                                    {
-                                                        <div class="@GetNarrativeEntryClass(entry.Importance)">
-                                                            <div class="flex items-center gap-2 mb-1">
-                                                                <Badge Color="@GetImportanceBadgeColor(entry.Importance)" Size="BadgeSize.ExtraSmall">
-                                                                    @entry.Importance
-                                                                </Badge>
-                                                                <span class="text-xs text-gray-400 dark:text-gray-500">
-                                                                    @GetTimeAgo(entry.Timestamp)
-                                                                </span>
-                                                            </div>
-                                                            <p class="text-sm text-gray-700 dark:text-gray-300">
-                                                                @entry.Entry
-                                                            </p>
-                                                        </div>
-                                                    }
-                                                </div>
-                                            }
-                                            else
-                                            {
-                                                <div class="text-center py-8">
-                                                    <BookOpenIcon Class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-600 mb-3" />
-                                                    <p class="text-sm text-gray-500 dark:text-gray-400">
-                                                        No narrative events recorded yet.
-                                                    </p>
-                                                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                                                        Story events will appear here as the adventure progresses.
-                                                    </p>
-                                                </div>
-                                            }
-                                        </div>
-                                    </Card>
-                                    </div>
-                                </TabPanel>
-                                
-                                <TabPanel Index="3">
                                     <div class="p-1 h-[calc(100vh-280px)] overflow-auto">
                                         <AppEventLog Expanded="true" Class="h-full" />
                                     </div>
@@ -475,6 +477,13 @@
         if (campaign != null && campaign.DmUserId != currentUserId)
         {
             campaign = null; // Don't show campaigns user doesn't own
+            return;
+        }
+        
+        // Load combat state from database (ensures correct state after refresh)
+        if (campaign != null)
+        {
+            _combatState = await CombatService.GetCombatStateAsync(CampaignId);
         }
     }
 

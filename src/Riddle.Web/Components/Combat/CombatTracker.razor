@@ -5,29 +5,30 @@
 @implements IAsyncDisposable
 
 @* Display-only combat tracker - combat is controlled by LLM via tools *@
-<Card Class="h-full">
-    <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-            <span class="text-xl">⚔️</span>
-            Combat Tracker
-        </h3>
-        @if (Combat?.IsActive == true)
-        {
-            <Badge Color="BadgeColor.Pink">Round @Combat.RoundNumber</Badge>
-        }
-    </div>
-    
-    @if (Combat?.IsActive != true)
-    {
-        <div class="text-center text-gray-500 dark:text-gray-400 py-8">
-            <div class="text-4xl mb-3">🛡️</div>
-            <p>No active combat</p>
-            <p class="text-xs mt-2 italic">The DM will initiate combat when enemies appear</p>
+<Card Size="CardSize.ExtraLarge" class="max-w-none">
+    <div class="p-4">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <span class="text-lg">⚔️</span>
+                Combat Tracker
+            </h3>
+            @if (Combat?.IsActive == true)
+            {
+                <Badge Color="BadgeColor.Pink" Size="BadgeSize.Small">Round @Combat.RoundNumber</Badge>
+            }
         </div>
-    }
-    else
-    {
-        <div class="space-y-2">
+        
+        @if (Combat?.IsActive != true)
+        {
+            <div class="text-center text-gray-500 dark:text-gray-400 py-4">
+                <div class="text-3xl mb-2">🛡️</div>
+                <p class="text-sm">No active combat</p>
+                <p class="text-xs mt-1 italic">The DM will initiate combat when enemies appear</p>
+            </div>
+        }
+        else
+        {
+            <div class="space-y-1">
             @foreach (var (combatant, index) in Combat.TurnOrder.Select((c, i) => (c, i)))
             {
                 <CombatantCard 
@@ -38,15 +39,14 @@
             }
         </div>
         
-        @if (IsDm)
-        {
-            <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                <p class="text-xs text-gray-500 dark:text-gray-400 text-center italic">
-                    Combat is managed through chat commands
+            @if (IsDm)
+            {
+                <p class="text-xs text-gray-500 dark:text-gray-400 text-center italic mt-2">
+                    Combat managed via chat
                 </p>
-            </div>
+            }
         }
-    }
+    </div>
 </Card>
 
 @code {
@@ -94,26 +94,42 @@
 
             _hubConnection.On<CombatStatePayload>(GameHubEvents.CombatStarted, async payload =>
             {
-                Combat = payload;
-                await CombatChanged.InvokeAsync(payload);
-                await InvokeAsync(StateHasChanged);
+                Logger.LogWarning("[CombatTracker] CombatStarted SignalR event RECEIVED for campaign {CampaignId}", CampaignId);
+                // Don't modify Combat directly - it's a [Parameter] owned by parent
+                // Just invoke the callback to notify parent to update its state
+                await InvokeAsync(async () =>
+                {
+                    await CombatChanged.InvokeAsync(payload);
+                });
             });
 
-            _hubConnection.On<int, string>(GameHubEvents.TurnAdvanced, async (newIndex, currentId) =>
+            _hubConnection.On<int, string, int>(GameHubEvents.TurnAdvanced, async (newIndex, currentId, roundNumber) =>
             {
+                Logger.LogDebug("[CombatTracker] TurnAdvanced SignalR event RECEIVED: Round={RoundNumber}, newIndex={NewIndex}", roundNumber, newIndex);
                 if (Combat != null)
                 {
-                    Combat = Combat with { CurrentTurnIndex = newIndex };
-                    await CombatChanged.InvokeAsync(Combat);
-                    await InvokeAsync(StateHasChanged);
+                    // Create updated state with both turn index and round number
+                    var updatedState = Combat with { CurrentTurnIndex = newIndex, RoundNumber = roundNumber };
+                    await InvokeAsync(async () =>
+                    {
+                        await CombatChanged.InvokeAsync(updatedState);
+                    });
                 }
             });
 
             _hubConnection.On(GameHubEvents.CombatEnded, async () =>
             {
-                Combat = null;
-                await CombatChanged.InvokeAsync(null);
-                await InvokeAsync(StateHasChanged);
+                Logger.LogWarning("[CombatTracker] CombatEnded SignalR event RECEIVED for campaign {CampaignId}", CampaignId);
+                Logger.LogWarning("[CombatTracker] Current Combat state before clear: IsActive={IsActive}, TurnOrder={TurnOrderCount}", 
+                    Combat?.IsActive, Combat?.TurnOrder?.Count);
+                
+                // Don't modify Combat directly - it's a [Parameter] owned by parent
+                // Just invoke the callback to notify parent to update its state
+                await InvokeAsync(async () =>
+                {
+                    await CombatChanged.InvokeAsync(null);
+                    Logger.LogWarning("[CombatTracker] CombatChanged callback invoked successfully");
+                });
             });
 
             await _hubConnection.StartAsync();
