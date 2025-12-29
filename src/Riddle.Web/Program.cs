@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Riddle.Web.Components;
 using Riddle.Web.Components.Account;
 using Riddle.Web.Data;
+using Riddle.Web.Hubs;
 using Riddle.Web.Models;
 using Riddle.Web.Services;
 using Flowbite.Services;
@@ -99,6 +100,12 @@ builder.Services.AddCascadingAuthenticationState();
 // Flowbite
 builder.Services.AddFlowbite();
 
+// SignalR for real-time communication
+builder.Services.AddSignalR();
+
+// Connection tracking (singleton for cross-request state)
+builder.Services.AddSingleton<IConnectionTracker, ConnectionTracker>();
+
 // Application Services
 builder.Services.AddScoped<IAppEventService, AppEventService>();
 builder.Services.AddScoped<ICampaignService, CampaignService>();
@@ -128,6 +135,9 @@ app.MapRazorComponents<App>()
 
 // Map additional identity endpoints (external login callback, etc.)
 app.MapGroup("/Account").MapAdditionalIdentityEndpoints();
+
+// Map SignalR hub for real-time game events
+app.MapHub<GameHub>("/gamehub");
 
 // Ensure database is created
 using (var scope = app.Services.CreateScope())
