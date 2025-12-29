@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2025-12-29
+
+### Added
+- **Phase 4: Real-Time Game Hub (Objective 3 & 3.5)**
+  - Combat Tracker component (`CombatTracker.razor`):
+    - Real-time turn order display with initiative values
+    - Current turn indicator (▶) and position numbers
+    - HP display with color-coded health badges
+    - Type icons (🧙 PC, 👹 Enemy, 📜 NPC)
+    - Compact card layout with header showing round number
+    - DM controls: Next Turn button, End Combat button
+    - Read-only mode for players (`IsDm="false"`)
+  - CombatService (`ICombatService`/`CombatService`):
+    - `StartCombatAsync()` - Initialize combat with combatants
+    - `AdvanceTurnAsync()` - Advance to next combatant, auto-increment rounds
+    - `EndCombatAsync()` - End combat encounter
+    - `GetCombatStateAsync()` - Retrieve current combat state as `CombatStatePayload`
+    - `UpdateCombatantHpAsync()` - Update combatant HP during combat
+    - Automatic round tracking and turn wrapping
+  - LLM Combat Tools:
+    - `start_combat` - Start combat with PC names and enemy definitions
+    - `advance_turn` - Advance to next combatant
+    - `end_combat` - End the combat encounter
+    - `apply_damage` / `apply_healing` - Modify combatant HP
+  - Combat Tracker on Player Dashboard:
+    - Real-time SignalR updates for combat state changes
+    - Shows turn order, current turn, round number
+  - Party Members card on Player Dashboard:
+    - Shows other PCs in party with HP/AC/DEX stats
+    - Class icons and color-coded health badges
+  - Player Dashboard 3-column layout on XL screens:
+    - Left: Scene Image, Read Aloud, Player Choices, Dice Rolls
+    - Middle: Combat Tracker + Party Members (sticky)
+    - Right: Character Card (sticky)
+
+### Fixed
+- CombatEnded SignalR event not clearing Combat Tracker UI (was mutating `[Parameter]` directly)
+- Round number not updating during `advance_turn` (added `RoundNumber` to `TurnAdvanced` event)
+- PC lookup failing after `end_combat`→`start_combat` (normalize LLM names: underscores to spaces)
+- CS8602 null reference warnings in Campaign.razor with null-forgiving operators
+
+### Technical
+- `CombatStatePayload` record for SignalR combat state broadcasting
+- `CombatantInfo` record for turn order data
+- TurnAdvanced SignalR event uses individual params `(int, string, int)` not payload record
+- Blazor `[Parameter]` anti-pattern documented: never mutate directly, use EventCallback
+- LLM name normalization pattern: replace underscores with spaces before character lookup
+- JSON `[NotMapped]` property pattern: capture to local variable before modification
+
 ## [0.11.0] - 2025-12-29
 
 ### Added
@@ -383,7 +432,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flowbite Blazor component library reference documentation
 - Incremental phase implementation workflow for development
 
-[Unreleased]: https://github.com/peakflames/riddle/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/peakflames/riddle/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/peakflames/riddle/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/peakflames/riddle/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/peakflames/riddle/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/peakflames/riddle/compare/v0.8.0...v0.9.0
