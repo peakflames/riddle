@@ -506,6 +506,74 @@ After completing a feature or objective:
 
 ---
 
+## Existing Code Recognition Protocol
+
+<existing_code_protocol>
+When beginning work on an objective, you may discover that code in the repository already implements some or all of the acceptance criteria, even though the progress tracking (implementation plans, verification checklists) doesn't reflect completion.
+
+### Step 1: Detect Code-vs-Progress Discrepancy
+
+Signs of existing implementation:
+- Files exist that match the objective's "Files to Create/Modify" list
+- Code patterns match what the objective describes
+- Models, services, or components already contain the required functionality
+- Feature works when tested, despite checklist showing incomplete
+
+### Step 2: Validate Existing Implementation
+
+Before assuming existing code is correct:
+
+1. **Read the acceptance criteria** from the phase implementation plan
+2. **Read the existing code** using `read_file`
+3. **Compare functionality** - does the code satisfy each criterion?
+4. **Test the feature** using `python build.py start` and Playwright MCP
+5. **Check for edge cases** mentioned in BDD feature files
+
+### Step 3: Honor Valid Implementations
+
+**IF the existing code satisfies acceptance criteria:**
+
+1. **DO NOT re-implement** - trust the existing code
+2. **Update the verification checklist** to reflect actual state:
+   - Mark completed items as `[x]`
+   - Document files that were already modified
+   - Note "Implementation found in existing codebase" in commits section
+3. **Run validation steps** to confirm (build, start, test)
+4. **Proceed to approval gate** as if you completed the work
+
+**IF the existing code is incomplete or incorrect:**
+
+1. **Document what exists** in the verification checklist
+2. **Identify gaps** between current state and acceptance criteria
+3. **Make targeted fixes** rather than full re-implementation
+4. **Preserve working code** - use surgical `replace_in_file` edits
+
+### Example Scenario
+
+```markdown
+## Situation
+Starting Phase 2 Objective 3: "LLM Chat Integration"
+Checklist shows: [ ] Create RiddleLlmService.cs
+But file already exists at: src/Riddle.Web/Services/RiddleLlmService.cs
+
+## Action
+1. Read existing RiddleLlmService.cs
+2. Compare against acceptance criteria
+3. Test chat functionality
+4. If working: Update checklist to [x], proceed to next item
+5. If broken: Fix specific issues, don't rewrite from scratch
+```
+
+### Rationale
+
+- Previous sessions may have implemented features before checklist updates
+- Manual development outside Cline may have occurred  
+- Avoiding redundant work saves time and prevents regression bugs
+- Existing patterns should be preserved for consistency
+</existing_code_protocol>
+
+---
+
 ## LLM Implementer Guidelines
 
 <llm_guidelines>
