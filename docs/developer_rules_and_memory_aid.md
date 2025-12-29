@@ -164,6 +164,7 @@ Version is set in `.csproj` via `<Version>` or `<InformationalVersion>` property
 ### Flowbite Blazor Component APIs
 - **SpinnerSize**: Use `SpinnerSize.Xl`, not `SpinnerSize.ExtraLarge`
 - **BadgeColor**: Requires explicit `@using Flowbite.Blazor.Enums` in some contexts. Note: `BadgeColor.Dark` does NOT exist - use `BadgeColor.Gray` for dark tones
+- **ButtonColor**: Use `ButtonColor.Green` for success-style buttons, NOT `ButtonColor.Success` (which doesn't exist)
 - **CardSize**: Use `CardSize.ExtraLarge`, not `CardSize.XLarge`
 - **EditForm Context Conflicts**: When EditForm is inside AuthorizeView, add `Context="editContext"` parameter to EditForm to avoid context name collision
 - **Icon Components**: Use Flowbite icon components (e.g., `<BookOpenIcon Class="w-5 h-5" />`) from Flowbite.Blazor.Icons namespace

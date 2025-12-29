@@ -13,6 +13,7 @@ public class ToolExecutor : IToolExecutor
 {
     private readonly IGameStateService _stateService;
     private readonly ICombatService _combatService;
+    private readonly INotificationService _notificationService;
     private readonly ILogger<ToolExecutor> _logger;
 
     /// <summary>
@@ -96,10 +97,12 @@ public class ToolExecutor : IToolExecutor
     public ToolExecutor(
         IGameStateService stateService, 
         ICombatService combatService,
+        INotificationService notificationService,
         ILogger<ToolExecutor> logger)
     {
         _stateService = stateService;
         _combatService = combatService;
+        _notificationService = notificationService;
         _logger = logger;
     }
 
@@ -305,9 +308,13 @@ public class ToolExecutor : IToolExecutor
             .Select(c => c.GetString()!)
             .ToList();
 
+        // Save to database (notifies DM via OnCampaignChanged event)
         await _stateService.SetPlayerChoicesAsync(campaignId, choices, ct);
+        
+        // Push to players via SignalR
+        await _notificationService.NotifyPlayerChoicesAsync(campaignId, choices, ct);
 
-        _logger.LogInformation("Set {Count} player choices", choices.Count);
+        _logger.LogInformation("Set {Count} player choices and notified players", choices.Count);
         return JsonSerializer.Serialize(new { success = true, choice_count = choices.Count });
     }
 
