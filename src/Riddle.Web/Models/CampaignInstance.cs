@@ -129,6 +129,12 @@ public class CampaignInstance
     [Column(TypeName = "text")]
     public string PreferencesJson { get; set; } = "{}";
     
+    /// <summary>
+    /// JSON storage for recent dice roll results (displayed on DM and Player dashboards)
+    /// </summary>
+    [Column(TypeName = "text")]
+    public string RecentRollsJson { get; set; } = "[]";
+    
     // Context
     /// <summary>
     /// Summary of the last narrative for context
@@ -253,6 +259,19 @@ public class CampaignInstance
     {
         get => JsonSerializer.Deserialize<List<string>>(ActivePlayerChoicesJson) ?? [];
         set => ActivePlayerChoicesJson = JsonSerializer.Serialize(value);
+    }
+    
+    /// <summary>
+    /// Recent dice roll results for display on dashboards.
+    /// Limited to most recent 20 rolls to prevent unbounded growth.
+    /// </summary>
+    [NotMapped]
+    public List<RollResult> RecentRolls
+    {
+        get => string.IsNullOrWhiteSpace(RecentRollsJson) 
+            ? [] 
+            : JsonSerializer.Deserialize<List<RollResult>>(RecentRollsJson) ?? [];
+        set => RecentRollsJson = JsonSerializer.Serialize(value);
     }
     
     /// <summary>

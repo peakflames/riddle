@@ -154,4 +154,45 @@ public class GameStateService : IGameStateService
             NewValue = imageUri
         });
     }
+
+    public async Task AddRollResultAsync(Guid campaignId, RollResult roll, CancellationToken ct = default)
+    {
+        _logger.LogDebug("Adding roll result for campaign {CampaignId}: {CharacterName} {CheckType} = {Result} ({Outcome})", 
+            campaignId, roll.CharacterName, roll.CheckType, roll.Result, roll.Outcome);
+        
+        var campaign = await GetCampaignAsync(campaignId, ct);
+        if (campaign == null)
+        {
+            throw new InvalidOperationException($"Campaign {campaignId} not found");
+        }
+
+        // Get current rolls, add new one (with deduplication), keep only most recent 50
+        var rolls = campaign.RecentRolls;
+        
+        // Dedupe: Skip if roll with same ID already exists
+        if (!rolls.Any(r => r.Id == roll.Id))
+        {
+            rolls.Insert(0, roll);  // Add to front (most recent first)
+        if (rolls.Count > 50)
+        {
+            rolls = rolls.Take(50).ToList();
+        }
+            campaign.RecentRolls = rolls;
+        }
+        else
+        {
+            _logger.LogDebug("Skipping duplicate roll with Id {RollId}", roll.Id);
+            return; // Don't save or notify if duplicate
+        }
+        
+        await UpdateCampaignAsync(campaign, ct);
+        
+        // Notify subscribers of the change
+        OnCampaignChanged?.Invoke(new CampaignChangedEventArgs
+        {
+            CampaignId = campaignId,
+            ChangedProperty = "RecentRolls",
+            NewValue = roll  // Send just the new roll for efficiency
+        });
+    }
 }

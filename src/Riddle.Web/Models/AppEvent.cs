@@ -12,6 +12,16 @@ public record AppEvent
     public string Message { get; init; } = string.Empty;
     public string? Details { get; init; }
     public bool IsError { get; init; }
+    
+    /// <summary>
+    /// Tool name for ToolCall/ToolResult events
+    /// </summary>
+    public string? ToolName { get; init; }
+    
+    /// <summary>
+    /// Tool arguments for ToolCall events (JSON or formatted string)
+    /// </summary>
+    public string? ToolArgs { get; init; }
 }
 
 /// <summary>

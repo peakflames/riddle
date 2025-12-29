@@ -238,6 +238,10 @@ def start_background(dotnet_path: str) -> None:
     # Open log file
     log_file = open(LOG_FILE, 'w')
     
+    # Set environment for Development mode
+    env = os.environ.copy()
+    env["ASPNETCORE_ENVIRONMENT"] = "Development"
+    
     # Start process
     if platform.system() == "Windows":
         # On Windows, use CREATE_NEW_PROCESS_GROUP to prevent Ctrl+C propagation
@@ -245,6 +249,7 @@ def start_background(dotnet_path: str) -> None:
             [dotnet_path, "run", "--project", PROJECT_PATH, "--no-restore"],
             stdout=log_file,
             stderr=subprocess.STDOUT,
+            env=env,
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
         )
     else:
@@ -253,6 +258,7 @@ def start_background(dotnet_path: str) -> None:
             [dotnet_path, "run", "--project", PROJECT_PATH, "--no-restore"],
             stdout=log_file,
             stderr=subprocess.STDOUT,
+            env=env,
             start_new_session=True
         )
     
@@ -827,6 +833,117 @@ def create_character(json_data: str, campaign_id: Optional[str] = None) -> None:
         print(f"Error: {e}")
 
 
+def show_rolls_json(campaign_id: Optional[str] = None) -> None:
+    """Show full RecentRollsJson for a campaign (pretty-printed)
+    
+    Args:
+        campaign_id: Optional campaign ID. If None, shows most recent campaign.
+    """
+    import json
+    
+    if not DB_PATH.exists():
+        print(f"Database not found: {DB_PATH}")
+        return
+    
+    try:
+        conn = sqlite3.connect(str(DB_PATH))
+        cursor = conn.cursor()
+        
+        if campaign_id:
+            cursor.execute(
+                "SELECT Id, Name, RecentRollsJson FROM CampaignInstances WHERE Id = ?",
+                (campaign_id,)
+            )
+        else:
+            cursor.execute(
+                "SELECT Id, Name, RecentRollsJson FROM CampaignInstances ORDER BY CreatedAt DESC LIMIT 1"
+            )
+        
+        row = cursor.fetchone()
+        if not row:
+            print("No campaigns found")
+            conn.close()
+            return
+        
+        cid, campaign_name, rolls_json = row
+        print(f"Campaign: {campaign_name}")
+        print(f"ID: {cid}")
+        print("=" * 80)
+        
+        if not rolls_json:
+            print("No roll data (RecentRollsJson is empty)")
+            conn.close()
+            return
+        
+        # Pretty-print the JSON
+        data = json.loads(rolls_json)
+        print(f"Total rolls: {len(data)}")
+        print("-" * 80)
+        
+        # Display in a readable format
+        for i, roll in enumerate(data):
+            print(f"\n[{i+1}] {roll.get('CharacterName', 'Unknown')} - {roll.get('CheckType', '?')} = {roll.get('Result', '?')} ({roll.get('Outcome', '?')})")
+            print(f"    Id: {roll.get('Id', 'N/A')}")
+            print(f"    CharacterId: {roll.get('CharacterId', 'N/A')}")
+            print(f"    Timestamp: {roll.get('Timestamp', 'N/A')}")
+        
+        conn.close()
+    
+    except json.JSONDecodeError as e:
+        print(f"Error parsing RecentRollsJson: {e}")
+        print(f"Raw JSON: {rolls_json}")
+    except Exception as e:
+        print(f"Error: {e}")
+
+
+def clear_rolls(campaign_id: Optional[str] = None) -> None:
+    """Clear all recent rolls from a campaign's RecentRollsJson
+    
+    Args:
+        campaign_id: Optional campaign ID. If None, uses most recent campaign.
+    """
+    if not DB_PATH.exists():
+        print(f"Database not found: {DB_PATH}")
+        return
+    
+    try:
+        conn = sqlite3.connect(str(DB_PATH))
+        cursor = conn.cursor()
+        
+        if campaign_id:
+            cursor.execute(
+                "SELECT Id, Name FROM CampaignInstances WHERE Id = ?",
+                (campaign_id,)
+            )
+        else:
+            cursor.execute(
+                "SELECT Id, Name FROM CampaignInstances ORDER BY CreatedAt DESC LIMIT 1"
+            )
+        
+        row = cursor.fetchone()
+        if not row:
+            print("No campaigns found")
+            conn.close()
+            return
+        
+        cid, campaign_name = row
+        
+        # Clear the rolls
+        cursor.execute(
+            "UPDATE CampaignInstances SET RecentRollsJson = '[]' WHERE Id = ?",
+            (cid,)
+        )
+        conn.commit()
+        conn.close()
+        
+        print(f"✓ Cleared recent rolls")
+        print(f"  Campaign: {campaign_name}")
+        print(f"  ID: {cid}")
+    
+    except Exception as e:
+        print(f"Error: {e}")
+
+
 def show_character_template() -> None:
     """Print a JSON template for creating characters"""
     import json
@@ -1109,6 +1226,14 @@ def main() -> None:
             char_name = sys.argv[3]
             campaign_id = sys.argv[4] if len(sys.argv) > 4 else None
             delete_character(char_name, campaign_id)
+        elif subcommand == "rolls":
+            # Show recent rolls: db rolls [campaign_id]
+            campaign_id = sys.argv[3] if len(sys.argv) > 3 else None
+            show_rolls_json(campaign_id)
+        elif subcommand == "clear-rolls":
+            # Clear recent rolls: db clear-rolls [campaign_id]
+            campaign_id = sys.argv[3] if len(sys.argv) > 3 else None
+            clear_rolls(campaign_id)
         else:
             # Treat as SQL query
             query_db(subcommand)

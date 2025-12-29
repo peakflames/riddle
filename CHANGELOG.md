@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2025-12-28
+
+### Added
+- **Dice Rolling System**
+  - `RollResult` model for persisting roll data with character name, check type, result, and outcome
+  - `RecentRollsJson` column on `CampaignInstance` for storing last 50 rolls
+  - `AddRollAsync()` in `IGameStateService` for recording dice rolls with automatic trimming
+  - EF Core migration `AddRecentRollsJson` for new column
+  - Real-time roll updates via `OnCampaignChanged` event with "RecentRolls" property
+
+- **Compact Dice Rolls UI (DM & Player Dashboards)**
+  - Single-row compact design: Character | Check Type | Result | Outcome Badge | Time
+  - Max 50 rolls displayed with scrollable container
+  - Color-coded outcome badges (✨ crit, ✓ pass, ✗ fail, 💀 crit fail)
+  - Short time format (now, 5m, 2h, 3d)
+
+- **Application Version Display**
+  - Version number `v0.7.0-alpha` shown in navbar next to "Riddle" brand
+  - Visible on all pages using StackedLayout
+
+### Changed
+- **DM Dashboard now uses StackedLayout** - Removed sidebar for cleaner full-width experience
+- **Player Dashboard column order swapped** - Game content (Read-Aloud, Choices) now appears first on mobile for better UX
+- **Player Dashboard cards restyled** to match DM Dashboard:
+  - Read-Aloud Text: Standard gray card with amber left-border content box
+  - Player Choices: Added icon + badge count header with divider
+  - Consistent `CardSize.ExtraLarge` and `p-4` padding wrapper pattern
+
+### Removed
+- Location Info card from Player Dashboard (showed chapter/location info)
+- Sidebar navigation on DM Dashboard (now uses full-width StackedLayout)
+
+### Technical
+- `StackedLayout` used consistently across DM and Player dashboards
+- Card pattern: `<Card Size="CardSize.ExtraLarge">` + inner `<div class="p-4">` wrapper
+
 ## [0.6.0] - 2025-12-28
 
 ### Added
@@ -238,7 +274,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flowbite Blazor component library reference documentation
 - Incremental phase implementation workflow for development
 
-[Unreleased]: https://github.com/peakflames/riddle/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/peakflames/riddle/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/peakflames/riddle/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/peakflames/riddle/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/peakflames/riddle/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/peakflames/riddle/compare/v0.4.1...v0.5.0

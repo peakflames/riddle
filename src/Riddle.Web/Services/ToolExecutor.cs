@@ -212,7 +212,7 @@ public class ToolExecutor : IToolExecutor
     }
 
     /// <summary>
-    /// Tool 6: log_player_roll - Records a dice roll result to the log
+    /// Tool 6: log_player_roll - Records a dice roll result to the dashboard
     /// </summary>
     private async Task<string> ExecuteLogPlayerRollAsync(Guid campaignId, string argumentsJson, CancellationToken ct)
     {
@@ -243,25 +243,42 @@ public class ToolExecutor : IToolExecutor
         var result = resultElement.GetInt32();
         var outcome = outcomeElement.GetString()!;
 
-        // Log the roll as a narrative entry
-        var logEntry = new LogEntry
+        // Look up character name for display purposes
+        var character = await _stateService.GetCharacterAsync(campaignId, characterId, ct);
+        var characterName = character?.Name ?? characterId;
+
+        // Create structured roll result
+        var rollResult = new RollResult
         {
-            Entry = $"[Roll] {characterId}: {checkType} = {result} ({outcome})",
-            Importance = "minor"
+            CharacterId = characterId,
+            CharacterName = characterName,
+            CheckType = checkType,
+            Result = result,
+            Outcome = outcome
         };
         
+        // Store in recent rolls (triggers real-time notification)
+        await _stateService.AddRollResultAsync(campaignId, rollResult, ct);
+        
+        // Also log as a narrative entry for history
+        var logEntry = new LogEntry
+        {
+            Entry = $"[Roll] {characterName}: {checkType} = {result} ({outcome})",
+            Importance = "minor"
+        };
         await _stateService.AddLogEntryAsync(campaignId, logEntry, ct);
 
-        _logger.LogInformation("Logged roll: {CharacterId} {CheckType} = {Result} ({Outcome})", 
-            characterId, checkType, result, outcome);
+        _logger.LogInformation("Logged roll: {CharacterName} {CheckType} = {Result} ({Outcome})", 
+            characterName, checkType, result, outcome);
         return JsonSerializer.Serialize(new 
         { 
             success = true, 
             character_id = characterId, 
+            character_name = characterName,
             check_type = checkType, 
             result, 
             outcome,
-            log_id = logEntry.Id
+            roll_id = rollResult.Id
         });
     }
 

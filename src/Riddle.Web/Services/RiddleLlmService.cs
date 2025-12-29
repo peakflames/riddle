@@ -125,12 +125,12 @@ public class RiddleLlmService : IRiddleLlmService
                     _logger.LogInformation("Executing tool: {Tool} (ID: {ToolCallId}) with args: {Args}", 
                         functionName, toolCallId, functionArgs.Length > 200 ? functionArgs[..200] + "..." : functionArgs);
                     
-                    // Emit individual tool execution event
-                    _appEventService.AddEvent(
+                    // Emit individual tool execution event with structured tool data
+                    _appEventService.AddToolEvent(
                         AppEventType.ToolCall, 
                         functionName, 
-                        $"Executing tool: {functionName}",
-                        functionArgs);
+                        $"Executing: {functionName}",
+                        toolArgs: functionArgs);
                     
                     string result;
                     bool invocationSucceeded;
@@ -145,12 +145,12 @@ public class RiddleLlmService : IRiddleLlmService
                         invocationSucceeded = true;
                         _logger.LogDebug("Tool {Tool} completed successfully", functionName);
                         
-                        // Emit tool result event
-                        _appEventService.AddEvent(
+                        // Emit tool result event with structured tool data
+                        _appEventService.AddToolEvent(
                             AppEventType.ToolResult, 
                             functionName, 
-                            $"Tool completed: {functionName}",
-                            result.Length > 500 ? result[..500] + "..." : result);
+                            $"Completed: {functionName}",
+                            details: result);
                     }
                     catch (Exception ex)
                     {
@@ -158,12 +158,13 @@ public class RiddleLlmService : IRiddleLlmService
                         result = $"{{\"error\": \"{ex.Message}\"}}";
                         invocationSucceeded = false;
                         
-                        // Emit error event
-                        _appEventService.AddEvent(
+                        // Emit error event with structured tool data
+                        _appEventService.AddToolEvent(
                             AppEventType.Error, 
                             functionName, 
-                            $"Tool failed: {functionName}",
-                            ex.Message,
+                            $"Failed: {functionName}",
+                            toolArgs: functionArgs,
+                            details: ex.Message,
                             isError: true);
                     }
                     

@@ -62,4 +62,9 @@ public interface IGameStateService
     /// Update the scene image URI
     /// </summary>
     Task SetSceneImageAsync(Guid campaignId, string imageUri, CancellationToken ct = default);
+    
+    /// <summary>
+    /// Add a dice roll result to the campaign's recent rolls
+    /// </summary>
+    Task AddRollResultAsync(Guid campaignId, RollResult roll, CancellationToken ct = default);
 }

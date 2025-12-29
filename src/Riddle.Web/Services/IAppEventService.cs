@@ -11,6 +11,11 @@ public interface IAppEventService
     /// Add a new event to the log
     /// </summary>
     void AddEvent(AppEventType type, string category, string message, string? details = null, bool isError = false);
+    
+    /// <summary>
+    /// Add a tool call/result event with structured tool data
+    /// </summary>
+    void AddToolEvent(AppEventType type, string toolName, string message, string? toolArgs = null, string? details = null, bool isError = false);
 
     /// <summary>
     /// Get all events (newest first)

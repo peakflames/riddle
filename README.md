@@ -104,6 +104,82 @@ Open [http://localhost:5000](http://localhost:5000) in your browser.
 8. Next session picks up exactly where you left off
 ```
 
+## LLM Tool Functions
+
+The AI Dungeon Master has access to the following tools for managing game state and player interactions:
+
+### `get_game_state`
+
+Retrieves the full game state including character HP, locations, quests, and combat status. MUST be called first in any new conversation.
+
+> **PARAMETERS**
+>
+> *None*
+
+### `update_character_state`
+
+Updates a character's HP, conditions, initiative, or status notes.
+
+> **PARAMETERS**
+>
+> `character_id`* — ID of the character to update
+>
+> `key`* — The property to update (enum: `current_hp`, `conditions`, `status_notes`, `initiative`)
+>
+> `value`* — New value (int for HP/initiative, string[] for conditions, string for notes)
+
+### `update_game_log`
+
+Records an event to the narrative log for context recovery in future conversations.
+
+> **PARAMETERS**
+>
+> `entry`* — Description of the event
+>
+> `importance` — Importance level of this event (enum: `minor`, `standard`, `critical`)
+
+### `display_read_aloud_text`
+
+Sends atmospheric, boxed narrative text to the DM's Read Aloud Text Box and player screens.
+
+> **PARAMETERS**
+>
+> `text`* — The prose to display in the Read Aloud Text Box
+
+### `present_player_choices`
+
+Sends interactive choice buttons to player screens for decision points.
+
+> **PARAMETERS**
+>
+> `choices`* — List of choices for players (string[])
+
+### `log_player_roll`
+
+Records a dice roll result to the player dashboard.
+
+> **PARAMETERS**
+>
+> `character_id`* — Character who made the roll
+>
+> `check_type`* — Type of check (e.g., "Perception")
+>
+> `result`* — The dice roll result (integer)
+>
+> `outcome`* — Outcome of the roll (enum: `Success`, `Failure`, `Critical Success`, `Critical Failure`)
+
+### `update_scene_image`
+
+Updates the scene image displayed to players based on a description (for image generation/selection).
+
+> **PARAMETERS**
+>
+> `description`* — Description for image generation or selection
+
+---
+
+*Parameters marked with `*` are required.*
+
 ## Documentation
 
 - [Project Description](docs/project_description.md)

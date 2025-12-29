@@ -29,6 +29,28 @@ public class AppEventService : IAppEventService
             IsError = isError
         };
 
+        AddEventInternal(evt);
+    }
+    
+    /// <inheritdoc />
+    public void AddToolEvent(AppEventType type, string toolName, string message, string? toolArgs = null, string? details = null, bool isError = false)
+    {
+        var evt = new AppEvent
+        {
+            Type = type,
+            Category = toolName,
+            Message = message,
+            Details = details,
+            IsError = isError,
+            ToolName = toolName,
+            ToolArgs = toolArgs
+        };
+
+        AddEventInternal(evt);
+    }
+    
+    private void AddEventInternal(AppEvent evt)
+    {
         lock (_lock)
         {
             _events.Add(evt);
