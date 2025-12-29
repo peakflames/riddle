@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2025-12-29
+
+### Added
+- **Phase 4: Real-Time Game Hub (Objective 4)**
+  - Real-time Player Choice Submission:
+    - Player Dashboard submits choices via SignalR `SubmitChoice` method
+    - Players can change their choice before DM proceeds (button turns green with checkmark)
+    - New choices from LLM automatically reset player submission state
+  - DM Per-Player Choice Indicators:
+    - Visual display showing who chose which option with character name badges
+    - "X/Y responded" counter in Player Choices card header
+    - "Waiting for: [names]" section with yellow badges for pending players
+    - "✓ All players have responded" message when complete
+  - Bidirectional SignalR communication:
+    - `PlayerChoicesReceived` event pushes new choices to players
+    - `PlayerChoiceSubmitted` event notifies DM of player selections
+    - ToolExecutor now calls `NotifyPlayerChoicesAsync` when LLM sets choices
+
+### Fixed
+- Player Dashboard not receiving new choices when LLM reset them (missing SignalR notification)
+
+### Technical
+- `ToolExecutor` injected with `INotificationService` for SignalR broadcasting
+- Player choice state tracked per-character for multi-player support
+- UI uses Flowbite Blazor Badge and Button components with dynamic colors
+
 ## [0.12.0] - 2025-12-29
 
 ### Added
@@ -432,7 +458,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flowbite Blazor component library reference documentation
 - Incremental phase implementation workflow for development
 
-[Unreleased]: https://github.com/peakflames/riddle/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/peakflames/riddle/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/peakflames/riddle/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/peakflames/riddle/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/peakflames/riddle/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/peakflames/riddle/compare/v0.9.0...v0.10.0
