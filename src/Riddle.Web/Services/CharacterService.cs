@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Riddle.Web.Data;
+using Riddle.Web.Hubs;
 using Riddle.Web.Models;
 
 namespace Riddle.Web.Services;
@@ -7,11 +8,16 @@ namespace Riddle.Web.Services;
 public class CharacterService : ICharacterService
 {
     private readonly RiddleDbContext _context;
+    private readonly INotificationService _notificationService;
     private readonly ILogger<CharacterService> _logger;
 
-    public CharacterService(RiddleDbContext context, ILogger<CharacterService> logger)
+    public CharacterService(
+        RiddleDbContext context, 
+        INotificationService notificationService,
+        ILogger<CharacterService> logger)
     {
         _context = context;
+        _notificationService = notificationService;
         _logger = logger;
     }
 
@@ -64,6 +70,16 @@ public class CharacterService : ICharacterService
         
         _logger.LogInformation("Player {PlayerId} ({PlayerName}) claimed character {CharacterName} in campaign {CampaignId}",
             playerId, playerName, character.Name, campaignId);
+        
+        // Broadcast character claimed event via SignalR
+        var payload = new CharacterClaimPayload(
+            CharacterId: characterId,
+            CharacterName: character.Name,
+            PlayerId: playerId,
+            PlayerName: playerName,
+            IsClaimed: true
+        );
+        await _notificationService.NotifyCharacterClaimedAsync(campaignId, payload);
         
         return true;
     }
@@ -120,6 +136,16 @@ public class CharacterService : ICharacterService
         
         _logger.LogInformation("DM unclaimed character {CharacterName} (was {PreviousPlayer}) in campaign {CampaignId}",
             character.Name, previousPlayer, campaignId);
+        
+        // Broadcast character released event via SignalR
+        var payload = new CharacterClaimPayload(
+            CharacterId: characterId,
+            CharacterName: character.Name,
+            PlayerId: null,
+            PlayerName: null,
+            IsClaimed: false
+        );
+        await _notificationService.NotifyCharacterReleasedAsync(campaignId, payload);
         
         return true;
     }

@@ -114,6 +114,9 @@ builder.Services.AddScoped<IGameStateService, GameStateService>();
 builder.Services.AddScoped<IToolExecutor, ToolExecutor>();
 builder.Services.AddScoped<IRiddleLlmService, RiddleLlmService>();
 
+// SignalR notification service for broadcasting events to campaign participants
+builder.Services.AddScoped<INotificationService, NotificationService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
