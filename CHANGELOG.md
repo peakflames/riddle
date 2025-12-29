@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2025-12-29
+
+### Added
+- **Phase 4: Real-Time Game Hub (Objective 2)**
+  - NotificationService for centralized SignalR event broadcasting:
+    - `INotificationService` interface with 14 notification methods
+    - `NotificationService` implementation using `IHubContext<GameHub>`
+  - Notification methods by category:
+    - Character events: `NotifyCharacterClaimedAsync`, `NotifyCharacterReleasedAsync`
+    - Player connection: `NotifyPlayerConnectedAsync`, `NotifyPlayerDisconnectedAsync`
+    - Game state: `NotifyCharacterStateUpdatedAsync`, `NotifyReadAloudTextAsync`, `NotifySceneImageUpdatedAsync`, `NotifyPlayerChoicesAsync`
+    - Player actions: `NotifyPlayerChoiceSubmittedAsync`, `NotifyPlayerRollLoggedAsync`
+    - Combat events: `NotifyCombatStartedAsync`, `NotifyCombatEndedAsync`, `NotifyTurnAdvancedAsync`, `NotifyInitiativeSetAsync`
+  - Group routing for targeted broadcasts:
+    - DM group: CharacterClaimed, CharacterReleased, PlayerConnected, PlayerDisconnected, PlayerChoiceSubmitted
+    - Players group: PlayerChoicesReceived
+    - All group: CharacterStateUpdated, SceneImageUpdated, combat events, PlayerRollLogged
+  - CharacterService integration:
+    - Broadcasts `CharacterClaimed` when player claims character
+    - Broadcasts `CharacterReleased` when DM unclaims character
+
+### Technical
+- NotificationService registered as scoped service in DI
+- Uses `IHubContext<GameHub>` for server-side SignalR broadcasting
+- Group naming: `campaign_{id}_dm`, `campaign_{id}_players`, `campaign_{id}_all`
+
 ## [0.10.0] - 2025-12-29
 
 ### Added
@@ -357,7 +383,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flowbite Blazor component library reference documentation
 - Incremental phase implementation workflow for development
 
-[Unreleased]: https://github.com/peakflames/riddle/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/peakflames/riddle/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/peakflames/riddle/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/peakflames/riddle/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/peakflames/riddle/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/peakflames/riddle/compare/v0.7.0...v0.8.0
