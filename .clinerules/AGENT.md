@@ -74,7 +74,7 @@ PREFER to leverage components and pages already create over at `- **Flowbite Bla
 
 ## Development Rules and Memory Aid
 
-- When starting a task, you MUST FIRST IMMEDIATELY read `docs\developer_rules_and_memory_aid.md` and adhere to rules, guideance, and lessons learned
+- Prefer to load and read prior to editing any file, Cline MUST read `docs\developer_rules_and_memory_aid.md` and adhere to rules, guideance, and lessons learned
 - You MUST EDIT the `docs\developer_rules_and_memory_aid.md` after learning a new pattern or rule.
 
 
@@ -123,5 +123,6 @@ PREFER to leverage components and pages already create over at `- **Flowbite Bla
 
 ## Development Rules and Memory Aid Reminder
 
-- When starting a task, you MUST FIRST IMMEDIATELY read `docs\developer_rules_and_memory_aid.md` and adhere to rules, guideance, and lessons learned
+- Prefer to load and read prior to editing any file, Cline MUST read `docs\developer_rules_and_memory_aid.md` and adhere to rules, guideance, and lessons learned
 - You MUST EDIT the `docs\developer_rules_and_memory_aid.md` after learning a new pattern or rule.
+
