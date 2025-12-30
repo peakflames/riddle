@@ -178,32 +178,6 @@
                         </div>
                     }
                     
-                    @* Scene Image *@
-                    @if (!string.IsNullOrEmpty(campaign?.CurrentSceneImageUri))
-                    {
-                        <Card class="!max-w-none bg-gray-800 border-gray-700 !p-3">
-                            <img src="@campaign?.CurrentSceneImageUri" 
-                                 alt="Current scene" 
-                                 class="w-full rounded-lg object-cover max-h-48 lg:max-h-56" />
-                        </Card>
-                    }
-                    
-                    @* Read Aloud Text *@
-                    @if (!string.IsNullOrEmpty(campaign?.CurrentReadAloudText))
-                    {
-                        <Card Size="CardSize.ExtraLarge" class="!max-w-none bg-gray-800 border-gray-700">
-                            <div class="p-4">
-                                <h3 class="font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                                    <BookOpenIcon Class="w-4 h-4" />
-                                    Read-Aloud Text
-                                </h3>
-                                <div class="bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-500 p-3 italic text-gray-700 dark:text-gray-300 text-lg whitespace-pre-wrap">
-                                    @campaign?.CurrentReadAloudText
-                                </div>
-                            </div>
-                        </Card>
-                    }
-                    
                     @* Active Player Choices *@
                     @if (campaign?.ActivePlayerChoices.Any() == true)
                     {
@@ -534,10 +508,11 @@
             _ = DismissAtmospherePulseAfterDelayAsync(_atmospherePulseCts.Token);
         });
         
-        _hubConnection.On<NarrativeAnchorPayload>(GameHubEvents.NarrativeAnchorUpdated, async payload =>
+        _hubConnection.On<NarrativeAnchorPayload>(GameHubEvents.NarrativeAnchorUpdated, payload =>
         {
-            _narrativeAnchor = payload;
-            await InvokeAsync(StateHasChanged);
+            // Use synchronous update with new reference to ensure Blazor detects change
+            _narrativeAnchor = new NarrativeAnchorPayload(payload.ShortText, payload.MoodCategory);
+            InvokeAsync(StateHasChanged);
         });
         
         _hubConnection.On<GroupInsightPayload>(GameHubEvents.GroupInsightTriggered, async payload =>
