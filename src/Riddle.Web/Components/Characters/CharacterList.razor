@@ -8,25 +8,31 @@
             Party
             <Badge Color="BadgeColor.Gray" Size="BadgeSize.ExtraSmall">@Characters.Count</Badge>
         </h3>
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-1">
             @if (ShowInviteButton)
             {
-                <Button Size="ButtonSize.Small" Color="ButtonColor.Light" OnClick="@OnInviteClick">
-                    <ShareNodesIcon Class="h-4 w-4 mr-1" />
-                    Invite
-                </Button>
+                <button type="button" 
+                        class="inline-flex items-center justify-center p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                        title="Invite players"
+                        @onclick="@OnInviteClick">
+                    <ShareNodesIcon Class="w-4 h-4" />
+                </button>
             }
             @if (ShowImportButton)
             {
-                <Button Size="ButtonSize.Small" Color="ButtonColor.Light" OnClick="@OnImportClick">
-                    <FileImportIcon Class="h-4 w-4 mr-1" />
-                    Import
-                </Button>
+                <button type="button" 
+                        class="inline-flex items-center justify-center p-1.5 text-gray-400 hover:text-purple-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                        title="Import from templates"
+                        @onclick="@OnImportClick">
+                    <FileImportIcon Class="w-4 h-4" />
+                </button>
             }
-            <Button Size="ButtonSize.Small" Color="ButtonColor.Primary" OnClick="@OnAddClick">
-                <PlusIcon Class="h-4 w-4 mr-1" />
-                Add
-            </Button>
+            <button type="button" 
+                    class="inline-flex items-center justify-center p-1.5 text-gray-400 hover:text-green-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                    title="Add character"
+                    @onclick="@OnAddClick">
+                <PlusIcon Class="w-4 h-4" />
+            </button>
         </div>
     </div>
     
