@@ -194,9 +194,11 @@ public class ToolExecutor : IToolExecutor
     {
         var args = JsonSerializer.Deserialize<JsonElement>(argumentsJson);
         
-        if (!args.TryGetProperty("character_id", out var characterIdElement))
+        // Accept both character_name (preferred) and character_id (legacy) for backward compatibility
+        if (!args.TryGetProperty("character_name", out var characterNameElement) && 
+            !args.TryGetProperty("character_id", out characterNameElement))
         {
-            return JsonSerializer.Serialize(new { error = "Missing required parameter: character_id" });
+            return JsonSerializer.Serialize(new { error = "Missing required parameter: character_name" });
         }
         
         if (!args.TryGetProperty("key", out var keyElement))
@@ -209,11 +211,19 @@ public class ToolExecutor : IToolExecutor
             return JsonSerializer.Serialize(new { error = "Missing required parameter: value" });
         }
 
-        var characterId = characterIdElement.GetString()!;
+        var characterNameOrId = characterNameElement.GetString()!;
         var key = keyElement.GetString()!;
 
-        // First, try to find in party state (PCs)
-        var character = await _stateService.GetCharacterAsync(campaignId, characterId, ct);
+        // First, try to find in party state (PCs) by ID or normalized name
+        var campaign = await _stateService.GetCampaignAsync(campaignId, ct);
+        if (campaign == null)
+        {
+            return JsonSerializer.Serialize(new { error = "Campaign not found" });
+        }
+
+        var character = campaign.PartyState.FirstOrDefault(c => 
+            c.Id == characterNameOrId || 
+            NormalizeName(c.Name) == NormalizeName(characterNameOrId));
         
         // If not found in party state, check combat combatants (enemies/allies)
         if (character == null)
@@ -223,8 +233,8 @@ public class ToolExecutor : IToolExecutor
             {
                 // Match by ID or normalized name
                 var combatant = combatState.TurnOrder.FirstOrDefault(c => 
-                    c.Id == characterId || 
-                    NormalizeName(c.Name) == NormalizeName(characterId));
+                    c.Id == characterNameOrId || 
+                    NormalizeName(c.Name) == NormalizeName(characterNameOrId));
                 
                 if (combatant != null)
                 {
@@ -233,13 +243,18 @@ public class ToolExecutor : IToolExecutor
                 }
             }
             
-            return JsonSerializer.Serialize(new { error = $"Character {characterId} not found" });
+            return JsonSerializer.Serialize(new { error = $"Character '{characterNameOrId}' not found in party or combat" });
         }
 
         switch (key)
         {
             case "current_hp":
-                character.CurrentHp = valueElement.GetInt32();
+                var (hpSuccess, hpValue, hpError) = ParseIntValue(valueElement, "current_hp");
+                if (!hpSuccess)
+                {
+                    return JsonSerializer.Serialize(new { error = hpError });
+                }
+                character.CurrentHp = hpValue;
                 break;
             case "conditions":
                 character.Conditions = valueElement.EnumerateArray()
@@ -250,7 +265,12 @@ public class ToolExecutor : IToolExecutor
                 character.StatusNotes = valueElement.GetString();
                 break;
             case "initiative":
-                character.Initiative = valueElement.GetInt32();
+                var (initSuccess, initValue, initError) = ParseIntValue(valueElement, "initiative");
+                if (!initSuccess)
+                {
+                    return JsonSerializer.Serialize(new { error = initError });
+                }
+                character.Initiative = initValue;
                 break;
             default:
                 return JsonSerializer.Serialize(new { error = $"Unknown key: {key}. Valid keys: current_hp, conditions, status_notes, initiative" });
@@ -258,8 +278,13 @@ public class ToolExecutor : IToolExecutor
 
         await _stateService.UpdateCharacterAsync(campaignId, character, ct);
         
-        _logger.LogInformation("Updated character {CharacterId} {Key} to {Value}", characterId, key, valueElement.ToString());
-        return JsonSerializer.Serialize(new { success = true, character_id = characterId, key, updated = true });
+        // Broadcast state change to all connected clients (DM + Players)
+        var payload = new CharacterStatePayload(character.Id, key, valueElement.ToString());
+        await _notificationService.NotifyCharacterStateUpdatedAsync(campaignId, payload, ct);
+        
+        _logger.LogInformation("Updated character {CharacterName} ({CharacterId}) {Key} to {Value}", 
+            character.Name, character.Id, key, valueElement.ToString());
+        return JsonSerializer.Serialize(new { success = true, character_name = character.Name, character_id = character.Id, key, updated = true });
     }
 
     /// <summary>
@@ -271,15 +296,33 @@ public class ToolExecutor : IToolExecutor
         switch (key)
         {
             case "current_hp":
-                var newHp = valueElement.GetInt32();
+                var (hpSuccess, newHp, hpError) = ParseIntValue(valueElement, "current_hp");
+                if (!hpSuccess)
+                {
+                    return JsonSerializer.Serialize(new { error = hpError });
+                }
                 await _combatService.UpdateCombatantHpAsync(campaignId, combatant.Id, newHp, ct);
+                
+                // Broadcast state change to all connected clients (DM + Players)
+                var hpPayload = new CharacterStatePayload(combatant.Id, key, newHp);
+                await _notificationService.NotifyCharacterStateUpdatedAsync(campaignId, hpPayload, ct);
+                
                 _logger.LogInformation("Updated combatant {CombatantName} ({CombatantId}) {Key} to {Value}", 
                     combatant.Name, combatant.Id, key, newHp);
                 return JsonSerializer.Serialize(new { success = true, character_id = combatant.Id, character_name = combatant.Name, key, updated = true });
                 
             case "initiative":
-                var newInit = valueElement.GetInt32();
+                var (initSuccess, newInit, initError) = ParseIntValue(valueElement, "initiative");
+                if (!initSuccess)
+                {
+                    return JsonSerializer.Serialize(new { error = initError });
+                }
                 await _combatService.SetInitiativeAsync(campaignId, combatant.Id, newInit, ct);
+                
+                // Broadcast state change to all connected clients (DM + Players)
+                var initPayload = new CharacterStatePayload(combatant.Id, key, newInit);
+                await _notificationService.NotifyCharacterStateUpdatedAsync(campaignId, initPayload, ct);
+                
                 _logger.LogInformation("Updated combatant {CombatantName} ({CombatantId}) {Key} to {Value}", 
                     combatant.Name, combatant.Id, key, newInit);
                 return JsonSerializer.Serialize(new { success = true, character_id = combatant.Id, character_name = combatant.Name, key, updated = true });
@@ -382,9 +425,11 @@ public class ToolExecutor : IToolExecutor
     {
         var args = JsonSerializer.Deserialize<JsonElement>(argumentsJson);
         
-        if (!args.TryGetProperty("character_id", out var characterIdElement))
+        // Accept both character_name (preferred) and character_id (legacy) for backward compatibility
+        if (!args.TryGetProperty("character_name", out var characterNameElement) && 
+            !args.TryGetProperty("character_id", out characterNameElement))
         {
-            return JsonSerializer.Serialize(new { error = "Missing required parameter: character_id" });
+            return JsonSerializer.Serialize(new { error = "Missing required parameter: character_name" });
         }
         
         if (!args.TryGetProperty("check_type", out var checkTypeElement))
@@ -402,14 +447,19 @@ public class ToolExecutor : IToolExecutor
             return JsonSerializer.Serialize(new { error = "Missing required parameter: outcome" });
         }
 
-        var characterId = characterIdElement.GetString()!;
+        var characterNameOrId = characterNameElement.GetString()!;
         var checkType = checkTypeElement.GetString()!;
         var result = resultElement.GetInt32();
         var outcome = outcomeElement.GetString()!;
 
-        // Look up character name for display purposes
-        var character = await _stateService.GetCharacterAsync(campaignId, characterId, ct);
-        var characterName = character?.Name ?? characterId;
+        // Look up character by name or ID using normalized name matching
+        var campaign = await _stateService.GetCampaignAsync(campaignId, ct);
+        var character = campaign?.PartyState.FirstOrDefault(c => 
+            c.Id == characterNameOrId || 
+            NormalizeName(c.Name) == NormalizeName(characterNameOrId));
+        
+        var characterId = character?.Id ?? characterNameOrId;
+        var characterName = character?.Name ?? characterNameOrId;
 
         // Create structured roll result
         var rollResult = new RollResult
@@ -647,9 +697,11 @@ public class ToolExecutor : IToolExecutor
     {
         var args = JsonSerializer.Deserialize<JsonElement>(argumentsJson);
         
-        if (!args.TryGetProperty("character_ids", out var characterIdsElement))
+        // Accept both character_names (preferred) and character_ids (legacy) for backward compatibility
+        if (!args.TryGetProperty("character_names", out var characterNamesElement) && 
+            !args.TryGetProperty("character_ids", out characterNamesElement))
         {
-            return JsonSerializer.Serialize(new { error = "Missing required parameter: character_ids" });
+            return JsonSerializer.Serialize(new { error = "Missing required parameter: character_names" });
         }
         
         if (!args.TryGetProperty("prop_names", out var propNamesElement))
@@ -657,7 +709,7 @@ public class ToolExecutor : IToolExecutor
             return JsonSerializer.Serialize(new { error = "Missing required parameter: prop_names" });
         }
 
-        var characterIds = characterIdsElement.EnumerateArray()
+        var characterNamesOrIds = characterNamesElement.EnumerateArray()
             .Select(e => e.GetString()!)
             .ToList();
         
@@ -665,9 +717,9 @@ public class ToolExecutor : IToolExecutor
             .Select(e => e.GetString()!)
             .ToList();
 
-        if (!characterIds.Any())
+        if (!characterNamesOrIds.Any())
         {
-            return JsonSerializer.Serialize(new { error = "character_ids array is empty" });
+            return JsonSerializer.Serialize(new { error = "character_names array is empty" });
         }
 
         if (!propNames.Any())
@@ -713,13 +765,16 @@ public class ToolExecutor : IToolExecutor
         }
         sb.AppendLine();
         
-        // Data rows
-        foreach (var charId in characterIds)
+        // Data rows - match by ID or normalized name
+        foreach (var charNameOrId in characterNamesOrIds)
         {
-            var character = partyState.FirstOrDefault(c => c.Id == charId);
+            var character = partyState.FirstOrDefault(c => 
+                c.Id == charNameOrId || 
+                NormalizeName(c.Name) == NormalizeName(charNameOrId));
+            
             if (character == null)
             {
-                sb.Append($"| {charId} (not found) |");
+                sb.Append($"| {charNameOrId} (not found) |");
                 foreach (var _ in propNames)
                 {
                     sb.Append(" N/A |");
@@ -746,7 +801,7 @@ public class ToolExecutor : IToolExecutor
         }
 
         _logger.LogInformation("Retrieved {PropCount} properties for {CharCount} characters", 
-            propNames.Count, characterIds.Count);
+            propNames.Count, characterNamesOrIds.Count);
         return sb.ToString();
     }
 
@@ -1239,5 +1294,31 @@ public class ToolExecutor : IToolExecutor
             .Replace('_', ' ')
             .Replace('-', ' ')
             .Trim();
+    }
+
+    /// <summary>
+    /// Parses an integer from a JsonElement, handling both numeric and string representations.
+    /// LLMs often send integers as quoted strings (e.g., "15" instead of 15).
+    /// </summary>
+    private static (bool success, int value, string? error) ParseIntValue(JsonElement element, string fieldName)
+    {
+        // Try direct integer first
+        if (element.ValueKind == JsonValueKind.Number)
+        {
+            return (true, element.GetInt32(), null);
+        }
+        
+        // Try parsing from string
+        if (element.ValueKind == JsonValueKind.String)
+        {
+            var str = element.GetString();
+            if (int.TryParse(str, out var parsed))
+            {
+                return (true, parsed, null);
+            }
+            return (false, 0, $"Invalid {fieldName}: '{str}' is not a valid integer");
+        }
+        
+        return (false, 0, $"Invalid {fieldName}: expected integer or string, got {element.ValueKind}");
     }
 }

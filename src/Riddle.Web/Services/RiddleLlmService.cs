@@ -349,7 +349,7 @@ public class RiddleLlmService : IRiddleLlmService
             4. **Persist:** Call `update_game_log()` for events. Call `update_character_state()` for HP/condition changes.
             5. **Output:**
                - [Required] Use `display_read_aloud_text()` for DM narration to be read aloud. a.k.a Read Aloud Text (RAT). Generally this should be a short phrase. Emojis are supported but keep it subtle.
-               - [Required] Use `present_player_choices()` for decision points and communicate options of what the player can do next.
+               - [Required] Use `present_player_choices()` for decision points and communicate options of what the player can do next (can be creative in non-combat mode).
                - [Required] Use `log_player_roll()` to show mechanical results.
                - For DM-only info (e.g., hidden enemy stats), reply in chat directly. Emojis where useful
             6. **Atmosphere Tools (Player Screens):**
@@ -391,9 +391,6 @@ public class RiddleLlmService : IRiddleLlmService
             - AVOID revealing story secrets to charcter player in the Read-Aloud Text.
             </story_secrets>
 
-            <other_tips_and_tricks>
-            - ULTRA IMPORTANT! IF this is a new conversation, IMMEDIATELY use the game data and game log to provide a short recap of what the campaign was previous doing when they last played the game -> call `display_read_aloud_text()` 
-            </other_tips_and_tricks>
 
             <proactive_behavior>
             **BE PROACTIVE, NOT PASSIVE!**
@@ -458,6 +455,11 @@ public class RiddleLlmService : IRiddleLlmService
             </combat_protocol>
 
             {debugSystemPromptExtension}
+
+            <other_tips_and_tricks>
+            - ULTRA IMPORTANT! IF this is a new conversation, IMMEDIATELY use the game data and game log to provide a short recap of what the campaign was previous doing when they last played the game -> call `display_read_aloud_text()` 
+            - ULTRA IMPORTANT! Prefer to report tool unresolved tool errors to the User. Failing to do so may have signficant impacts as data loss can occur.
+            </other_tips_and_tricks>
 
             """;
     }
@@ -617,22 +619,22 @@ public class RiddleLlmService : IRiddleLlmService
             
             new Tool(new ToolFunction(
                 "update_character_state",
-                "Updates a character's HP, conditions, initiative, or status notes.",
+                "Updates a character's HP, conditions, initiative, or status notes. Works for both party characters (PCs) and combat combatants (enemies/allies).",
                 new
                 {
                     type = "object",
                     properties = new
                     {
-                        character_id = new { type = "string", description = "ID of the character to update" },
+                        character_name = new { type = "string", description = "The character's name exactly as shown in game state (e.g., 'Elara Moonshadow', 'Goblin 1'). Also accepts character ID." },
                         key = new 
                         { 
                             type = "string", 
                             @enum = new[] { "current_hp", "conditions", "status_notes", "initiative" },
-                            description = "The property to update" 
+                            description = "The property to update. Note: Combat combatants (enemies/allies) only support 'current_hp' and 'initiative'." 
                         },
                         value = new { description = "New value (int for HP/initiative, string[] for conditions, string for notes)" }
                     },
-                    required = new[] { "character_id", "key", "value" }
+                    required = new[] { "character_name", "key", "value" }
                 })),
             
             new Tool(new ToolFunction(
@@ -689,15 +691,15 @@ public class RiddleLlmService : IRiddleLlmService
             
             new Tool(new ToolFunction(
                 "log_player_roll",
-                "Records a dice roll result to the player dashboard and to the game log",
+                "Records a dice roll result to the player dashboard and to the game log.",
                 new
                 {
                     type = "object",
                     properties = new
                     {
-                        character_id = new { type = "string", description = "Character who made the roll" },
-                        check_type = new { type = "string", description = "Type of check (e.g., 'Perception')" },
-                        result = new { type = "integer", description = "The dice roll result" },
+                        character_name = new { type = "string", description = "The character's name who made the roll (e.g., 'Elara Moonshadow'). Also accepts character ID." },
+                        check_type = new { type = "string", description = "Type of check (e.g., 'Perception', 'Attack Roll', 'Stealth')" },
+                        result = new { type = "integer", description = "The dice roll result (total after modifiers)" },
                         outcome = new 
                         { 
                             type = "string", 
@@ -705,7 +707,7 @@ public class RiddleLlmService : IRiddleLlmService
                             description = "Outcome of the roll"
                         }
                     },
-                    required = new[] { "character_id", "check_type", "result", "outcome" }
+                    required = new[] { "character_name", "check_type", "result", "outcome" }
                 })),
             
             new Tool(new ToolFunction(
@@ -757,11 +759,11 @@ public class RiddleLlmService : IRiddleLlmService
                     type = "object",
                     properties = new
                     {
-                        character_ids = new 
+                        character_names = new 
                         { 
                             type = "array", 
                             items = new { type = "string" },
-                            description = "Character IDs to query" 
+                            description = "Character names to query (e.g., ['Elara Moonshadow', 'Zeke Shadowstep']). Also accepts character IDs." 
                         },
                         prop_names = new 
                         { 
@@ -770,7 +772,7 @@ public class RiddleLlmService : IRiddleLlmService
                             description = "Property names to retrieve (use get_character_property_names for valid names)" 
                         }
                     },
-                    required = new[] { "character_ids", "prop_names" }
+                    required = new[] { "character_names", "prop_names" }
                 })),
             
             // Combat Management Tools
@@ -802,12 +804,12 @@ public class RiddleLlmService : IRiddleLlmService
                                 },
                                 required = new[] { "name", "initiative", "max_hp" }
                             },
-                            description = "List of enemy combatants"
+                            description = "List of enemy combatants with their stats"
                         },
                         pc_initiatives = new
                         {
                             type = "object",
-                            description = "Map of character_id to initiative value for each PC",
+                            description = "Map of character name to initiative roll value for each PC (e.g., {\"Elara Moonshadow\": 18, \"Zeke Shadowstep\": 12}). Also accepts character IDs as keys.",
                             additionalProperties = new { type = "integer" }
                         }
                     },

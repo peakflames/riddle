@@ -16,6 +16,7 @@
 
 @inject ICampaignService CampaignService
 @inject ICombatService CombatService
+@inject IGameStateService GameStateService
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
 
@@ -369,6 +370,9 @@
     
     protected override async Task OnInitializedAsync()
     {
+        // Subscribe to campaign state changes for real-time updates (rolls, read-aloud, choices)
+        GameStateService.OnCampaignChanged += HandleCampaignChanged;
+        
         try
         {
             // Get current user
@@ -601,6 +605,8 @@
     
     public async ValueTask DisposeAsync()
     {
+        GameStateService.OnCampaignChanged -= HandleCampaignChanged;
+        
         _atmospherePulseCts?.Cancel();
         _groupInsightCts?.Cancel();
         
@@ -613,6 +619,46 @@
             catch { /* Ignore errors during cleanup */ }
             await _hubConnection.DisposeAsync();
         }
+    }
+    
+    private void HandleCampaignChanged(CampaignChangedEventArgs args)
+    {
+        // Only process changes for the current campaign
+        if (campaign == null || args.CampaignId != CampaignId) return;
+        
+        InvokeAsync(() =>
+        {
+            switch (args.ChangedProperty)
+            {
+                case "RecentRolls":
+                    // New roll added - insert at front of list (only if not already present)
+                    if (args.NewValue is RollResult newRoll)
+                    {
+                        var rolls = campaign.RecentRolls;
+                        // Dedupe: only add if not already in list (by Id)
+                        if (!rolls.Any(r => r.Id == newRoll.Id))
+                        {
+                            rolls.Insert(0, newRoll);
+                            if (rolls.Count > MaxRecentRolls)
+                            {
+                                rolls = rolls.Take(MaxRecentRolls).ToList();
+                            }
+                            campaign.RecentRolls = rolls;
+                        }
+                    }
+                    break;
+                case "ActivePlayerChoices":
+                    // Player choices are also updated via SignalR, but this handles the in-process case
+                    if (args.NewValue is List<string> choices)
+                    {
+                        campaign.ActivePlayerChoices = choices;
+                        hasSelectedChoice = false;
+                        selectedChoice = null;
+                    }
+                    break;
+            }
+            StateHasChanged();
+        });
     }
     
     private string GetClassIcon(string? className) => className?.ToLower() switch

@@ -244,7 +244,27 @@ private async Task LoadCampaignAsync()
 }
 ```
 
-### LLM Tool Parameter Flexibility
+### LLM Tool Parameter Naming: Use Names, Not IDs
+When defining LLM tool parameters that reference characters or combatants, **always use `character_name` (not `character_id`)** in tool definitions. LLMs think in natural language and will always prefer human-readable names.
+
+**Naming Conventions:**
+| Bad Parameter Name | Good Parameter Name | Description |
+|-------------------|---------------------|-------------|
+| `character_id` | `character_name` | "The character's name (e.g., 'Elara Moonshadow')" |
+| `character_ids` | `character_names` | "Array of character names to query" |
+| `combatant_id` | `combatant_name` | "Name of the combatant (e.g., 'Goblin 1')" |
+
+**Backward Compatibility:** Tool executors should accept BOTH the new `_name` parameter AND legacy `_id` parameter:
+```csharp
+// Accept both character_name (preferred) and character_id (legacy)
+if (!args.TryGetProperty("character_name", out var nameElement) && 
+    !args.TryGetProperty("character_id", out nameElement))
+{
+    return JsonSerializer.Serialize(new { error = "Missing required parameter: character_name" });
+}
+```
+
+### LLM Tool Parameter Flexibility: Name Normalization
 When LLM tools accept character identifiers, **always match by both ID (GUID) and Name with normalization**. LLMs naturally use display names, not GUIDs, and often transform separators:
 
 **Problem:** LLMs often replace spaces with underscores:
@@ -256,8 +276,8 @@ When LLM tools accept character identifiers, **always match by both ID (GUID) an
 ```csharp
 // ✅ CORRECT - Match by ID OR normalized Name
 var character = campaign.PartyState.FirstOrDefault(c => 
-    c.Id == characterIdOrName || 
-    NormalizeName(c.Name) == NormalizeName(characterIdOrName));
+    c.Id == characterNameOrId || 
+    NormalizeName(c.Name) == NormalizeName(characterNameOrId));
 
 // Helper method
 private static string NormalizeName(string name)
@@ -268,6 +288,17 @@ private static string NormalizeName(string name)
         .Replace('-', ' ')
         .Trim();
 }
+```
+
+**Response Best Practice:** Include both `character_name` and `character_id` in tool responses:
+```csharp
+return JsonSerializer.Serialize(new { 
+    success = true, 
+    character_name = character.Name,  // Human-readable
+    character_id = character.Id,       // For internal reference
+    key, 
+    updated = true 
+});
 ```
 
 ### LLM Tool: update_character_state Must Search Multiple Data Sources
@@ -356,6 +387,51 @@ _hubConnection.On(GameHubEvents.CombatEnded, async () =>
 **Key principle:** Child components should ONLY notify parents via `EventCallback` - never modify `[Parameter]` values directly. The parent sets the parameter value, which flows down to the child via normal Blazor parameter binding.
 
 **Symptom:** UI doesn't update even though callbacks are invoked and SignalR events are received.
+
+### CRITICAL: ToolExecutor Must Broadcast SignalR Events After State Changes
+When `ToolExecutor` updates state via services (e.g., `GameStateService.UpdateCharacterAsync`), it **must also call `NotificationService`** to broadcast changes to connected clients. State updates alone won't trigger UI refreshes - SignalR events are required.
+
+❌ **WRONG - Updates database but UI never refreshes:**
+```csharp
+await _stateService.UpdateCharacterAsync(campaignId, character, ct);
+// Missing SignalR notification! Dashboards won't update.
+```
+
+✅ **CORRECT - Update database AND broadcast to clients:**
+```csharp
+await _stateService.UpdateCharacterAsync(campaignId, character, ct);
+
+// Broadcast state change to all connected clients (DM + Players)
+var payload = new CharacterStatePayload(character.Id, key, valueElement.ToString());
+await _notificationService.NotifyCharacterStateUpdatedAsync(campaignId, payload, ct);
+```
+
+**Affected tools:** `update_character_state`, and any combatant state updates in `UpdateCombatantStateAsync`.
+
+**Symptom:** Tool returns success but dashboards show stale data until manual refresh.
+
+### LLM Tool Values: Flexible Type Parsing
+LLMs often send integers as quoted strings (e.g., `"15"` instead of `15`). Tool executors must handle both:
+
+```csharp
+// ✅ CORRECT - Parse int from number OR string
+private static (bool success, int value, string? error) ParseIntValue(JsonElement element, string fieldName)
+{
+    if (element.ValueKind == JsonValueKind.Number)
+        return (true, element.GetInt32(), null);
+    
+    if (element.ValueKind == JsonValueKind.String)
+    {
+        if (int.TryParse(element.GetString(), out var parsed))
+            return (true, parsed, null);
+        return (false, 0, $"Invalid {fieldName}: not a valid integer");
+    }
+    
+    return (false, 0, $"Invalid {fieldName}: expected integer or string");
+}
+```
+
+**Apply to:** `current_hp`, `initiative`, and any other integer fields the LLM updates.
 
 ## Git Workflow
 - Branch from `develop`: `git checkout develop && git pull origin develop`.

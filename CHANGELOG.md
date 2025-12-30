@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.2] - 2025-12-30
+
+### Fixed
+- **Player Dashboard dice rolls not updating in real-time**
+  - Root cause: Player Dashboard was not subscribed to `GameStateService.OnCampaignChanged` events
+  - Added `IGameStateService` injection and `HandleCampaignChanged` event subscription
+  - New rolls now appear immediately when LLM calls `log_player_roll` tool
+  - Also handles `ActivePlayerChoices` updates as backup to SignalR handler
+- **DM Dashboard character state not updating in real-time**
+  - Root cause: `ToolExecutor` called `UpdateCharacterAsync` but no SignalR notification was broadcast
+  - Added `NotifyCharacterStateUpdatedAsync` call after character state updates in ToolExecutor
+  - HP, conditions, and other character changes now update immediately on all connected dashboards
+  - Added `CharacterStateUpdated` SignalR handler to DM Campaign page
+
+### Technical
+- Event-driven pattern: Subscribe to `OnCampaignChanged` in `OnInitializedAsync`, unsubscribe in `DisposeAsync`
+- Documented "SignalR notification gap" pattern in developer memory aid: always broadcast after state mutations
+
 ## [0.14.1] - 2025-12-30
 
 - Add implementation plan for 4 critical campaign management bugs:
@@ -507,7 +525,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flowbite Blazor component library reference documentation
 - Incremental phase implementation workflow for development
 
-[Unreleased]: https://github.com/peakflames/riddle/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/peakflames/riddle/compare/v0.14.2...HEAD
+[0.14.2]: https://github.com/peakflames/riddle/compare/v0.14.1...v0.14.2
+[0.14.1]: https://github.com/peakflames/riddle/compare/v0.14.0...v0.14.1
 [0.14.0]: https://github.com/peakflames/riddle/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/peakflames/riddle/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/peakflames/riddle/compare/v0.11.0...v0.12.0

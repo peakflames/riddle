@@ -578,6 +578,50 @@
             await InvokeAsync(StateHasChanged);
         });
         
+        // Receive character state updates (HP changes, conditions, etc.)
+        _hubConnection.On<CharacterStatePayload>(GameHubEvents.CharacterStateUpdated, async payload =>
+        {
+            if (campaign == null) return;
+            
+            // Update the character in party state
+            var partyState = campaign.PartyState;
+            var character = partyState.FirstOrDefault(c => c.Id == payload.CharacterId);
+            
+            if (character != null)
+            {
+                switch (payload.Key)
+                {
+                    case "current_hp":
+                        if (int.TryParse(payload.Value?.ToString(), out var newHp))
+                        {
+                            character.CurrentHp = newHp;
+                        }
+                        break;
+                    case "conditions":
+                        // Value is a JSON array string
+                        try
+                        {
+                            var conditions = System.Text.Json.JsonSerializer.Deserialize<List<string>>(payload.Value?.ToString() ?? "[]");
+                            if (conditions != null) character.Conditions = conditions;
+                        }
+                        catch { /* Ignore parse errors */ }
+                        break;
+                    case "status_notes":
+                        character.StatusNotes = payload.Value?.ToString();
+                        break;
+                    case "initiative":
+                        if (int.TryParse(payload.Value?.ToString(), out var newInit))
+                        {
+                            character.Initiative = newInit;
+                        }
+                        break;
+                }
+                
+                campaign.PartyState = partyState;
+                await InvokeAsync(StateHasChanged);
+            }
+        });
+        
         await _hubConnection.StartAsync();
         
         // Join campaign as DM
