@@ -111,12 +111,16 @@
                                                 <div class="flex items-center gap-2">
                                                     @if (campaign.PartyState.Any())
                                                     {
-                                                        <Badge Color="BadgeColor.Indigo">@campaign.PartyState.Count PCs</Badge>
+                                                        <span class="inline-flex items-center px-3 py-2.5 text-xs font-medium text-indigo-800 bg-indigo-100 rounded-lg dark:bg-indigo-900 dark:text-indigo-300">@campaign.PartyState.Count PCs</span>
                                                     }
                                                     <Button Href="@($"/dm/{campaign.Id}")" Color="ButtonColor.Primary" Size="ButtonSize.Small">
                                                         Play
                                                     </Button>
-                                                    <Button Color="ButtonColor.Red" Size="ButtonSize.Small" Outline="true"
+                                                    <Button Style="ButtonStyle.Outline" Color="ButtonColor.Dark" Size="ButtonSize.Small" Class="py-2.5"
+                                                            @onclick="() => ShowEditModal(campaign)">
+                                                        <EditIcon Class="w-4 h-4" />
+                                                    </Button>
+                                                    <Button Style="ButtonStyle.Outline" Color="ButtonColor.Dark" Size="ButtonSize.Small" Class="py-2.5"
                                                             @onclick="() => ShowDeleteConfirmation(campaign)">
                                                         <TrashBinIcon Class="w-4 h-4" />
                                                     </Button>
@@ -189,6 +193,106 @@
     </NotAuthorized>
 </AuthorizeView>
 
+@* Edit Campaign Modal *@
+<Modal @bind-Show="_showEditModal" Size="ModalSize.Large">
+    <ModalHeader>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+            Edit Campaign Settings
+        </h3>
+    </ModalHeader>
+    <ModalBody>
+        <Tabs Variant="TabVariant.Underline">
+            <TabListContent>
+                <Tab Index="0">General</Tab>
+                <Tab Index="1">Preferences</Tab>
+            </TabListContent>
+            <TabPanelsContent>
+                <TabPanel Index="0">
+                    <div class="space-y-4 pt-4">
+                        <div>
+                            <Label For="campaignName" Value="Campaign Name" />
+                            <TextInput Id="campaignName" @bind-Value="_editModel.Name" Placeholder="My Campaign" />
+                        </div>
+                        <div>
+                            <Label For="campaignModule" Value="Campaign Module" />
+                            <TextInput Id="campaignModule" Value="@_editModel.CampaignModule" Disabled="true" 
+                                       class="bg-gray-100 dark:bg-gray-600 cursor-not-allowed" />
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                Campaign module cannot be changed after creation.
+                            </p>
+                        </div>
+                    </div>
+                </TabPanel>
+                <TabPanel Index="1">
+                    <div class="space-y-4 pt-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <Label For="combatFocus" Value="Combat Focus" />
+                                <Select Id="combatFocus" @bind-Value="_editModel.CombatFocus">
+                                    <option value="Low">Low</option>
+                                    <option value="Medium">Medium</option>
+                                    <option value="High">High</option>
+                                </Select>
+                            </div>
+                            <div>
+                                <Label For="roleplayFocus" Value="Roleplay Focus" />
+                                <Select Id="roleplayFocus" @bind-Value="_editModel.RoleplayFocus">
+                                    <option value="Low">Low</option>
+                                    <option value="Medium">Medium</option>
+                                    <option value="High">High</option>
+                                </Select>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <Label For="pacing" Value="Pacing" />
+                                <Select Id="pacing" @bind-Value="_editModel.Pacing">
+                                    <option value="Fast">Fast</option>
+                                    <option value="Methodical">Methodical</option>
+                                </Select>
+                            </div>
+                            <div>
+                                <Label For="tone" Value="Tone" />
+                                <Select Id="tone" @bind-Value="_editModel.Tone">
+                                    <option value="Adventurous">Adventurous</option>
+                                    <option value="Dark">Dark</option>
+                                    <option value="Comedic">Comedic</option>
+                                </Select>
+                            </div>
+                        </div>
+                        <div>
+                            <Label For="avoidedTopics" Value="Avoided Topics" />
+                            <TextInput Id="avoidedTopics" @bind-Value="_editModel.AvoidedTopics" 
+                                       Placeholder="e.g., spiders, drowning (comma-separated)" />
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                Topics the party wants to avoid. Separate multiple topics with commas.
+                            </p>
+                        </div>
+                    </div>
+                </TabPanel>
+            </TabPanelsContent>
+        </Tabs>
+    </ModalBody>
+    <ModalFooter>
+        <div class="flex justify-end gap-3">
+            <Button Color="ButtonColor.Light" @onclick="CancelEdit">
+                Cancel
+            </Button>
+            <Button Color="ButtonColor.Primary" @onclick="SaveChanges" Disabled="_isSaving">
+                @if (_isSaving)
+                {
+                    <Spinner Size="SpinnerSize.Sm" class="mr-2" />
+                    <span>Saving...</span>
+                }
+                else
+                {
+                    <span>Save Changes</span>
+                }
+            </Button>
+        </div>
+    </ModalFooter>
+</Modal>
+
 @* Delete Confirmation Modal *@
 <Modal @bind-Show="_showDeleteModal" Size="ModalSize.Small">
     <ModalHeader>
@@ -245,6 +349,24 @@
     private bool _showDeleteModal = false;
     private CampaignInstance? _campaignToDelete;
     private bool _isDeleting = false;
+    
+    // Edit modal state
+    private bool _showEditModal = false;
+    private CampaignInstance? _campaignToEdit;
+    private CampaignEditModel _editModel = new();
+    private bool _isSaving = false;
+    
+    // Edit model class to hold form values
+    private class CampaignEditModel
+    {
+        public string Name { get; set; } = "";
+        public string CampaignModule { get; set; } = "";
+        public string CombatFocus { get; set; } = "Medium";
+        public string RoleplayFocus { get; set; } = "Medium";
+        public string Pacing { get; set; } = "Methodical";
+        public string Tone { get; set; } = "Adventurous";
+        public string AvoidedTopics { get; set; } = "";
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -337,6 +459,72 @@
         finally
         {
             _isDeleting = false;
+        }
+    }
+    
+    private void ShowEditModal(CampaignInstance campaign)
+    {
+        _campaignToEdit = campaign;
+        
+        // Clone campaign data into edit model
+        _editModel = new CampaignEditModel
+        {
+            Name = campaign.Name,
+            CampaignModule = campaign.CampaignModule,
+            CombatFocus = campaign.Preferences.CombatFocus,
+            RoleplayFocus = campaign.Preferences.RoleplayFocus,
+            Pacing = campaign.Preferences.Pacing,
+            Tone = campaign.Preferences.Tone,
+            AvoidedTopics = string.Join(", ", campaign.Preferences.AvoidedTopics)
+        };
+        
+        _showEditModal = true;
+    }
+    
+    private void CancelEdit()
+    {
+        _showEditModal = false;
+        _campaignToEdit = null;
+        _editModel = new();
+    }
+    
+    private async Task SaveChanges()
+    {
+        if (_campaignToEdit == null) return;
+        
+        _isSaving = true;
+        try
+        {
+            // Update campaign name
+            _campaignToEdit.Name = _editModel.Name;
+            
+            // Update preferences
+            var prefs = _campaignToEdit.Preferences;
+            prefs.CombatFocus = _editModel.CombatFocus;
+            prefs.RoleplayFocus = _editModel.RoleplayFocus;
+            prefs.Pacing = _editModel.Pacing;
+            prefs.Tone = _editModel.Tone;
+            prefs.AvoidedTopics = _editModel.AvoidedTopics
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToList();
+            _campaignToEdit.Preferences = prefs;
+            
+            // Update last activity
+            _campaignToEdit.LastActivityAt = DateTime.UtcNow;
+            
+            // Save to database
+            await CampaignService.UpdateCampaignAsync(_campaignToEdit);
+            
+            _showEditModal = false;
+            _campaignToEdit = null;
+            _editModel = new();
+            
+            // Refresh campaign list
+            await LoadCampaignsAsync();
+        }
+        finally
+        {
+            _isSaving = false;
         }
     }
 }
