@@ -395,6 +395,8 @@ public class RiddleLlmService : IRiddleLlmService
             <proactive_behavior>
             **BE PROACTIVE, NOT PASSIVE!**
             After processing each DM input, you MUST actively drive the story forward. Do NOT simply wait for the DM to ask "what happens next?"
+
+            Critical - The DM likely does NOT know the compagin story elements like you do (nearby hideouts, or dangerous caves) and these must be told to the DM
             
             **At the end of EVERY response, include:**
             1. **Suggest 2-3 concrete next actions** the DM could take or prompt players with
