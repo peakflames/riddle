@@ -196,4 +196,44 @@ public class NotificationService : INotificationService
             .Group(AllGroup(campaignId))
             .SendAsync(GameHubEvents.InitiativeSet, characterId, initiative, ct);
     }
+
+    // === Atmospheric Events (Players Only) ===
+
+    public async Task NotifyAtmospherePulseAsync(Guid campaignId, AtmospherePulsePayload payload, CancellationToken ct = default)
+    {
+        _logger.LogInformation(
+            "Broadcasting AtmospherePulse to campaign {CampaignId}: {Text} (Intensity: {Intensity}, Type: {SensoryType})",
+            campaignId, payload.Text.Length > 50 ? payload.Text[..50] + "..." : payload.Text,
+            payload.Intensity ?? "default", payload.SensoryType ?? "general");
+
+        // Notify players only - fleeting sensory feedback
+        await _hubContext.Clients
+            .Group(PlayersGroup(campaignId))
+            .SendAsync(GameHubEvents.AtmospherePulseReceived, payload, ct);
+    }
+
+    public async Task NotifyNarrativeAnchorAsync(Guid campaignId, NarrativeAnchorPayload payload, CancellationToken ct = default)
+    {
+        _logger.LogInformation(
+            "Broadcasting NarrativeAnchor to campaign {CampaignId}: {ShortText} (Mood: {MoodCategory})",
+            campaignId, payload.ShortText, payload.MoodCategory ?? "neutral");
+
+        // Notify players only - persistent banner update
+        await _hubContext.Clients
+            .Group(PlayersGroup(campaignId))
+            .SendAsync(GameHubEvents.NarrativeAnchorUpdated, payload, ct);
+    }
+
+    public async Task NotifyGroupInsightAsync(Guid campaignId, GroupInsightPayload payload, CancellationToken ct = default)
+    {
+        _logger.LogInformation(
+            "Broadcasting GroupInsight to campaign {CampaignId}: {Text} (Skill: {RelevantSkill}, Highlight: {Highlight})",
+            campaignId, payload.Text.Length > 50 ? payload.Text[..50] + "..." : payload.Text,
+            payload.RelevantSkill, payload.HighlightEffect);
+
+        // Notify players only - flash notification for discoveries
+        await _hubContext.Clients
+            .Group(PlayersGroup(campaignId))
+            .SendAsync(GameHubEvents.GroupInsightTriggered, payload, ct);
+    }
 }

@@ -110,6 +110,34 @@
     {
         @* Main Dashboard View *@
         <div class="px-4 py-4 lg:px-6">
+            @* Narrative Anchor Banner - Persistent mood indicator *@
+            @if (_narrativeAnchor != null)
+            {
+                <div class="mb-4 p-3 rounded-lg border-2 @GetNarrativeAnchorClass(_narrativeAnchor.MoodCategory) transition-all duration-500">
+                    <div class="flex items-center gap-2">
+                        <span class="text-lg">@GetNarrativeAnchorIcon(_narrativeAnchor.MoodCategory)</span>
+                        <span class="font-medium text-sm italic">@_narrativeAnchor.ShortText</span>
+                    </div>
+                </div>
+            }
+            
+            @* Group Insight Flash - Temporary discovery notification *@
+            @if (_groupInsight != null)
+            {
+                <div class="mb-4 p-4 rounded-lg border-2 border-yellow-500 bg-yellow-900/30 @(_groupInsight.HighlightEffect ? "animate-pulse" : "") transition-all duration-300">
+                    <div class="flex items-start gap-3">
+                        <span class="text-2xl">💡</span>
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-1">
+                                <Badge Color="BadgeColor.Warning" Size="BadgeSize.ExtraSmall">@_groupInsight.RelevantSkill</Badge>
+                                <span class="text-xs text-yellow-400">Party Insight</span>
+                            </div>
+                            <p class="text-yellow-100 font-medium">@_groupInsight.Text</p>
+                        </div>
+                    </div>
+                </div>
+            }
+            
             @* Compact Header with Connection Status *@
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
                 <div>
@@ -139,6 +167,17 @@
                 @* Left Column: Game State Panels *@
                 @* lg: 7/12, xl: 5/12 *@
                 <div class="lg:col-span-7 xl:col-span-5 space-y-4 order-1">
+                    @* Atmosphere Pulse - Fleeting sensory text *@
+                    @if (_atmospherePulse != null)
+                    {
+                        <div class="p-3 rounded-lg border @GetAtmosphereIntensityClass(_atmospherePulse.Intensity) transition-all duration-500">
+                            <div class="flex items-center gap-2">
+                                <span class="text-lg flex-shrink-0">@GetAtmosphereIcon(_atmospherePulse.SensoryType)</span>
+                                <p class="text-gray-200 italic text-sm">@_atmospherePulse.Text</p>
+                            </div>
+                        </div>
+                    }
+                    
                     @* Scene Image *@
                     @if (!string.IsNullOrEmpty(campaign?.CurrentSceneImageUri))
                     {
@@ -326,6 +365,8 @@
 
 @code {
     private const int MaxRecentRolls = 50;
+    private const int AtmospherePulseDurationMs = 10_000;
+    private const int GroupInsightDurationMs = 8_000;
     
     [Parameter]
     public Guid CampaignId { get; set; }
@@ -342,6 +383,13 @@
     
     private CombatStatePayload? _combatState;
     private HubConnection? _hubConnection;
+    
+    // Atmospheric state
+    private AtmospherePulsePayload? _atmospherePulse;
+    private NarrativeAnchorPayload? _narrativeAnchor;
+    private GroupInsightPayload? _groupInsight;
+    private CancellationTokenSource? _atmospherePulseCts;
+    private CancellationTokenSource? _groupInsightCts;
     
     protected override async Task OnInitializedAsync()
     {
@@ -472,6 +520,39 @@
             await InvokeAsync(StateHasChanged);
         });
         
+        // Atmospheric events (Player-only)
+        _hubConnection.On<AtmospherePulsePayload>(GameHubEvents.AtmospherePulseReceived, async payload =>
+        {
+            // Cancel any existing pulse timer
+            _atmospherePulseCts?.Cancel();
+            _atmospherePulseCts = new CancellationTokenSource();
+            
+            _atmospherePulse = payload;
+            await InvokeAsync(StateHasChanged);
+            
+            // Auto-dismiss after duration
+            _ = DismissAtmospherePulseAfterDelayAsync(_atmospherePulseCts.Token);
+        });
+        
+        _hubConnection.On<NarrativeAnchorPayload>(GameHubEvents.NarrativeAnchorUpdated, async payload =>
+        {
+            _narrativeAnchor = payload;
+            await InvokeAsync(StateHasChanged);
+        });
+        
+        _hubConnection.On<GroupInsightPayload>(GameHubEvents.GroupInsightTriggered, async payload =>
+        {
+            // Cancel any existing insight timer
+            _groupInsightCts?.Cancel();
+            _groupInsightCts = new CancellationTokenSource();
+            
+            _groupInsight = payload;
+            await InvokeAsync(StateHasChanged);
+            
+            // Auto-dismiss after duration
+            _ = DismissGroupInsightAfterDelayAsync(_groupInsightCts.Token);
+        });
+        
         await _hubConnection.StartAsync();
         
         // Join campaign group for real-time updates
@@ -484,8 +565,33 @@
         await InvokeAsync(StateHasChanged);
     }
     
+    private async Task DismissAtmospherePulseAfterDelayAsync(CancellationToken ct)
+    {
+        try
+        {
+            await Task.Delay(AtmospherePulseDurationMs, ct);
+            _atmospherePulse = null;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (TaskCanceledException) { /* Expected when new pulse arrives */ }
+    }
+    
+    private async Task DismissGroupInsightAfterDelayAsync(CancellationToken ct)
+    {
+        try
+        {
+            await Task.Delay(GroupInsightDurationMs, ct);
+            _groupInsight = null;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (TaskCanceledException) { /* Expected when new insight arrives */ }
+    }
+    
     public async ValueTask DisposeAsync()
     {
+        _atmospherePulseCts?.Cancel();
+        _groupInsightCts?.Cancel();
+        
         if (_hubConnection != null)
         {
             try
@@ -600,4 +706,38 @@
             _ => $"{(int)(timeSpan.TotalDays / 7)}w"
         };
     }
+    
+    private string GetAtmosphereIcon(string? sensoryType) => sensoryType?.ToLower() switch
+    {
+        "sound" => "🔊",
+        "smell" => "👃",
+        "visual" => "👁️",
+        "feeling" => "💫",
+        _ => "✨"
+    };
+    
+    private string GetAtmosphereIntensityClass(string? intensity) => intensity?.ToLower() switch
+    {
+        "high" => "animate-pulse border-red-500/50 bg-red-900/20",
+        "medium" => "border-amber-500/50 bg-amber-900/20",
+        _ => "border-purple-500/50 bg-purple-900/20"
+    };
+    
+    private string GetNarrativeAnchorClass(string? moodCategory) => moodCategory?.ToLower() switch
+    {
+        "danger" => "border-red-500 bg-red-900/30 text-red-200",
+        "mystery" => "border-purple-500 bg-purple-900/30 text-purple-200",
+        "safety" => "border-green-500 bg-green-900/30 text-green-200",
+        "urgency" => "border-amber-500 bg-amber-900/30 text-amber-200",
+        _ => "border-gray-500 bg-gray-900/30 text-gray-200"
+    };
+    
+    private string GetNarrativeAnchorIcon(string? moodCategory) => moodCategory?.ToLower() switch
+    {
+        "danger" => "⚠️",
+        "mystery" => "🔮",
+        "safety" => "🏠",
+        "urgency" => "⏰",
+        _ => "📍"
+    };
 }

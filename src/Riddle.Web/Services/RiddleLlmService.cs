@@ -352,6 +352,11 @@ public class RiddleLlmService : IRiddleLlmService
                - Use `present_player_choices()` for decision points and communicate options of what the player can do next.
                - Use `log_player_roll()` to show mechanical results.
                - For DM-only info (e.g., hidden enemy stats), reply in chat directly. Emojis where useful
+            6. **Atmosphere Tools (Player Screens):**
+               - Use `broadcast_atmosphere_pulse()` for transient sensory descriptions (sounds, smells, fleeting visuals) - auto-fades after ~10s
+               - Use `set_narrative_anchor()` to establish persistent mood/context (danger nearby, safe haven found) - stays until changed
+               - Use `trigger_group_insight()` for collective discoveries or revelations (party notices a clue)
+               - These tools broadcast ONLY to Players - DM sees tool calls in the Event Log
             </workflow_protocol>
 
             <current_game_state>
@@ -825,6 +830,51 @@ public class RiddleLlmService : IRiddleLlmService
                         reason = new { type = "string", description = "Reason for removal (e.g., 'fled', 'dismissed', 'captured')" }
                     },
                     required = new[] { "combatant_name" }
+                })),
+            
+            // Atmospheric Tools (Player Screens Only)
+            new Tool(new ToolFunction(
+                "broadcast_atmosphere_pulse",
+                "Sends a fleeting, evocative sentence to the 'Atmosphere' section of all Player Screens. Use for transient mood and sensory details. Auto-fades after ~10 seconds.",
+                new
+                {
+                    type = "object",
+                    properties = new
+                    {
+                        text = new { type = "string", description = "The atmospheric description to display (e.g., 'The torches flicker violently as a cold draft sweeps through.')." },
+                        intensity = new { type = "string", @enum = new[] { "Low", "Medium", "High" }, description = "The urgency of the pulse to control animation speed or color." },
+                        sensory_type = new { type = "string", @enum = new[] { "Sound", "Smell", "Visual", "Feeling" }, description = "The primary sense engaged to help the UI select an icon." }
+                    },
+                    required = new[] { "text" }
+                })),
+            
+            new Tool(new ToolFunction(
+                "set_narrative_anchor",
+                "Updates the persistent 'Current Vibe' or 'Dungeon Instinct' banner at the top of the Player Screens. Use for persistent context that stays until explicitly changed.",
+                new
+                {
+                    type = "object",
+                    properties = new
+                    {
+                        short_text = new { type = "string", description = "A concise fragment (max 10 words) summarizing the immediate feeling (e.g., 'The Ghost is still weeping nearby')." },
+                        mood_category = new { type = "string", @enum = new[] { "Danger", "Mystery", "Safety", "Urgency" }, description = "The thematic mood to determine the UI border or color." }
+                    },
+                    required = new[] { "short_text" }
+                })),
+            
+            new Tool(new ToolFunction(
+                "trigger_group_insight",
+                "Flashes a distinct notification on all Player Screens representing a collective observation or discovery. Auto-dismisses after 8-10 seconds.",
+                new
+                {
+                    type = "object",
+                    properties = new
+                    {
+                        text = new { type = "string", description = "The specific clue or information discovered by the party." },
+                        relevant_skill = new { type = "string", description = "The skill associated with the finding (e.g., 'Perception', 'History', 'Nature') for UI labeling." },
+                        highlight_effect = new { type = "boolean", description = "If true, the text will shimmer or glow to indicate a critical clue." }
+                    },
+                    required = new[] { "text", "relevant_skill" }
                 }))
         ];
     }

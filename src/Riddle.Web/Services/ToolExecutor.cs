@@ -137,6 +137,10 @@ public class ToolExecutor : IToolExecutor
                 "advance_turn" => await ExecuteAdvanceTurnAsync(campaignId, ct),
                 "add_combatant" => await ExecuteAddCombatantAsync(campaignId, argumentsJson, ct),
                 "remove_combatant" => await ExecuteRemoveCombatantAsync(campaignId, argumentsJson, ct),
+                // Atmospheric Tools (Player Screens)
+                "broadcast_atmosphere_pulse" => await ExecuteBroadcastAtmospherePulseAsync(campaignId, argumentsJson, ct),
+                "set_narrative_anchor" => await ExecuteSetNarrativeAnchorAsync(campaignId, argumentsJson, ct),
+                "trigger_group_insight" => await ExecuteTriggerGroupInsightAsync(campaignId, argumentsJson, ct),
                 _ => JsonSerializer.Serialize(new { error = $"Unknown tool: {toolName}" })
             };
 
@@ -1085,6 +1089,87 @@ public class ToolExecutor : IToolExecutor
 
         _logger.LogInformation("Removed combatant {Name} from combat ({Reason})", combatant.Name, reason);
         return $"{combatant.Name} {reason} from combat.";
+    }
+
+    // ==================== Atmospheric Tools (Player Screens) ====================
+
+    /// <summary>
+    /// Tool: broadcast_atmosphere_pulse - Sends fleeting sensory text to player screens
+    /// </summary>
+    private async Task<string> ExecuteBroadcastAtmospherePulseAsync(Guid campaignId, string argumentsJson, CancellationToken ct)
+    {
+        var args = JsonSerializer.Deserialize<JsonElement>(argumentsJson);
+        
+        if (!args.TryGetProperty("text", out var textEl))
+        {
+            return JsonSerializer.Serialize(new { error = "Missing required parameter: text" });
+        }
+
+        var text = textEl.GetString()!;
+        var intensity = args.TryGetProperty("intensity", out var intensityEl) ? intensityEl.GetString() : null;
+        var sensoryType = args.TryGetProperty("sensory_type", out var sensoryEl) ? sensoryEl.GetString() : null;
+
+        var payload = new AtmospherePulsePayload(text, intensity, sensoryType);
+        await _notificationService.NotifyAtmospherePulseAsync(campaignId, payload, ct);
+
+        _logger.LogInformation("Broadcast atmosphere pulse: {Text} (intensity: {Intensity}, type: {SensoryType})",
+            text.Length > 50 ? text[..50] + "..." : text, intensity ?? "default", sensoryType ?? "general");
+        
+        return JsonSerializer.Serialize(new { success = true, message = "Atmosphere pulse sent to player screens" });
+    }
+
+    /// <summary>
+    /// Tool: set_narrative_anchor - Updates persistent mood banner on player screens
+    /// </summary>
+    private async Task<string> ExecuteSetNarrativeAnchorAsync(Guid campaignId, string argumentsJson, CancellationToken ct)
+    {
+        var args = JsonSerializer.Deserialize<JsonElement>(argumentsJson);
+        
+        if (!args.TryGetProperty("short_text", out var textEl))
+        {
+            return JsonSerializer.Serialize(new { error = "Missing required parameter: short_text" });
+        }
+
+        var shortText = textEl.GetString()!;
+        var moodCategory = args.TryGetProperty("mood_category", out var moodEl) ? moodEl.GetString() : null;
+
+        var payload = new NarrativeAnchorPayload(shortText, moodCategory);
+        await _notificationService.NotifyNarrativeAnchorAsync(campaignId, payload, ct);
+
+        _logger.LogInformation("Set narrative anchor: {ShortText} (mood: {MoodCategory})",
+            shortText, moodCategory ?? "neutral");
+        
+        return JsonSerializer.Serialize(new { success = true, message = "Narrative anchor updated on player screens" });
+    }
+
+    /// <summary>
+    /// Tool: trigger_group_insight - Flashes discovery notification on player screens
+    /// </summary>
+    private async Task<string> ExecuteTriggerGroupInsightAsync(Guid campaignId, string argumentsJson, CancellationToken ct)
+    {
+        var args = JsonSerializer.Deserialize<JsonElement>(argumentsJson);
+        
+        if (!args.TryGetProperty("text", out var textEl))
+        {
+            return JsonSerializer.Serialize(new { error = "Missing required parameter: text" });
+        }
+        
+        if (!args.TryGetProperty("relevant_skill", out var skillEl))
+        {
+            return JsonSerializer.Serialize(new { error = "Missing required parameter: relevant_skill" });
+        }
+
+        var text = textEl.GetString()!;
+        var relevantSkill = skillEl.GetString()!;
+        var highlightEffect = args.TryGetProperty("highlight_effect", out var highlightEl) && highlightEl.GetBoolean();
+
+        var payload = new GroupInsightPayload(text, relevantSkill, highlightEffect);
+        await _notificationService.NotifyGroupInsightAsync(campaignId, payload, ct);
+
+        _logger.LogInformation("Triggered group insight: {Text} (skill: {RelevantSkill}, highlight: {Highlight})",
+            text.Length > 50 ? text[..50] + "..." : text, relevantSkill, highlightEffect);
+        
+        return JsonSerializer.Serialize(new { success = true, message = "Group insight sent to player screens" });
     }
 
     // ==================== Helper Methods ====================

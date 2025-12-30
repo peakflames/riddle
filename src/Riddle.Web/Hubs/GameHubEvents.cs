@@ -19,6 +19,11 @@ public static class GameHubEvents
     public const string PlayerChoiceSubmitted = "PlayerChoiceSubmitted";
     public const string PlayerRollLogged = "PlayerRollLogged";
     
+    // === Atmospheric Events (Objective 5 - Player Screens) ===
+    public const string AtmospherePulseReceived = "AtmospherePulseReceived";
+    public const string NarrativeAnchorUpdated = "NarrativeAnchorUpdated";
+    public const string GroupInsightTriggered = "GroupInsightTriggered";
+    
     // === Combat Events ===
     public const string CombatStarted = "CombatStarted";
     public const string CombatEnded = "CombatEnded";
@@ -95,4 +100,30 @@ public record PlayerChoicePayload(
     string CharacterName,
     string Choice,
     DateTime Timestamp
+);
+
+/// <summary>
+/// Payload for atmosphere pulse events (transient, fleeting sensory text)
+/// </summary>
+public record AtmospherePulsePayload(
+    string Text,
+    string? Intensity,     // "Low", "Medium", "High" - controls animation speed/color
+    string? SensoryType    // "Sound", "Smell", "Visual", "Feeling" - for icon selection
+);
+
+/// <summary>
+/// Payload for narrative anchor events (persistent banner at top of player screens)
+/// </summary>
+public record NarrativeAnchorPayload(
+    string ShortText,      // Max 10 words - e.g., "The Ghost is still weeping nearby"
+    string? MoodCategory   // "Danger", "Mystery", "Safety", "Urgency" - for border/color styling
+);
+
+/// <summary>
+/// Payload for group insight events (flash notification for discoveries)
+/// </summary>
+public record GroupInsightPayload(
+    string Text,           // The clue or information discovered
+    string RelevantSkill,  // "Perception", "History", "Nature", etc. - for UI labeling
+    bool HighlightEffect   // If true, text shimmers/glows to indicate critical clue
 );

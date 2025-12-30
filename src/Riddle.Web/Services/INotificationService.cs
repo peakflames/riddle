@@ -84,4 +84,23 @@ public interface INotificationService
     /// Notify when initiative is set for a combatant
     /// </summary>
     Task NotifyInitiativeSetAsync(Guid campaignId, string characterId, int initiative, CancellationToken ct = default);
+    
+    // === Atmospheric Events (Players Only) ===
+    
+    /// <summary>
+    /// Broadcast a fleeting, evocative sensory description to all player screens.
+    /// Auto-fades after ~10 seconds.
+    /// </summary>
+    Task NotifyAtmospherePulseAsync(Guid campaignId, AtmospherePulsePayload payload, CancellationToken ct = default);
+    
+    /// <summary>
+    /// Update the persistent "Current Vibe" banner at the top of player screens.
+    /// </summary>
+    Task NotifyNarrativeAnchorAsync(Guid campaignId, NarrativeAnchorPayload payload, CancellationToken ct = default);
+    
+    /// <summary>
+    /// Flash a distinct notification on all player screens for collective discoveries.
+    /// Auto-dismisses after 8-10 seconds.
+    /// </summary>
+    Task NotifyGroupInsightAsync(Guid campaignId, GroupInsightPayload payload, CancellationToken ct = default);
 }
