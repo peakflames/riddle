@@ -1,0 +1,245 @@
+@using Riddle.Web.Models
+@using Riddle.Web.Services
+
+<Modal Show="@Show" ShowChanged="@ShowChanged" Size="ModalSize.FourExtraLarge">
+    <ModalHeader>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <FileImportIcon Class="w-5 h-5" />
+            Import Character Templates
+        </h3>
+    </ModalHeader>
+    <ModalBody>
+        @if (_isLoading)
+        {
+            <div class="flex items-center justify-center py-12">
+                <Spinner Size="SpinnerSize.Lg" />
+                <span class="ml-3 text-gray-500 dark:text-gray-400">Loading templates...</span>
+            </div>
+        }
+        else if (!_templates.Any())
+        {
+            <div class="text-center py-12">
+                <UserCircleIcon Class="mx-auto h-12 w-12 text-gray-400" />
+                <p class="mt-3 text-gray-500 dark:text-gray-400">No character templates available.</p>
+                <p class="text-sm text-gray-400 dark:text-gray-500 mt-1">
+                    Create templates from the Character Templates page.
+                </p>
+            </div>
+        }
+        else
+        {
+            <div class="mb-4">
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                    Select one or more character templates to import into your campaign. 
+                    Each template will be copied as a new character.
+                </p>
+            </div>
+            
+            <!-- Selection summary -->
+            @if (_selectedTemplateIds.Any())
+            {
+                <div class="mb-4 p-3 bg-primary-50 dark:bg-primary-900/20 rounded-lg border border-primary-200 dark:border-primary-800">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium text-primary-700 dark:text-primary-300">
+                            @_selectedTemplateIds.Count template(s) selected
+                        </span>
+                        <Button Size="ButtonSize.Small" Color="ButtonColor.Light" OnClick="@ClearSelection">
+                            Clear
+                        </Button>
+                    </div>
+                </div>
+            }
+            
+            <div class="max-h-96 overflow-y-auto border dark:border-gray-500 border-gray-400">
+                <Table Hoverable="true">
+                    <TableHead>
+                        <TableRow>
+                            <TableHeadCell class="w-12">
+                                <input type="checkbox"
+                                       class="h-4 w-4 rounded border-gray-300 bg-gray-100 text-primary-600 focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:ring-offset-gray-800 dark:focus:ring-primary-600"
+                                       checked="@IsAllSelected()"
+                                       @onchange="@ToggleSelectAll" />
+                            </TableHeadCell>
+                            <TableHeadCell>Name</TableHeadCell>
+                            <TableHeadCell>Race</TableHeadCell>
+                            <TableHeadCell>Class</TableHeadCell>
+                            <TableHeadCell class="text-center">Level</TableHeadCell>
+                            <TableHeadCell>Owner</TableHeadCell>
+                        </TableRow>
+                    </TableHead>
+                    <TableBody class="divide-y">
+                        @foreach (var template in _templates)
+                        {
+                            <TableRow class="bg-white dark:border-gray-700 dark:bg-gray-800">
+                                <TableCell>
+                                    <input type="checkbox"
+                                           class="h-4 w-4 rounded border-gray-300 bg-gray-100 text-primary-600 focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:ring-offset-gray-800 dark:focus:ring-primary-600 cursor-pointer"
+                                           checked="@_selectedTemplateIds.Contains(template.Id)"
+                                           @onchange="@(() => ToggleSelection(template.Id))" />
+                                </TableCell>
+                                <TableCell class="whitespace-nowrap font-medium text-gray-900 dark:text-white">
+                                    @template.Name
+                                </TableCell>
+                                <TableCell class="text-gray-600 dark:text-gray-400">@template.Race</TableCell>
+                                <TableCell class="text-gray-600 dark:text-gray-400">@template.Class</TableCell>
+                                <TableCell class="text-center">
+                                    <Badge Color="BadgeColor.Primary" Size="BadgeSize.Small">@template.Level</Badge>
+                                </TableCell>
+                                <TableCell>
+                                    @if (template.IsSystemTemplate)
+                                    {
+                                        <Badge Color="BadgeColor.Gray" Size="BadgeSize.Small">System</Badge>
+                                    }
+                                    else
+                                    {
+                                        <Badge Color="BadgeColor.Info" Size="BadgeSize.Small">You</Badge>
+                                    }
+                                </TableCell>
+                            </TableRow>
+                        }
+                    </TableBody>
+                </Table>
+            </div>
+        }
+    </ModalBody>
+    <ModalFooter>
+        <div class="flex justify-end gap-3 w-full">
+            <Button Color="ButtonColor.Gray" OnClick="@HandleCancel">
+                Cancel
+            </Button>
+            <Button Color="ButtonColor.Primary" 
+                    OnClick="@HandleImport" 
+                    Disabled="@(!_selectedTemplateIds.Any() || _isImporting)">
+                @if (_isImporting)
+                {
+                    <Spinner Size="SpinnerSize.Sm" Class="mr-2" />
+                    <span>Importing...</span>
+                }
+                else
+                {
+                    <FileImportIcon Class="w-4 h-4 mr-2" />
+                    <span>Import @(_selectedTemplateIds.Count > 0 ? $"({_selectedTemplateIds.Count})" : "")</span>
+                }
+            </Button>
+        </div>
+    </ModalFooter>
+</Modal>
+
+@code {
+    [Parameter]
+    public bool Show { get; set; }
+    
+    [Parameter]
+    public EventCallback<bool> ShowChanged { get; set; }
+    
+    [Parameter]
+    public string? UserId { get; set; }
+    
+    [Parameter]
+    public EventCallback<List<string>> OnImport { get; set; }
+    
+    [Inject]
+    private ICharacterTemplateService TemplateService { get; set; } = default!;
+    
+    private List<CharacterTemplate> _templates = [];
+    private HashSet<string> _selectedTemplateIds = [];
+    private bool _isLoading;
+    private bool _isImporting;
+    
+    protected override async Task OnParametersSetAsync()
+    {
+        // Load templates when modal opens
+        if (Show && !_templates.Any() && !_isLoading)
+        {
+            await LoadTemplatesAsync();
+        }
+        
+        // Clear selection when modal closes
+        if (!Show)
+        {
+            _selectedTemplateIds.Clear();
+        }
+    }
+    
+    private async Task LoadTemplatesAsync()
+    {
+        _isLoading = true;
+        StateHasChanged();
+        
+        try
+        {
+            _templates = await TemplateService.GetAllAvailableTemplatesAsync(UserId ?? string.Empty);
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+    
+    private void ToggleSelection(string templateId)
+    {
+        if (_selectedTemplateIds.Contains(templateId))
+        {
+            _selectedTemplateIds.Remove(templateId);
+        }
+        else
+        {
+            _selectedTemplateIds.Add(templateId);
+        }
+        StateHasChanged();
+    }
+    
+    private bool IsAllSelected()
+    {
+        return _templates.Any() && _selectedTemplateIds.Count == _templates.Count;
+    }
+    
+    private void ToggleSelectAll()
+    {
+        if (IsAllSelected())
+        {
+            _selectedTemplateIds.Clear();
+        }
+        else
+        {
+            _selectedTemplateIds = _templates.Select(t => t.Id).ToHashSet();
+        }
+        StateHasChanged();
+    }
+    
+    private void ClearSelection()
+    {
+        _selectedTemplateIds.Clear();
+        StateHasChanged();
+    }
+    
+    private async Task HandleCancel()
+    {
+        _selectedTemplateIds.Clear();
+        await ShowChanged.InvokeAsync(false);
+    }
+    
+    private async Task HandleImport()
+    {
+        if (!_selectedTemplateIds.Any()) return;
+        
+        _isImporting = true;
+        StateHasChanged();
+        
+        try
+        {
+            // Invoke callback with selected template IDs
+            await OnImport.InvokeAsync(_selectedTemplateIds.ToList());
+            
+            // Clear selection and close modal
+            _selectedTemplateIds.Clear();
+            await ShowChanged.InvokeAsync(false);
+        }
+        finally
+        {
+            _isImporting = false;
+            StateHasChanged();
+        }
+    }
+}

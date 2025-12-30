@@ -41,6 +41,7 @@ public class CharacterTemplateService : ICharacterTemplateService
     public async Task<List<CharacterTemplate>> GetSystemTemplatesAsync(CancellationToken ct = default)
     {
         return await _db.CharacterTemplates
+            .Include(t => t.Owner)
             .Where(t => t.OwnerId == null)
             .OrderBy(t => t.Name)
             .ToListAsync(ct);
@@ -57,6 +58,7 @@ public class CharacterTemplateService : ICharacterTemplateService
     public async Task<List<CharacterTemplate>> GetAllAvailableTemplatesAsync(string userId, CancellationToken ct = default)
     {
         return await _db.CharacterTemplates
+            .Include(t => t.Owner)
             .Where(t => t.OwnerId == null || t.OwnerId == userId)
             .OrderBy(t => t.OwnerId == null ? 0 : 1) // System templates first
             .ThenBy(t => t.Name)

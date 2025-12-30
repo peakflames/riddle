@@ -16,6 +16,13 @@
                     Invite
                 </Button>
             }
+            @if (ShowImportButton)
+            {
+                <Button Size="ButtonSize.Small" Color="ButtonColor.Light" OnClick="@OnImportClick">
+                    <FileImportIcon Class="h-4 w-4 mr-1" />
+                    Import
+                </Button>
+            }
             <Button Size="ButtonSize.Small" Color="ButtonColor.Primary" OnClick="@OnAddClick">
                 <PlusIcon Class="h-4 w-4 mr-1" />
                 Add
@@ -75,4 +82,10 @@
     
     [Parameter]
     public EventCallback<Character> OnUnclaim { get; set; }
+    
+    [Parameter]
+    public bool ShowImportButton { get; set; }
+    
+    [Parameter]
+    public EventCallback OnImportClick { get; set; }
 }

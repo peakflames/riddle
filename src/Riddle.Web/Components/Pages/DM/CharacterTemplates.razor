@@ -28,13 +28,14 @@
     }
     else
     {
-        <Table Striped="true" Hoverable="true">
+        <Table Hoverable="true">
             <TableHead>
                 <TableRow>
                     <TableHeadCell>Name</TableHeadCell>
                     <TableHeadCell>Race</TableHeadCell>
                     <TableHeadCell>Class</TableHeadCell>
                     <TableHeadCell>Level</TableHeadCell>
+                    <TableHeadCell>Owner</TableHeadCell>
                     <TableHeadCell>
                         <span class="sr-only">Actions</span>
                     </TableHeadCell>
@@ -50,6 +51,16 @@
                         <TableCell>@(template.Race ?? "—")</TableCell>
                         <TableCell>@(template.Class ?? "—")</TableCell>
                         <TableCell>@template.Level</TableCell>
+                        <TableCell>
+                            @if (template.IsSystemTemplate)
+                            {
+                                <Badge Color="BadgeColor.Info">System</Badge>
+                            }
+                            else
+                            {
+                                <span class="text-gray-900 dark:text-white">@(template.Owner?.Email ?? "Unknown")</span>
+                            }
+                        </TableCell>
                         <TableCell>
                             <button @onclick="@(() => ViewTemplate(template))" 
                                     class="font-medium text-primary-600 hover:underline dark:text-primary-500">

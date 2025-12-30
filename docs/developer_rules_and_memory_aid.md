@@ -172,6 +172,7 @@ Version is set in `.csproj` via `<Version>` or `<InformationalVersion>` property
 - **CardSize**: Use `CardSize.ExtraLarge`, not `CardSize.XLarge`
 - **EditForm Context Conflicts**: When EditForm is inside AuthorizeView, add `Context="editContext"` parameter to EditForm to avoid context name collision
 - **Icon Components**: Use Flowbite icon components (e.g., `<BookOpenIcon Class="w-5 h-5" />`) from Flowbite.Blazor.Icons namespace
+- **TableRow onclick**: Flowbite `TableRow` component does NOT support `@onclick` event handlers - use click handlers on inner elements (e.g., checkbox, button) instead
 - Always check Flowbite Blazor docs or reference dashboard project for exact API signatures
 
 ### CRITICAL: Flowbite Textarea Binding in TabPanels

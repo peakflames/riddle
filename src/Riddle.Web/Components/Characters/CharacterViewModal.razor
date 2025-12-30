@@ -31,7 +31,7 @@
                                 @FieldDisplay("Background", Character.Background)
                                 @FieldDisplay("Alignment", Character.Alignment)
                             </div>
-                            <h4 class="font-semibold text-gray-900 dark:text-white">Ability Scores</h4>
+                            <h4 class="font-semibold text-gray-600 dark:text-gray-300">Ability Scores</h4>
                             <div class="grid grid-cols-6 gap-3">
                                 @AbilityBox("STR", Character.Strength)
                                 @AbilityBox("DEX", Character.Dexterity)
@@ -86,15 +86,15 @@
                                 </div>
                                 @if (Character.SpellSlots.Any(s => s.Value > 0))
                                 {
-                                    <h4 class="font-semibold text-gray-900 dark:text-white">Spell Slots</h4>
-                                    <div class="flex flex-wrap gap-4">
+                                    <h4 class="font-semibold text-gray-600 dark:text-gray-300">Spell Slots</h4>
+                                    <div class="flex flex-wrap gap-3 mt-2 p-3 border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700/30">
                                         @for (int i = 1; i <= 9; i++)
                                         {
                                             if (Character.SpellSlots.TryGetValue(i, out var slots) && slots > 0)
                                             {
-                                                <div class="text-center">
-                                                    <span class="text-xs font-medium text-gray-500">Level @i</span>
-                                                    <div class="text-lg font-bold text-gray-900 dark:text-white">@slots</div>
+                                                <div class="text-center px-3 py-2 border border-gray-200 dark:border-gray-500 rounded bg-white dark:bg-gray-700/50">
+                                                    <span class="text-xs font-semibold text-gray-600 dark:text-gray-400">Level @i</span>
+                                                    <div class="text-xl font-bold text-gray-900 dark:text-white">@slots</div>
                                                 </div>
                                             }
                                         }
@@ -113,8 +113,8 @@
                     <!-- Equipment Tab -->
                     <TabPanel Index="4">
                         <div class="space-y-4 py-4">
-                            <h4 class="font-semibold text-gray-900 dark:text-white">Currency</h4>
-                            <div class="flex flex-wrap gap-4">
+                            <h4 class="font-semibold text-gray-600 dark:text-gray-300">Currency</h4>
+                            <div class="flex flex-wrap gap-3 mt-2 p-3 border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700/30">
                                 @if (Character.PlatinumPieces > 0) { <Badge Color="BadgeColor.Gray">@Character.PlatinumPieces PP</Badge> }
                                 @if (Character.GoldPieces > 0) { <Badge Color="BadgeColor.Warning">@Character.GoldPieces GP</Badge> }
                                 @if (Character.SilverPieces > 0) { <Badge Color="BadgeColor.Info">@Character.SilverPieces SP</Badge> }
@@ -122,7 +122,7 @@
                                 @if (Character.PlatinumPieces == 0 && Character.GoldPieces == 0 && 
                                      Character.SilverPieces == 0 && Character.CopperPieces == 0)
                                 {
-                                    <span class="text-gray-500">No currency</span>
+                                    <span class="text-gray-500 dark:text-gray-400">No currency</span>
                                 }
                             </div>
                             @BadgeList("Weapons", Character.Weapons)
@@ -159,21 +159,21 @@
     private static string FormatMod(int value) => value >= 0 ? $"+{value}" : value.ToString();
 
     private RenderFragment FieldDisplay(string label, string? value) => @<div>
-        <span class="text-sm font-medium text-gray-500 dark:text-gray-400">@label</span>
-        <p class="text-gray-900 dark:text-white">@(string.IsNullOrEmpty(value) ? "—" : value)</p>
+        <span class="text-sm font-semibold text-gray-600 dark:text-gray-400">@label</span>
+        <p class="mt-1 px-3 py-2 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700/30">@(string.IsNullOrEmpty(value) ? "—" : value)</p>
     </div>;
 
-    private RenderFragment AbilityBox(string label, int value) => @<div class="text-center p-2 bg-gray-50 dark:bg-gray-700 rounded">
-        <span class="text-xs font-medium text-gray-500 dark:text-gray-400">@label</span>
-        <div class="text-lg font-bold text-gray-900 dark:text-white">@value</div>
-        <span class="text-xs text-gray-500">(@FormatMod((value - 10) / 2))</span>
+    private RenderFragment AbilityBox(string label, int value) => @<div class="text-center p-3 bg-gray-50 dark:bg-gray-700/40 border border-gray-200 dark:border-gray-600 rounded-lg">
+        <span class="text-xs font-semibold text-gray-600 dark:text-gray-400">@label</span>
+        <div class="text-xl font-bold text-gray-900 dark:text-white">@value</div>
+        <span class="text-xs text-gray-500 dark:text-gray-400">(@FormatMod((value - 10) / 2))</span>
     </div>;
 
     private RenderFragment BadgeList(string label, List<string> items, BadgeColor color = BadgeColor.Gray) => @<div>
-        <span class="text-sm font-medium text-gray-900 dark:text-white">@label</span>
+        <span class="text-sm font-semibold text-gray-600 dark:text-gray-300">@label</span>
         @if (items.Any())
         {
-            <div class="flex flex-wrap gap-2 mt-1">
+            <div class="flex flex-wrap gap-2 mt-2 p-3 border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700/30">
                 @foreach (var item in items)
                 {
                     <Badge Color="@color">@item</Badge>
@@ -182,19 +182,19 @@
         }
         else
         {
-            <p class="text-gray-500 dark:text-gray-400 text-sm">None</p>
+            <p class="mt-1 px-3 py-2 text-gray-500 dark:text-gray-400 text-sm border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700/30">None</p>
         }
     </div>;
 
     private RenderFragment TextBlock(string label, string? value) => @<div>
-        <span class="text-sm font-medium text-gray-900 dark:text-white">@label</span>
+        <span class="text-sm font-semibold text-gray-600 dark:text-gray-300">@label</span>
         @if (!string.IsNullOrWhiteSpace(value))
         {
-            <p class="mt-1 text-gray-700 dark:text-gray-300 text-sm whitespace-pre-wrap">@value</p>
+            <p class="mt-2 px-3 py-2 text-gray-700 dark:text-gray-200 text-sm whitespace-pre-wrap border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700/30">@value</p>
         }
         else
         {
-            <p class="text-gray-500 dark:text-gray-400 text-sm">Not specified</p>
+            <p class="mt-1 px-3 py-2 text-gray-500 dark:text-gray-400 text-sm border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700/30">Not specified</p>
         }
     </div>;
 }

@@ -16,6 +16,7 @@
 @inject ICharacterService CharacterService
 @inject IGameStateService GameStateService
 @inject ICombatService CombatService
+@inject ICharacterTemplateService CharacterTemplateService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
 
@@ -289,7 +290,9 @@
                                     OnRemove="@HandleRemoveCharacter"
                                     OnUnclaim="@HandleUnclaimCharacter"
                                     ShowInviteButton="true"
-                                    OnInviteClick="@OpenInviteModal" />
+                                    OnInviteClick="@OpenInviteModal"
+                                    ShowImportButton="true"
+                                    OnImportClick="@OpenImportModal" />
                             </div>
                         </Card>
                     </div>
@@ -426,6 +429,12 @@
                 @bind-Show="_showInviteModal"
                 Campaign="@campaign"
                 OnInviteCodeRegenerated="@HandleInviteCodeRegenerated" />
+            
+            <!-- Import Templates Modal -->
+            <CharacterTemplatePickerModal 
+                @bind-Show="_showImportModal"
+                UserId="@currentUserId"
+                OnImport="@HandleImportTemplates" />
         }
     </Authorized>
     <NotAuthorized>
@@ -449,6 +458,9 @@
     
     // Invite modal state
     private bool _showInviteModal;
+    
+    // Import templates modal state
+    private bool _showImportModal;
     
     // Combat state
     private CombatStatePayload? _combatState;
@@ -724,6 +736,27 @@
     private void HandleInviteCodeRegenerated(string newCode)
     {
         // Campaign object is already updated by the modal
+        StateHasChanged();
+    }
+    
+    // Import Templates Modal Methods
+    private void OpenImportModal()
+    {
+        _showImportModal = true;
+    }
+    
+    private async Task HandleImportTemplates(List<string> templateIds)
+    {
+        if (campaign == null || !templateIds.Any()) return;
+        
+        // Import each selected template into the campaign
+        foreach (var templateId in templateIds)
+        {
+            await CharacterTemplateService.CopyToCampaignAsync(templateId, campaign.Id.ToString());
+        }
+        
+        // Reload campaign to get the updated party state
+        await LoadCampaignAsync();
         StateHasChanged();
     }
     
