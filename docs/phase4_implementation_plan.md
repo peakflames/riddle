@@ -44,15 +44,17 @@ Phase 4 implements the full SignalR infrastructure for Project Riddle, enabling 
 
 ## [Objectives Breakdown]
 
-### Objective 1: GameHub Implementation
+### Objective 1: GameHub Implementation ✅ COMPLETE
 **Scope:** Create SignalR hub with group management and event broadcasting
 **Estimated Effort:** Large
 **Files:** `Hubs/GameHub.cs`, `Program.cs`
+**Status:** Complete - See `docs/verification/phase4-obj1-checklist.md`
 
-### Objective 2: Notification Service
+### Objective 2: Notification Service ✅ COMPLETE
 **Scope:** Service layer for broadcasting events to SignalR groups
 **Estimated Effort:** Medium
 **Files:** `Services/INotificationService.cs`, `Services/NotificationService.cs`
+**Status:** Complete - See `docs/verification/phase4-obj2-checklist.md`
 
 ### Objective 3: Combat Tracker Component ⚠️ SUPERSEDED BY OBJ 3.5
 **Scope:** Real-time turn order display with initiative management
@@ -61,26 +63,6 @@ Phase 4 implements the full SignalR infrastructure for Project Riddle, enabling 
 
 > **Historical Note:** This objective was originally designed for manual DM data entry via UI modal. During implementation, the Product Owner recognized this contradicted the BDD specifications in `04_CombatEncounter.feature`, which describe LLM-initiated combat (e.g., "When I tell Riddle 'Goblins attack!'"). Objective 3.5 was created to implement the correct LLM-driven approach, making the Combat Tracker a display-only component that reacts to SignalR events from LLM tool calls.
 
-### Objective 4: Player Choice Submission
-**Scope:** Choice buttons to SignalR submission flow
-**Estimated Effort:** Medium
-**Files:** `Components/Player/PlayerChoicePad.razor`, Player Dashboard updates
-
-### Objective 5: Read Aloud Text Box Real-time
-**Scope:** RATB component with SignalR subscription
-**Estimated Effort:** Small
-**Files:** `Components/Chat/ReadAloudTextBox.razor` updates
-
-### Objective 6: Scene Image Synchronization
-**Scope:** Scene image display with real-time updates
-**Estimated Effort:** Small
-**Files:** `Components/Shared/SceneDisplay.razor`
-
-### Objective 7: Connection Status Tracking
-**Scope:** Online/offline indicators with reconnection handling
-**Estimated Effort:** Medium
-**Files:** `Services/ConnectionTracker.cs`, UI components
-
 ### Objective 3.5: LLM-Driven Combat System ✅ COMPLETE
 **Scope:** Transform Combat Tracker from manual DM entry to LLM-driven control via tool calls
 **Estimated Effort:** Medium
@@ -88,6 +70,37 @@ Phase 4 implements the full SignalR infrastructure for Project Riddle, enabling 
 **Status:** Complete - See `docs/verification/phase4-obj3.5-checklist.md`
 
 **Summary:** LLM now manages combat lifecycle via `start_combat`, `end_combat`, `advance_turn`, `add_combatant`, and `remove_combatant` tools. Combat Tracker is display-only, reactive to SignalR events.
+
+### Objective 4: Player Choice Submission ✅ COMPLETE
+**Scope:** Choice buttons to SignalR submission flow
+**Estimated Effort:** Medium
+**Files:** `Components/Player/PlayerChoicePad.razor`, Player Dashboard updates
+**Status:** Complete - See `docs/verification/phase4-obj4-checklist.md`
+
+### Objective 5: Atmospheric Tools for Player Screens ⏳ PENDING
+**Scope:** Replace Scene Image with 3 atmospheric LLM tools for immersive player feedback via SignalR
+**Estimated Effort:** Medium
+**Files:** `Services/RiddleLlmService.cs`, `Services/ToolExecutor.cs`, `Services/INotificationService.cs`, `Services/NotificationService.cs`, `Hubs/GameHubEvents.cs`, `Components/Pages/Player/Dashboard.razor`
+
+> **Design Change Note (2025-12-29):** After beta testing, the Product Owner decided:
+> 1. **Read Aloud Text is DM-only** - Removed from Player Dashboard. The DM reads it aloud; players don't need to see it.
+> 2. **Scene Image replaced by Atmospheric Tools** - Instead of static images, use 3 dynamic LLM-driven tools that provide immersive sensory feedback to players via SignalR.
+
+**New LLM Tools:**
+
+| Tool | Purpose | UI Element |
+|------|---------|------------|
+| `broadcast_atmosphere_pulse` | Fleeting sensory text (auto-fades ~10s) | "Atmosphere" area on Player Dashboard |
+| `set_narrative_anchor` | Persistent "Current Vibe" banner | Top banner on Player Dashboard |
+| `trigger_group_insight` | Flash notification for discoveries | Toast notification popup |
+
+### ~~Objective 6: Scene Image Synchronization~~ ❌ CANCELLED
+**Status:** Cancelled - Replaced by Objective 5 (Atmospheric Tools)
+
+### Objective 7: Connection Status Tracking ⏳ PENDING
+**Scope:** Online/offline indicators with reconnection handling
+**Estimated Effort:** Medium
+**Files:** `Services/ConnectionTracker.cs`, UI components
 
 ---
 
@@ -112,10 +125,15 @@ public static class GameHubEvents
     // === Game State Events ===
     public const string CharacterStateUpdated = "CharacterStateUpdated";
     public const string ReadAloudTextReceived = "ReadAloudTextReceived";
-    public const string SceneImageUpdated = "SceneImageUpdated";
+    public const string SceneImageUpdated = "SceneImageUpdated"; // DEPRECATED - replaced by atmospheric events
     public const string PlayerChoicesReceived = "PlayerChoicesReceived";
     public const string PlayerChoiceSubmitted = "PlayerChoiceSubmitted";
     public const string PlayerRollLogged = "PlayerRollLogged";
+    
+    // === Atmospheric Events (Objective 5 - Player Screens) ===
+    public const string AtmospherePulseReceived = "AtmospherePulseReceived";
+    public const string NarrativeAnchorUpdated = "NarrativeAnchorUpdated";
+    public const string GroupInsightTriggered = "GroupInsightTriggered";
     
     // === Combat Events ===
     public const string CombatStarted = "CombatStarted";
@@ -128,6 +146,32 @@ public static class GameHubEvents
     // === Connection Events ===
     public const string ConnectionStatusChanged = "ConnectionStatusChanged";
 }
+
+/// <summary>
+/// Payload for atmosphere pulse events (transient, fleeting sensory text)
+/// </summary>
+public record AtmospherePulsePayload(
+    string Text,
+    string? Intensity,     // "Low", "Medium", "High" - controls animation speed/color
+    string? SensoryType    // "Sound", "Smell", "Visual", "Feeling" - for icon selection
+);
+
+/// <summary>
+/// Payload for narrative anchor events (persistent banner at top of player screens)
+/// </summary>
+public record NarrativeAnchorPayload(
+    string ShortText,      // Max 10 words - e.g., "The Ghost is still weeping nearby"
+    string? MoodCategory   // "Danger", "Mystery", "Safety", "Urgency" - for border/color styling
+);
+
+/// <summary>
+/// Payload for group insight events (flash notification for discoveries)
+/// </summary>
+public record GroupInsightPayload(
+    string Text,           // The clue or information discovered
+    string RelevantSkill,  // "Perception", "History", "Nature", etc. - for UI labeling
+    bool HighlightEffect   // If true, text shimmers/glows to indicate critical clue
+);
 
 /// <summary>
 /// Payload for character claim events
@@ -850,23 +894,238 @@ public class ConnectionTracker : IConnectionTracker
 - [ ] Buttons disable after submission
 - [ ] DM sees choice in chat/console
 
-### Objective 5: Read Aloud Text Box Real-time (Day 5)
+### Objective 5: Atmospheric Tools for Player Screens (Day 5)
 
-**Step 5.1: Update ReadAloudTextBox Component**
-- Subscribe to `ReadAloudTextReceived` event
-- Animate text appearance
-- Show timestamp of last update
+> **Design Change:** After beta testing, Read Aloud Text and Scene Image are removed from Player Dashboard. Instead, 3 atmospheric LLM tools provide immersive feedback to players.
 
-**Step 5.2: Wire to DM Dashboard**
-- SignalR subscription in Campaign.razor
-- Pass text to ReadAloudTextBox component
+**Step 5.1: Add SignalR Event Constants to GameHubEvents.cs**
+```csharp
+// === Atmospheric Events (Objective 5 - Player Screens) ===
+public const string AtmospherePulseReceived = "AtmospherePulseReceived";
+public const string NarrativeAnchorUpdated = "NarrativeAnchorUpdated";
+public const string GroupInsightTriggered = "GroupInsightTriggered";
+```
+
+**Step 5.2: Add Payload Records to GameHubEvents.cs**
+```csharp
+public record AtmospherePulsePayload(
+    string Text,
+    string? Intensity,     // "Low", "Medium", "High"
+    string? SensoryType    // "Sound", "Smell", "Visual", "Feeling"
+);
+
+public record NarrativeAnchorPayload(
+    string ShortText,      // Max 10 words
+    string? MoodCategory   // "Danger", "Mystery", "Safety", "Urgency"
+);
+
+public record GroupInsightPayload(
+    string Text,
+    string RelevantSkill,  // "Perception", "History", "Nature", etc.
+    bool HighlightEffect
+);
+```
+
+**Step 5.3: Add Notification Methods to INotificationService**
+```csharp
+// === Atmospheric Events (Players Only) ===
+Task NotifyAtmospherePulseAsync(Guid campaignId, AtmospherePulsePayload payload, CancellationToken ct = default);
+Task NotifyNarrativeAnchorAsync(Guid campaignId, NarrativeAnchorPayload payload, CancellationToken ct = default);
+Task NotifyGroupInsightAsync(Guid campaignId, GroupInsightPayload payload, CancellationToken ct = default);
+```
+
+**Step 5.4: Implement Notification Methods in NotificationService.cs**
+```csharp
+public async Task NotifyAtmospherePulseAsync(Guid campaignId, AtmospherePulsePayload payload, CancellationToken ct = default)
+{
+    _logger.LogInformation("Broadcasting AtmospherePulse: {Text} ({Intensity}, {SensoryType})", 
+        payload.Text, payload.Intensity, payload.SensoryType);
+    
+    await _hubContext.Clients
+        .Group($"campaign_{campaignId}_players")
+        .SendAsync(GameHubEvents.AtmospherePulseReceived, payload, ct);
+}
+
+public async Task NotifyNarrativeAnchorAsync(Guid campaignId, NarrativeAnchorPayload payload, CancellationToken ct = default)
+{
+    _logger.LogInformation("Broadcasting NarrativeAnchor: {ShortText} ({MoodCategory})", 
+        payload.ShortText, payload.MoodCategory);
+    
+    await _hubContext.Clients
+        .Group($"campaign_{campaignId}_players")
+        .SendAsync(GameHubEvents.NarrativeAnchorUpdated, payload, ct);
+}
+
+public async Task NotifyGroupInsightAsync(Guid campaignId, GroupInsightPayload payload, CancellationToken ct = default)
+{
+    _logger.LogInformation("Broadcasting GroupInsight: {Text} ({RelevantSkill}, Highlight={Highlight})", 
+        payload.Text, payload.RelevantSkill, payload.HighlightEffect);
+    
+    await _hubContext.Clients
+        .Group($"campaign_{campaignId}_players")
+        .SendAsync(GameHubEvents.GroupInsightTriggered, payload, ct);
+}
+```
+
+**Step 5.5: Add LLM Tool Definitions to RiddleLlmService.BuildToolDefinitions()**
+```csharp
+new Tool(new ToolFunction(
+    "broadcast_atmosphere_pulse",
+    "Sends a fleeting, evocative sentence to the 'Atmosphere' section of all Player Screens. Use for transient mood and sensory details.",
+    new
+    {
+        type = "object",
+        properties = new
+        {
+            text = new { type = "string", description = "The atmospheric description to display (e.g., 'The torches flicker violently as a cold draft sweeps through.')." },
+            intensity = new { type = "string", description = "The urgency of the pulse (e.g., 'Low', 'Medium', 'High') to control animation speed or color." },
+            sensory_type = new { type = "string", description = "The primary sense engaged (e.g., 'Sound', 'Smell', 'Visual', 'Feeling') to help the UI select an icon." }
+        },
+        required = new[] { "text" }
+    })),
+
+new Tool(new ToolFunction(
+    "set_narrative_anchor",
+    "Updates the persistent 'Current Vibe' or 'Dungeon Instinct' banner at the top of the Player Screens. Use for persistent context.",
+    new
+    {
+        type = "object",
+        properties = new
+        {
+            short_text = new { type = "string", description = "A concise fragment (max 10 words) summarizing the immediate feeling (e.g., 'The Ghost is still weeping nearby')." },
+            mood_category = new { type = "string", description = "The thematic mood (e.g., 'Danger', 'Mystery', 'Safety', 'Urgency') to determine the UI border or color." }
+        },
+        required = new[] { "short_text" }
+    })),
+
+new Tool(new ToolFunction(
+    "trigger_group_insight",
+    "Flashes a distinct notification on all Player Screens representing a collective observation or discovery.",
+    new
+    {
+        type = "object",
+        properties = new
+        {
+            text = new { type = "string", description = "The specific clue or information discovered by the party." },
+            relevant_skill = new { type = "string", description = "The skill associated with the finding (e.g., 'Perception', 'History', 'Nature') for UI labeling." },
+            highlight_effect = new { type = "boolean", description = "If true, the text will shimmer or glow to indicate a critical clue." }
+        },
+        required = new[] { "text", "relevant_skill" }
+    }))
+```
+
+**Step 5.6: Add Tool Handlers to ToolExecutor.cs**
+```csharp
+case "broadcast_atmosphere_pulse":
+{
+    var text = GetRequiredString(args, "text");
+    var intensity = args.TryGetValue("intensity", out var i) ? i.ToString() : null;
+    var sensoryType = args.TryGetValue("sensory_type", out var s) ? s.ToString() : null;
+    
+    var payload = new AtmospherePulsePayload(text, intensity, sensoryType);
+    await _notificationService.NotifyAtmospherePulseAsync(campaignId, payload, ct);
+    
+    return JsonSerializer.Serialize(new { success = true, message = "Atmosphere pulse broadcast to players" });
+}
+
+case "set_narrative_anchor":
+{
+    var shortText = GetRequiredString(args, "short_text");
+    var moodCategory = args.TryGetValue("mood_category", out var m) ? m.ToString() : null;
+    
+    var payload = new NarrativeAnchorPayload(shortText, moodCategory);
+    await _notificationService.NotifyNarrativeAnchorAsync(campaignId, payload, ct);
+    
+    return JsonSerializer.Serialize(new { success = true, message = "Narrative anchor updated for players" });
+}
+
+case "trigger_group_insight":
+{
+    var text = GetRequiredString(args, "text");
+    var relevantSkill = GetRequiredString(args, "relevant_skill");
+    var highlightEffect = args.TryGetValue("highlight_effect", out var h) && h.GetBoolean();
+    
+    var payload = new GroupInsightPayload(text, relevantSkill, highlightEffect);
+    await _notificationService.NotifyGroupInsightAsync(campaignId, payload, ct);
+    
+    return JsonSerializer.Serialize(new { success = true, message = "Group insight triggered for players" });
+}
+```
+
+**Step 5.7: Update Player Dashboard - Remove Read Aloud & Scene Image, Add Atmospheric UI**
+
+Remove from Dashboard.razor:
+- Scene Image section (`@if (!string.IsNullOrEmpty(campaign?.CurrentSceneImageUri))`)
+- Read Aloud Text section (`@if (!string.IsNullOrEmpty(campaign?.CurrentReadAloudText))`)
+
+Add new UI elements:
+1. **Narrative Anchor Banner** (top of dashboard, persistent)
+   - Styled border based on MoodCategory
+   - Color coding: Danger=red, Mystery=purple, Safety=green, Urgency=amber
+   
+2. **Atmosphere Pulse Area** (in Game State Panels column)
+   - Fading text with animation (~10s auto-fade)
+   - Icon based on SensoryType: 👂 Sound, 👃 Smell, 👁️ Visual, 💭 Feeling
+   - Intensity controls animation speed/glow
+
+3. **Group Insight Toast** (floating notification)
+   - Skill badge (e.g., "Perception")
+   - Shimmer effect if HighlightEffect=true
+   - Auto-dismiss after 8-10 seconds
+
+**Step 5.8: Add SignalR Subscriptions to Player Dashboard**
+```csharp
+// Atmospheric events
+_hubConnection.On<AtmospherePulsePayload>(GameHubEvents.AtmospherePulseReceived, async payload =>
+{
+    _currentAtmosphere = payload;
+    _atmosphereTimestamp = DateTime.UtcNow;
+    await InvokeAsync(StateHasChanged);
+    // Start fade timer
+    _ = FadeAtmosphereAfterDelay();
+});
+
+_hubConnection.On<NarrativeAnchorPayload>(GameHubEvents.NarrativeAnchorUpdated, async payload =>
+{
+    _narrativeAnchor = payload;
+    await InvokeAsync(StateHasChanged);
+});
+
+_hubConnection.On<GroupInsightPayload>(GameHubEvents.GroupInsightTriggered, async payload =>
+{
+    _groupInsight = payload;
+    await InvokeAsync(StateHasChanged);
+    // Auto-dismiss after delay
+    _ = DismissInsightAfterDelay();
+});
+```
+
+**Step 5.9: Update System Prompt in RiddleLlmService.cs**
+Add atmospheric tools guidance to `<workflow_protocol>`:
+```
+6. **Atmosphere Tools (Player Screens):**
+   - Use `broadcast_atmosphere_pulse()` for transient sensory descriptions (sounds, smells, fleeting visuals)
+   - Use `set_narrative_anchor()` to establish persistent mood/context (danger nearby, safe haven found)
+   - Use `trigger_group_insight()` for collective discoveries or revelations
+   - These tools broadcast ONLY to Players - DM sees tool calls in chat
+```
 
 **Verification:**
-- [ ] RATB updates when LLM sends text
-- [ ] Updates appear within 1 second
-- [ ] DM and players see same text
+- [ ] All 3 SignalR events defined in GameHubEvents.cs
+- [ ] All 3 payload records defined
+- [ ] Notification methods added to INotificationService/NotificationService
+- [ ] All 3 LLM tool definitions added to RiddleLlmService
+- [ ] All 3 tool handlers added to ToolExecutor
+- [ ] Player Dashboard: Read Aloud Text section removed
+- [ ] Player Dashboard: Scene Image section removed
+- [ ] Player Dashboard: Narrative Anchor banner added
+- [ ] Player Dashboard: Atmosphere Pulse display added
+- [ ] Player Dashboard: Group Insight toast added
+- [ ] SignalR subscriptions wired in Player Dashboard
+- [ ] Build passes with `python build.py`
+- [ ] Manual test: LLM calls tools and players receive updates
 
-### Objective 6: Scene Image Synchronization (Day 5)
+### ~~Objective 6: Scene Image Synchronization~~ ❌ CANCELLED
 
 **Step 6.1: Create SceneDisplay.razor**
 ```razor
