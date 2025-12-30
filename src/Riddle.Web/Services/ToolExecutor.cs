@@ -188,6 +188,7 @@ public class ToolExecutor : IToolExecutor
 
     /// <summary>
     /// Tool 2: update_character_state - Updates character HP, conditions, initiative, or status notes
+    /// Supports both party characters (PCs) and combat combatants (enemies/allies).
     /// </summary>
     private async Task<string> ExecuteUpdateCharacterStateAsync(Guid campaignId, string argumentsJson, CancellationToken ct)
     {
@@ -211,9 +212,27 @@ public class ToolExecutor : IToolExecutor
         var characterId = characterIdElement.GetString()!;
         var key = keyElement.GetString()!;
 
+        // First, try to find in party state (PCs)
         var character = await _stateService.GetCharacterAsync(campaignId, characterId, ct);
+        
+        // If not found in party state, check combat combatants (enemies/allies)
         if (character == null)
         {
+            var combatState = await _combatService.GetCombatStateAsync(campaignId, ct);
+            if (combatState?.IsActive == true)
+            {
+                // Match by ID or normalized name
+                var combatant = combatState.TurnOrder.FirstOrDefault(c => 
+                    c.Id == characterId || 
+                    NormalizeName(c.Name) == NormalizeName(characterId));
+                
+                if (combatant != null)
+                {
+                    // Handle combatant update (limited to HP and initiative for combat entities)
+                    return await UpdateCombatantStateAsync(campaignId, combatant, key, valueElement, ct);
+                }
+            }
+            
             return JsonSerializer.Serialize(new { error = $"Character {characterId} not found" });
         }
 
@@ -241,6 +260,40 @@ public class ToolExecutor : IToolExecutor
         
         _logger.LogInformation("Updated character {CharacterId} {Key} to {Value}", characterId, key, valueElement.ToString());
         return JsonSerializer.Serialize(new { success = true, character_id = characterId, key, updated = true });
+    }
+
+    /// <summary>
+    /// Updates combatant state for entities in combat (enemies, allies) that aren't in the party state.
+    /// Supports current_hp and initiative updates via CombatService.
+    /// </summary>
+    private async Task<string> UpdateCombatantStateAsync(Guid campaignId, CombatantInfo combatant, string key, JsonElement valueElement, CancellationToken ct)
+    {
+        switch (key)
+        {
+            case "current_hp":
+                var newHp = valueElement.GetInt32();
+                await _combatService.UpdateCombatantHpAsync(campaignId, combatant.Id, newHp, ct);
+                _logger.LogInformation("Updated combatant {CombatantName} ({CombatantId}) {Key} to {Value}", 
+                    combatant.Name, combatant.Id, key, newHp);
+                return JsonSerializer.Serialize(new { success = true, character_id = combatant.Id, character_name = combatant.Name, key, updated = true });
+                
+            case "initiative":
+                var newInit = valueElement.GetInt32();
+                await _combatService.SetInitiativeAsync(campaignId, combatant.Id, newInit, ct);
+                _logger.LogInformation("Updated combatant {CombatantName} ({CombatantId}) {Key} to {Value}", 
+                    combatant.Name, combatant.Id, key, newInit);
+                return JsonSerializer.Serialize(new { success = true, character_id = combatant.Id, character_name = combatant.Name, key, updated = true });
+                
+            case "conditions":
+            case "status_notes":
+                // Combat combatants don't have these properties - they're combat-only entities
+                return JsonSerializer.Serialize(new { 
+                    error = $"Combat combatants don't support '{key}'. Only 'current_hp' and 'initiative' are supported for enemies/allies in combat." 
+                });
+                
+            default:
+                return JsonSerializer.Serialize(new { error = $"Unknown key: {key}. Valid keys for combatants: current_hp, initiative" });
+        }
     }
 
     /// <summary>

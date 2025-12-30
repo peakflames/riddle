@@ -445,6 +445,9 @@
             .WithAutomaticReconnect()
             .Build();
         
+        // Handle reconnection - reload data from DB to restore state
+        _hubConnection.Reconnected += OnReconnectedAsync;
+        
         // Combat events
         _hubConnection.On<CombatStatePayload>(GameHubEvents.CombatStarted, async payload =>
         {
@@ -534,6 +537,38 @@
         
         // Join campaign group for real-time updates
         await _hubConnection.SendAsync("JoinCampaign", CampaignId, currentUserId, selectedCharacter?.Id.ToString(), false);
+    }
+    
+    private async Task OnReconnectedAsync(string? connectionId)
+    {
+        // Reload campaign from database to restore persisted state (including character claims)
+        campaign = await CampaignService.GetCampaignAsync(CampaignId);
+        if (campaign != null)
+        {
+            // Repopulate player characters list from fresh DB data
+            playerCharacters = campaign.PartyState
+                .Where(c => c.PlayerId == currentUserId && c.Type == "PC")
+                .ToList();
+            
+            // Restore selected character reference from fresh data
+            if (selectedCharacter != null)
+            {
+                selectedCharacter = campaign.PartyState.FirstOrDefault(c => c.Id == selectedCharacter.Id);
+            }
+            else if (playerCharacters.Count == 1)
+            {
+                // Auto-select if only one character
+                selectedCharacter = playerCharacters.First();
+            }
+            
+            // Reload combat state
+            _combatState = await CombatService.GetCombatStateAsync(CampaignId);
+            
+            // Re-join campaign group after reconnection
+            await _hubConnection!.SendAsync("JoinCampaign", CampaignId, currentUserId, selectedCharacter?.Id.ToString(), false);
+        }
+        
+        await InvokeAsync(StateHasChanged);
     }
     
     private async Task OnCombatStateChanged(CombatStatePayload? newState)

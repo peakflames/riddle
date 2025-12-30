@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.1] - 2025-12-30
+
+- Add implementation plan for 4 critical campaign management bugs:
+  - Delete campaign UI missing
+  - LLM not proactive in suggesting next steps
+  - Combat tracker HP not updating via SignalR
+  - Player character claims lost on page refresh
+- Document update_character_state tool requirement to search both
+  PartyState (PCs) and ActiveCombat.Combatants (enemies/allies)
+- Include code example for dual data source lookup pattern
+
 ## [0.14.0] - 2025-12-29
 
 ### Added

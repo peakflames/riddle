@@ -270,6 +270,39 @@ private static string NormalizeName(string name)
 }
 ```
 
+### LLM Tool: update_character_state Must Search Multiple Data Sources
+The `update_character_state` tool must search **both** `PartyState` (PCs) and `ActiveCombat.Combatants` (enemies/allies). Enemy combatants have IDs like `enemy_2a99c5387ee84ddd94f4c887158fa496` that won't exist in `PartyState`.
+
+**Problem:** LLM updates enemy HP during combat → tool returns "Character not found"
+- Enemies are stored in `CampaignInstance.ActiveCombat.Combatants` dictionary
+- PCs are stored in `CampaignInstance.PartyState` list
+
+**Solution:** Check both data sources in `update_character_state`:
+
+```csharp
+// ✅ CORRECT - Check PartyState first, then combat combatants
+var character = await _stateService.GetCharacterAsync(campaignId, characterId, ct);
+
+if (character == null)
+{
+    var combatState = await _combatService.GetCombatStateAsync(campaignId, ct);
+    if (combatState?.IsActive == true)
+    {
+        var combatant = combatState.TurnOrder.FirstOrDefault(c => 
+            c.Id == characterId || 
+            NormalizeName(c.Name) == NormalizeName(characterId));
+        
+        if (combatant != null)
+        {
+            // Route to CombatService for updates (supports HP, initiative)
+            return await UpdateCombatantStateAsync(campaignId, combatant, key, valueElement, ct);
+        }
+    }
+}
+```
+
+**Note:** Combat combatants only support `current_hp` and `initiative` updates (no conditions/status_notes).
+
 ### CRITICAL: Persist State to Database, Not In-Memory
 **Never use `static Dictionary` for state that must survive server restart.** Blazor Server apps restart when the server reboots, code is deployed, or the app pool recycles - all in-memory static state is LOST.
 

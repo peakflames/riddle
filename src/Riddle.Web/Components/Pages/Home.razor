@@ -108,13 +108,17 @@
                                                         @GetLocationDisplay(campaign) • @GetTimeAgo(campaign.LastActivityAt)
                                                     </p>
                                                 </div>
-                                    <div class="flex items-center gap-2">
+                                                <div class="flex items-center gap-2">
                                                     @if (campaign.PartyState.Any())
                                                     {
                                                         <Badge Color="BadgeColor.Indigo">@campaign.PartyState.Count PCs</Badge>
                                                     }
                                                     <Button Href="@($"/dm/{campaign.Id}")" Color="ButtonColor.Primary" Size="ButtonSize.Small">
                                                         Play
+                                                    </Button>
+                                                    <Button Color="ButtonColor.Red" Size="ButtonSize.Small" Outline="true"
+                                                            @onclick="() => ShowDeleteConfirmation(campaign)">
+                                                        <TrashBinIcon Class="w-4 h-4" />
                                                     </Button>
                                                 </div>
                                             </div>
@@ -185,6 +189,49 @@
     </NotAuthorized>
 </AuthorizeView>
 
+@* Delete Confirmation Modal *@
+<Modal @bind-Open="_showDeleteModal" Size="ModalSize.Small">
+    <ModalHeader>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+            Delete Campaign
+        </h3>
+    </ModalHeader>
+    <ModalBody>
+        <div class="text-center">
+            <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-900">
+                <ExclamationCircleIcon Class="h-6 w-6 text-red-600 dark:text-red-400" />
+            </div>
+            <p class="mb-2 text-gray-500 dark:text-gray-400">
+                Are you sure you want to delete
+            </p>
+            <p class="mb-4 font-semibold text-gray-900 dark:text-white">
+                @_campaignToDelete?.Name
+            </p>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                This action cannot be undone. All campaign data, including characters and combat history, will be permanently deleted.
+            </p>
+        </div>
+    </ModalBody>
+    <ModalFooter>
+        <div class="flex justify-center gap-4">
+            <Button Color="ButtonColor.Light" @onclick="CancelDelete">
+                Cancel
+            </Button>
+            <Button Color="ButtonColor.Red" @onclick="ConfirmDelete" Disabled="_isDeleting">
+                @if (_isDeleting)
+                {
+                    <Spinner Size="SpinnerSize.Sm" class="mr-2" />
+                    <span>Deleting...</span>
+                }
+                else
+                {
+                    <span>Yes, delete</span>
+                }
+            </Button>
+        </div>
+    </ModalFooter>
+</Modal>
+
 @code {
     private List<CampaignInstance> campaigns = new();
     private bool isLoading = true;
@@ -193,6 +240,11 @@
     private string lastActivityText = "No activity";
     private string lastCampaignName = "";
     private string? currentUserId;
+    
+    // Delete confirmation modal state
+    private bool _showDeleteModal = false;
+    private CampaignInstance? _campaignToDelete;
+    private bool _isDeleting = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -254,5 +306,37 @@
             { TotalDays: < 30 } => $"{(int)(timeSpan.TotalDays / 7)}w ago",
             _ => $"{(int)(timeSpan.TotalDays / 30)}mo ago"
         };
+    }
+    
+    private void ShowDeleteConfirmation(CampaignInstance campaign)
+    {
+        _campaignToDelete = campaign;
+        _showDeleteModal = true;
+    }
+    
+    private void CancelDelete()
+    {
+        _showDeleteModal = false;
+        _campaignToDelete = null;
+    }
+    
+    private async Task ConfirmDelete()
+    {
+        if (_campaignToDelete == null) return;
+        
+        _isDeleting = true;
+        try
+        {
+            await CampaignService.DeleteCampaignAsync(_campaignToDelete.Id);
+            _showDeleteModal = false;
+            _campaignToDelete = null;
+            
+            // Refresh campaign list
+            await LoadCampaignsAsync();
+        }
+        finally
+        {
+            _isDeleting = false;
+        }
     }
 }

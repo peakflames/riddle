@@ -131,6 +131,12 @@
                     Logger.LogWarning("[CombatTracker] CombatChanged callback invoked successfully");
                 });
             });
+            
+            // Subscribe to character state updates (HP changes during combat)
+            _hubConnection.On<CharacterStatePayload>(GameHubEvents.CharacterStateUpdated, async payload =>
+            {
+                await HandleCharacterStateUpdateAsync(payload);
+            });
 
             await _hubConnection.StartAsync();
             
@@ -146,6 +152,52 @@
         }
     }
 
+    private async Task HandleCharacterStateUpdateAsync(CharacterStatePayload payload)
+    {
+        // Only handle HP updates when combat is active
+        if (Combat?.IsActive != true || Combat.TurnOrder == null)
+            return;
+        
+        // Check if this is an HP update
+        if (!string.Equals(payload.Key, "CurrentHp", StringComparison.OrdinalIgnoreCase))
+            return;
+        
+        // Find the combatant in the turn order by character ID
+        var combatantIndex = Combat.TurnOrder.FindIndex(c => 
+            c.Id == payload.CharacterId);
+        
+        if (combatantIndex < 0)
+        {
+            Logger.LogDebug("[CombatTracker] CharacterStateUpdated: Character {CharacterId} not in combat turn order", payload.CharacterId);
+            return;
+        }
+        
+        // Parse the new HP value
+        if (!int.TryParse(payload.Value?.ToString(), out var newHp))
+        {
+            Logger.LogWarning("[CombatTracker] CharacterStateUpdated: Could not parse HP value '{Value}' for {CharacterId}", payload.Value, payload.CharacterId);
+            return;
+        }
+        
+        Logger.LogDebug("[CombatTracker] CharacterStateUpdated: Updating {CharacterName} HP to {NewHp}", 
+            Combat.TurnOrder[combatantIndex].Name, newHp);
+        
+        // Create a new turn order list with the updated combatant
+        var updatedTurnOrder = Combat.TurnOrder.Select((c, i) => 
+            i == combatantIndex 
+                ? c with { CurrentHp = newHp } 
+                : c
+        ).ToList();
+        
+        // Create updated combat state and notify parent
+        var updatedCombat = Combat with { TurnOrder = updatedTurnOrder };
+        
+        await InvokeAsync(async () =>
+        {
+            await CombatChanged.InvokeAsync(updatedCombat);
+        });
+    }
+    
     public async ValueTask DisposeAsync()
     {
         if (_hubConnection != null)
