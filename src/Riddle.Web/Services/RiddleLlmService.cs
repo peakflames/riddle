@@ -357,6 +357,7 @@ public class RiddleLlmService : IRiddleLlmService
                - Use `set_narrative_anchor()` to establish persistent mood/context (danger nearby, safe haven found) - stays until changed
                - Use `trigger_group_insight()` for collective discoveries or revelations (party notices a clue)
                - These tools broadcast ONLY to Players - DM sees tool calls in the Event Log
+               - USE THESE AUTOMATICALLY and generously. This make the game more fun!
             </workflow_protocol>
 
             <current_game_state>
