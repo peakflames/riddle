@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2025-12-29
+
+### Added
+- **Phase 4: Real-Time Game Hub (Objective 5) - Atmospheric LLM Tools**
+  - Three new LLM tools for immersive player experience:
+    - `broadcast_atmosphere_pulse` - Send fleeting sensory text to player screens
+      - Parameters: `text` (required), `intensity` (low/medium/high), `sensory_type` (sound/smell/visual/feeling)
+      - Auto-dismisses after 10 seconds
+      - Visual styling varies by intensity (red pulse for high, amber for medium, purple for low)
+    - `set_narrative_anchor` - Update persistent mood banner on player screens
+      - Parameters: `short_text` (required), `mood_category` (danger/mystery/safety/urgency)
+      - Persists until explicitly changed
+      - Color-coded by mood (red for danger, purple for mystery, green for safety, amber for urgency)
+    - `trigger_group_insight` - Flash discovery notification on player screens
+      - Parameters: `text` (required), `relevant_skill` (required), `highlight_effect` (optional)
+      - Auto-dismisses after 8 seconds
+      - Shows skill badge and optional pulse animation
+  - Three new SignalR events for atmospheric updates (player-only):
+    - `AtmospherePulseReceived`, `NarrativeAnchorUpdated`, `GroupInsightTriggered`
+  - NotificationService methods for atmospheric broadcasting
+  - Player Dashboard atmospheric UI components:
+    - Narrative Anchor banner at top of page
+    - Atmosphere Pulse panel in left column
+    - Group Insight flash card with skill badge
+  - System prompt guidance for using atmospheric tools during gameplay
+
+### Changed
+- Removed Scene Image Card from Player Dashboard (DM-only content)
+- Removed Read-Aloud Text Card from Player Dashboard (atmospheric tools provide this now)
+
+### Fixed
+- Narrative Anchor not updating on subsequent uses (Blazor state detection issue)
+
+### Technical
+- `AtmospherePulsePayload`, `NarrativeAnchorPayload`, `GroupInsightPayload` records in GameHubEvents
+- CancellationTokenSource pattern for auto-dismiss timers
+- Created new object reference on update to trigger Blazor re-render
+
 ## [0.13.0] - 2025-12-29
 
 ### Added
@@ -458,7 +496,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flowbite Blazor component library reference documentation
 - Incremental phase implementation workflow for development
 
-[Unreleased]: https://github.com/peakflames/riddle/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/peakflames/riddle/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/peakflames/riddle/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/peakflames/riddle/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/peakflames/riddle/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/peakflames/riddle/compare/v0.10.0...v0.11.0
