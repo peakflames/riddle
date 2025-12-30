@@ -1,0 +1,85 @@
+@page "/dm/templates"
+@rendermode InteractiveServer
+@using Riddle.Web.Models
+@using Riddle.Web.Services
+@using Riddle.Web.Components.Characters
+@inject ICharacterTemplateService TemplateService
+
+<PageTitle>Character Templates - Riddle</PageTitle>
+
+<div class="p-4 sm:p-6">
+    <div class="mb-6">
+        <Heading Tag="HeadingTag.H1" Size="TextSize.XXXL">Character Templates</Heading>
+        <Paragraph CustomColor="text-gray-500 dark:text-gray-400">
+            Browse pre-made character templates to use in your campaigns.
+        </Paragraph>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="flex items-center justify-center p-8">
+            <Spinner Size="SpinnerSize.Xl" />
+        </div>
+    }
+    else if (_templates.Count == 0)
+    {
+        <Alert Color="AlertColor.Info" TextEmphasis="No templates found." 
+               Text="Character templates will appear here once they are added to the system." />
+    }
+    else
+    {
+        <Table Striped="true" Hoverable="true">
+            <TableHead>
+                <TableRow>
+                    <TableHeadCell>Name</TableHeadCell>
+                    <TableHeadCell>Race</TableHeadCell>
+                    <TableHeadCell>Class</TableHeadCell>
+                    <TableHeadCell>Level</TableHeadCell>
+                    <TableHeadCell>
+                        <span class="sr-only">Actions</span>
+                    </TableHeadCell>
+                </TableRow>
+            </TableHead>
+            <TableBody class="divide-y">
+                @foreach (var template in _templates)
+                {
+                    <TableRow class="bg-white dark:border-gray-700 dark:bg-gray-800">
+                        <TableCell class="whitespace-nowrap font-medium text-gray-900 dark:text-white">
+                            @template.Name
+                        </TableCell>
+                        <TableCell>@(template.Race ?? "—")</TableCell>
+                        <TableCell>@(template.Class ?? "—")</TableCell>
+                        <TableCell>@template.Level</TableCell>
+                        <TableCell>
+                            <button @onclick="@(() => ViewTemplate(template))" 
+                                    class="font-medium text-primary-600 hover:underline dark:text-primary-500">
+                                View
+                            </button>
+                        </TableCell>
+                    </TableRow>
+                }
+            </TableBody>
+        </Table>
+    }
+</div>
+
+<CharacterViewModal @bind-Show="_showModal" Character="@_selectedCharacter" />
+
+@code {
+    private List<CharacterTemplate> _templates = new();
+    private bool _loading = true;
+    private bool _showModal;
+    private Character? _selectedCharacter;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _templates = await TemplateService.GetSystemTemplatesAsync();
+        _loading = false;
+    }
+
+    private void ViewTemplate(CharacterTemplate template)
+    {
+        _selectedCharacter = template.Character;
+        _showModal = true;
+    }
+}

@@ -1,0 +1,200 @@
+@using Riddle.Web.Models
+
+<Modal Show="@Show" ShowChanged="@ShowChanged" Size="ModalSize.FourExtraLarge">
+    <ModalHeader>
+        <h3>@(Character?.Name ?? "Character Details")</h3>
+    </ModalHeader>
+    <ModalBody>
+        @if (Character != null)
+        {
+            <Tabs Variant="TabVariant.Underline">
+                <TabListContent>
+                    <Tab Index="0">Core</Tab>
+                    <Tab Index="1">Combat</Tab>
+                    <Tab Index="2">Proficiencies</Tab>
+                    <Tab Index="3">Spells</Tab>
+                    <Tab Index="4">Equipment</Tab>
+                    <Tab Index="5">Roleplay</Tab>
+                </TabListContent>
+                <TabPanelsContent>
+                    <!-- Core Tab -->
+                    <TabPanel Index="0">
+                        <div class="space-y-4 py-4">
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                @FieldDisplay("Name", Character.Name)
+                                @FieldDisplay("Type", Character.Type)
+                                @FieldDisplay("Class", Character.Class)
+                                @FieldDisplay("Race", Character.Race)
+                            </div>
+                            <div class="grid grid-cols-3 gap-4">
+                                @FieldDisplay("Level", Character.Level.ToString())
+                                @FieldDisplay("Background", Character.Background)
+                                @FieldDisplay("Alignment", Character.Alignment)
+                            </div>
+                            <h4 class="font-semibold text-gray-900 dark:text-white">Ability Scores</h4>
+                            <div class="grid grid-cols-6 gap-3">
+                                @AbilityBox("STR", Character.Strength)
+                                @AbilityBox("DEX", Character.Dexterity)
+                                @AbilityBox("CON", Character.Constitution)
+                                @AbilityBox("INT", Character.Intelligence)
+                                @AbilityBox("WIS", Character.Wisdom)
+                                @AbilityBox("CHA", Character.Charisma)
+                            </div>
+                        </div>
+                    </TabPanel>
+                    
+                    <!-- Combat Tab -->
+                    <TabPanel Index="1">
+                        <div class="space-y-4 py-4">
+                            <div class="grid grid-cols-4 gap-4">
+                                @FieldDisplay("Max HP", Character.MaxHp.ToString())
+                                @FieldDisplay("Current HP", Character.CurrentHp.ToString())
+                                @FieldDisplay("Temp HP", Character.TemporaryHp.ToString())
+                                @FieldDisplay("AC", Character.ArmorClass.ToString())
+                            </div>
+                            <div class="grid grid-cols-3 gap-4">
+                                @FieldDisplay("Initiative", FormatMod(Character.Initiative))
+                                @FieldDisplay("Speed", Character.Speed)
+                                @FieldDisplay("Passive Perception", Character.PassivePerception.ToString())
+                            </div>
+                            @if (Character.Conditions.Any())
+                            {
+                                @BadgeList("Conditions", Character.Conditions, BadgeColor.Warning)
+                            }
+                        </div>
+                    </TabPanel>
+                    
+                    <!-- Proficiencies Tab -->
+                    <TabPanel Index="2">
+                        <div class="space-y-4 py-4">
+                            @BadgeList("Saving Throw Proficiencies", Character.SavingThrowProficiencies)
+                            @BadgeList("Skill Proficiencies", Character.SkillProficiencies)
+                            @BadgeList("Tool Proficiencies", Character.ToolProficiencies)
+                            @BadgeList("Languages", Character.Languages)
+                        </div>
+                    </TabPanel>
+                    
+                    <!-- Spells Tab -->
+                    <TabPanel Index="3">
+                        <div class="space-y-4 py-4">
+                            @if (Character.IsSpellcaster)
+                            {
+                                <div class="grid grid-cols-3 gap-4">
+                                    @FieldDisplay("Spellcasting Ability", Character.SpellcastingAbility)
+                                    @FieldDisplay("Spell Save DC", Character.SpellSaveDC?.ToString())
+                                    @FieldDisplay("Spell Attack Bonus", FormatMod(Character.SpellAttackBonus ?? 0))
+                                </div>
+                                @if (Character.SpellSlots.Any(s => s.Value > 0))
+                                {
+                                    <h4 class="font-semibold text-gray-900 dark:text-white">Spell Slots</h4>
+                                    <div class="flex flex-wrap gap-4">
+                                        @for (int i = 1; i <= 9; i++)
+                                        {
+                                            if (Character.SpellSlots.TryGetValue(i, out var slots) && slots > 0)
+                                            {
+                                                <div class="text-center">
+                                                    <span class="text-xs font-medium text-gray-500">Level @i</span>
+                                                    <div class="text-lg font-bold text-gray-900 dark:text-white">@slots</div>
+                                                </div>
+                                            }
+                                        }
+                                    </div>
+                                }
+                                @BadgeList("Cantrips", Character.Cantrips)
+                                @BadgeList("Spells Known", Character.SpellsKnown)
+                            }
+                            else
+                            {
+                                <p class="text-gray-500 dark:text-gray-400">This character is not a spellcaster.</p>
+                            }
+                        </div>
+                    </TabPanel>
+                    
+                    <!-- Equipment Tab -->
+                    <TabPanel Index="4">
+                        <div class="space-y-4 py-4">
+                            <h4 class="font-semibold text-gray-900 dark:text-white">Currency</h4>
+                            <div class="flex flex-wrap gap-4">
+                                @if (Character.PlatinumPieces > 0) { <Badge Color="BadgeColor.Gray">@Character.PlatinumPieces PP</Badge> }
+                                @if (Character.GoldPieces > 0) { <Badge Color="BadgeColor.Warning">@Character.GoldPieces GP</Badge> }
+                                @if (Character.SilverPieces > 0) { <Badge Color="BadgeColor.Info">@Character.SilverPieces SP</Badge> }
+                                @if (Character.CopperPieces > 0) { <Badge Color="BadgeColor.Pink">@Character.CopperPieces CP</Badge> }
+                                @if (Character.PlatinumPieces == 0 && Character.GoldPieces == 0 && 
+                                     Character.SilverPieces == 0 && Character.CopperPieces == 0)
+                                {
+                                    <span class="text-gray-500">No currency</span>
+                                }
+                            </div>
+                            @BadgeList("Weapons", Character.Weapons)
+                            @BadgeList("Equipment", Character.Equipment)
+                        </div>
+                    </TabPanel>
+                    
+                    <!-- Roleplay Tab -->
+                    <TabPanel Index="5">
+                        <div class="space-y-4 py-4">
+                            @TextBlock("Personality Traits", Character.PersonalityTraits)
+                            @TextBlock("Ideals", Character.Ideals)
+                            @TextBlock("Bonds", Character.Bonds)
+                            @TextBlock("Flaws", Character.Flaws)
+                            @TextBlock("Backstory", Character.Backstory)
+                        </div>
+                    </TabPanel>
+                </TabPanelsContent>
+            </Tabs>
+        }
+    </ModalBody>
+    <ModalFooter>
+        <div class="flex justify-end w-full">
+            <Button Color="ButtonColor.Gray" OnClick="@(() => ShowChanged.InvokeAsync(false))">Close</Button>
+        </div>
+    </ModalFooter>
+</Modal>
+
+@code {
+    [Parameter] public bool Show { get; set; }
+    [Parameter] public EventCallback<bool> ShowChanged { get; set; }
+    [Parameter] public Character? Character { get; set; }
+
+    private static string FormatMod(int value) => value >= 0 ? $"+{value}" : value.ToString();
+
+    private RenderFragment FieldDisplay(string label, string? value) => @<div>
+        <span class="text-sm font-medium text-gray-500 dark:text-gray-400">@label</span>
+        <p class="text-gray-900 dark:text-white">@(string.IsNullOrEmpty(value) ? "—" : value)</p>
+    </div>;
+
+    private RenderFragment AbilityBox(string label, int value) => @<div class="text-center p-2 bg-gray-50 dark:bg-gray-700 rounded">
+        <span class="text-xs font-medium text-gray-500 dark:text-gray-400">@label</span>
+        <div class="text-lg font-bold text-gray-900 dark:text-white">@value</div>
+        <span class="text-xs text-gray-500">(@FormatMod((value - 10) / 2))</span>
+    </div>;
+
+    private RenderFragment BadgeList(string label, List<string> items, BadgeColor color = BadgeColor.Gray) => @<div>
+        <span class="text-sm font-medium text-gray-900 dark:text-white">@label</span>
+        @if (items.Any())
+        {
+            <div class="flex flex-wrap gap-2 mt-1">
+                @foreach (var item in items)
+                {
+                    <Badge Color="@color">@item</Badge>
+                }
+            </div>
+        }
+        else
+        {
+            <p class="text-gray-500 dark:text-gray-400 text-sm">None</p>
+        }
+    </div>;
+
+    private RenderFragment TextBlock(string label, string? value) => @<div>
+        <span class="text-sm font-medium text-gray-900 dark:text-white">@label</span>
+        @if (!string.IsNullOrWhiteSpace(value))
+        {
+            <p class="mt-1 text-gray-700 dark:text-gray-300 text-sm whitespace-pre-wrap">@value</p>
+        }
+        else
+        {
+            <p class="text-gray-500 dark:text-gray-400 text-sm">Not specified</p>
+        }
+    </div>;
+}
