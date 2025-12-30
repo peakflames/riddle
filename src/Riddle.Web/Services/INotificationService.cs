@@ -63,6 +63,11 @@ public interface INotificationService
     /// </summary>
     Task NotifyPlayerRollAsync(Guid campaignId, string characterId, string checkType, int result, string outcome, CancellationToken ct = default);
     
+    /// <summary>
+    /// Notify when a player rolls dice (using RollResult object)
+    /// </summary>
+    Task NotifyPlayerRollAsync(Guid campaignId, Models.RollResult roll, CancellationToken ct = default);
+    
     // === Combat Events ===
     
     /// <summary>

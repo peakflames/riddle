@@ -127,3 +127,16 @@ public record GroupInsightPayload(
     string RelevantSkill,  // "Perception", "History", "Nature", etc. - for UI labeling
     bool HighlightEffect   // If true, text shimmers/glows to indicate critical clue
 );
+
+/// <summary>
+/// Payload for player roll events (dice roll logged via SignalR)
+/// </summary>
+public record RollResultPayload(
+    string Id,
+    string CharacterId,
+    string CharacterName,
+    string CheckType,
+    int Result,
+    string Outcome,
+    DateTime Timestamp
+);

@@ -147,6 +147,27 @@ public class NotificationService : INotificationService
             .Group(AllGroup(campaignId))
             .SendAsync(GameHubEvents.PlayerRollLogged, new { characterId, checkType, result, outcome }, ct);
     }
+    
+    public async Task NotifyPlayerRollAsync(Guid campaignId, Models.RollResult roll, CancellationToken ct = default)
+    {
+        _logger.LogInformation(
+            "Broadcasting PlayerRoll: {CharacterName} rolled {CheckType}: {Result} ({Outcome})",
+            roll.CharacterName, roll.CheckType, roll.Result, roll.Outcome);
+
+        // Notify all participants of dice roll with full roll details
+        await _hubContext.Clients
+            .Group(AllGroup(campaignId))
+            .SendAsync(GameHubEvents.PlayerRollLogged, new 
+            { 
+                id = roll.Id,
+                characterId = roll.CharacterId,
+                characterName = roll.CharacterName,
+                checkType = roll.CheckType, 
+                result = roll.Result, 
+                outcome = roll.Outcome,
+                timestamp = roll.Timestamp
+            }, ct);
+    }
 
     // === Combat Events ===
 

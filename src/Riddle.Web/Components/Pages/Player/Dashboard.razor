@@ -165,11 +165,11 @@
                 </div>
             }
             
-            @* Main Content Grid - 3 columns on xl, 2 on lg, 1 on mobile *@
+            @* Main Content Grid - 3/4/5 ratio at xl, 2 on lg, 1 on mobile *@
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
                 @* Left Column: Game State Panels *@
-                @* lg: 7/12, xl: 5/12 *@
-                <div class="lg:col-span-7 xl:col-span-5 space-y-4 order-1">
+                @* lg: 7/12, xl: 3/12 (narrower for choices/rolls) *@
+                <div class="lg:col-span-7 xl:col-span-3 space-y-4 order-1">
                     @* Atmosphere Pulse - Fleeting sensory text *@
                     @if (_atmospherePulse != null)
                     {
@@ -234,7 +234,7 @@
                         </Card>
                     }
                     
-                    @* Your Dice Rolls *@
+                    @* Your Dice Rolls - Show only the player's own rolls *@
                     @{
                         var myRolls = campaign?.RecentRolls?.Where(r => 
                             string.Equals(r.CharacterName, selectedCharacter?.Name, StringComparison.OrdinalIgnoreCase)).ToList() ?? [];
@@ -269,8 +269,8 @@
                 </div>
                 
                 @* Middle Column: Combat Tracker + Party Members *@
-                @* xl: 4/12, lg: full width on smaller screens *@
-                <div class="xl:col-span-4 lg:col-span-7 xl:order-2 order-3 lg:order-1 space-y-4">
+                @* xl: 4/12, lg: 5/12 on smaller screens *@
+                <div class="xl:col-span-4 lg:col-span-5 xl:order-2 order-3 space-y-4">
                     <div class="xl:sticky xl:top-4 space-y-4">
                         @* Combat Tracker - Only when combat is active *@
                         @if (_combatState?.IsActive == true)
@@ -329,8 +329,8 @@
                 </div>
                 
                 @* Right Column: Character Card *@
-                @* xl: 3/12, lg: 5/12 *@
-                <div class="lg:col-span-5 xl:col-span-3 order-2 xl:order-3">
+                @* xl: 5/12 (wider for character sheet), lg: 7/12 *@
+                <div class="lg:col-span-7 xl:col-span-5 order-2 xl:order-3">
                     <div class="xl:sticky xl:top-4">
                         <PlayerCharacterCard Character="selectedCharacter" />
                     </div>
@@ -535,6 +535,39 @@
             
             // Auto-dismiss after duration
             _ = DismissGroupInsightAfterDelayAsync(_groupInsightCts.Token);
+        });
+        
+        // Player roll logged - update dice rolls in real-time (SignalR broadcast from ToolExecutor)
+        _hubConnection.On<RollResultPayload>(GameHubEvents.PlayerRollLogged, async payload =>
+        {
+            if (campaign == null) return;
+            
+            // Parse Id from string to Guid (fallback to new Guid if parsing fails)
+            var rollId = Guid.TryParse(payload.Id, out var parsedId) ? parsedId : Guid.NewGuid();
+            
+            // Convert payload to RollResult and add to front of list (dedupe by id)
+            var newRoll = new RollResult
+            {
+                Id = rollId,
+                CharacterId = payload.CharacterId,
+                CharacterName = payload.CharacterName,
+                CheckType = payload.CheckType,
+                Result = payload.Result,
+                Outcome = payload.Outcome,
+                Timestamp = payload.Timestamp
+            };
+            
+            var rolls = campaign.RecentRolls;
+            if (!rolls.Any(r => r.Id == newRoll.Id))
+            {
+                rolls.Insert(0, newRoll);
+                if (rolls.Count > MaxRecentRolls)
+                {
+                    campaign.RecentRolls = rolls.Take(MaxRecentRolls).ToList();
+                }
+            }
+            
+            await InvokeAsync(StateHasChanged);
         });
         
         await _hubConnection.StartAsync();

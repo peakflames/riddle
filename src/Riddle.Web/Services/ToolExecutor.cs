@@ -471,8 +471,11 @@ public class ToolExecutor : IToolExecutor
             Outcome = outcome
         };
         
-        // Store in recent rolls (triggers real-time notification)
+        // Store in recent rolls (triggers in-process notification for same circuit)
         await _stateService.AddRollResultAsync(campaignId, rollResult, ct);
+        
+        // Broadcast via SignalR to all connected clients (DM + Players across circuits)
+        await _notificationService.NotifyPlayerRollAsync(campaignId, rollResult, ct);
         
         // Also log as a narrative entry for history
         var logEntry = new LogEntry

@@ -148,14 +148,14 @@
                                             @if (campaign.ActivePlayerChoices?.Any() == true)
                                             {
                                                 @* Per-Choice Breakdown with Player Names *@
-                                                <div class="space-y-2">
+                                                <div class="space-y-2 text-left">
                                                     @foreach (var choice in campaign.ActivePlayerChoices)
                                                     {
                                                         var playersWhoChose = GetPlayersWhoChose(choice);
                                                         var hasResponses = playersWhoChose.Any();
-                                                        <div class="flex items-start gap-2 py-1.5">
+                                                        <div class="flex items-start justify-start gap-2 py-1.5">
                                                             @* Bullet indicator - filled if someone chose this *@
-                                                            <span class="mt-0.5 flex-shrink-0">
+                                                            <span class="-mt-1">
                                                                 @if (hasResponses)
                                                                 {
                                                                     <span class="inline-block w-2 h-2 rounded-full bg-primary-500"></span>
