@@ -110,6 +110,32 @@
     {
         @* Main Dashboard View *@
         <div class="px-4 py-4 lg:px-6">
+            
+            
+            @* Compact Header with Connection Status *@
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                <div>
+                    <Heading Tag="HeadingTag.H1" Size="TextSize.XL" class="!mb-0">@campaign?.Name</Heading>
+                    <Paragraph Size="TextSize.SM" class="!text-gray-400 !mt-0">
+                        @campaign?.CampaignModule • Playing as <Span Weight="FontWeight.Medium" CustomColor="text-purple-400">@selectedCharacter?.Name</Span>
+                    </Paragraph>
+                </div>
+                <div class="flex items-center gap-2">
+                    <Badge Color="BadgeColor.Success" class="flex items-center gap-1.5">
+                        <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                        Connected
+                    </Badge>
+                    @if (playerCharacters.Count > 1)
+                    {
+                        <Button Color="ButtonColor.Light" Size="ButtonSize.Small" 
+                                @onclick="ClearCharacterSelection">
+                            <RefreshIcon class="w-4 h-4 mr-1" />
+                            Switch
+                        </Button>
+                    }
+                </div>
+            </div>
+
             @* Narrative Anchor Banner - Persistent mood indicator *@
             @if (_narrativeAnchor != null)
             {
@@ -137,30 +163,6 @@
                     </div>
                 </div>
             }
-            
-            @* Compact Header with Connection Status *@
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-                <div>
-                    <Heading Tag="HeadingTag.H1" Size="TextSize.XL" class="!mb-0">@campaign?.Name</Heading>
-                    <Paragraph Size="TextSize.SM" class="!text-gray-400 !mt-0">
-                        @campaign?.CampaignModule • Playing as <Span Weight="FontWeight.Medium" CustomColor="text-purple-400">@selectedCharacter?.Name</Span>
-                    </Paragraph>
-                </div>
-                <div class="flex items-center gap-2">
-                    <Badge Color="BadgeColor.Success" class="flex items-center gap-1.5">
-                        <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                        Connected
-                    </Badge>
-                    @if (playerCharacters.Count > 1)
-                    {
-                        <Button Color="ButtonColor.Light" Size="ButtonSize.Small" 
-                                @onclick="ClearCharacterSelection">
-                            <RefreshIcon class="w-4 h-4 mr-1" />
-                            Switch
-                        </Button>
-                    }
-                </div>
-            </div>
             
             @* Main Content Grid - 3 columns on xl, 2 on lg, 1 on mobile *@
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
