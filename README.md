@@ -27,6 +27,9 @@ cd riddle
 # Build
 python build.py
 
+# Import sample character templates
+python build.py db import-templates
+
 # Run
 python build.py run
 ```
@@ -44,9 +47,12 @@ Open [http://localhost:5000](http://localhost:5000) in your browser.
    - Enter your campaign name (e.g., "Lost Mine of Phandelver")
    - Optionally add a description
    - Click "Create Campaign"
-3. **Share Invite Code** - Once created, your campaign displays a unique **8-character invite code** (e.g., `ABC12DEF`)
+3. **Add Characters** - Import pre-made characters or create new ones
+   - Use the character picker to browse system templates (Gandalf, Katniss, etc.)
+   - Or manually create characters with the form
+4. **Share Invite Code** - Your campaign displays a unique **8-character invite code** (e.g., `ABC12DEF`)
    - Share this code with your players via Discord, text, email, etc.
-   - Players use this code to join your campaign
+   - Players use this code to join and claim characters
 
 #### Running a Session
 

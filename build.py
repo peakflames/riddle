@@ -950,6 +950,120 @@ def clear_rolls(campaign_id: Optional[str] = None) -> None:
         print(f"Error: {e}")
 
 
+def show_templates() -> None:
+    """Show all character templates in the CharacterTemplates table"""
+    query_db("""
+        SELECT 
+            Name,
+            Race,
+            Class,
+            Level,
+            CASE WHEN OwnerId IS NULL THEN 'System' ELSE 'User' END as Type,
+            SourceFile,
+            datetime(CreatedAt) as Created,
+            datetime(UpdatedAt) as Updated
+        FROM CharacterTemplates
+        ORDER BY 
+            CASE WHEN OwnerId IS NULL THEN 0 ELSE 1 END,
+            Name
+        LIMIT 50;
+    """)
+
+
+def import_templates() -> None:
+    """Import all JSON files from SampleCharacters directory into CharacterTemplates table"""
+    import json
+    from pathlib import Path
+    
+    if not DB_PATH.exists():
+        print(f"Database not found: {DB_PATH}")
+        print("Make sure the application has been run at least once to create the database.")
+        return
+    
+    # Find SampleCharacters directory
+    sample_chars_path = Path("src/Riddle.Web/Data/SampleCharacters")
+    
+    if not sample_chars_path.exists():
+        print(f"SampleCharacters directory not found: {sample_chars_path}")
+        return
+    
+    json_files = list(sample_chars_path.glob("*.json"))
+    print(f"Found {len(json_files)} JSON files in {sample_chars_path}")
+    
+    if not json_files:
+        return
+    
+    try:
+        conn = sqlite3.connect(str(DB_PATH))
+        cursor = conn.cursor()
+        
+        imported_count = 0
+        updated_count = 0
+        
+        for filepath in json_files:
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    json_data = f.read()
+                
+                character = json.loads(json_data)
+                name = character.get('Name')
+                
+                if not name:
+                    print(f"  ✗ Skipping {filepath.name}: No 'Name' field")
+                    continue
+                
+                # Extract shadow columns for indexing
+                race = character.get('Race')
+                char_class = character.get('Class')
+                level = character.get('Level', 1)
+                source_file = filepath.name
+                
+                # Check if template already exists (by name, system template)
+                cursor.execute(
+                    "SELECT Id FROM CharacterTemplates WHERE Name = ? AND OwnerId IS NULL",
+                    (name,)
+                )
+                existing = cursor.fetchone()
+                
+                now = time.strftime('%Y-%m-%d %H:%M:%S')
+                
+                if existing:
+                    # Update existing
+                    cursor.execute("""
+                        UPDATE CharacterTemplates 
+                        SET CharacterJson = ?, Race = ?, Class = ?, Level = ?, 
+                            SourceFile = ?, UpdatedAt = ?
+                        WHERE Id = ?
+                    """, (json_data, race, char_class, level, source_file, now, existing[0]))
+                    print(f"  ↺ Updated: {name}")
+                    updated_count += 1
+                else:
+                    # Insert new
+                    import uuid
+                    template_id = str(uuid.uuid4())
+                    cursor.execute("""
+                        INSERT INTO CharacterTemplates 
+                        (Id, Name, OwnerId, SourceFile, CharacterJson, Race, Class, Level, CreatedAt, UpdatedAt)
+                        VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)
+                    """, (template_id, name, source_file, json_data, race, char_class, level, now, now))
+                    print(f"  ✓ Imported: {name}")
+                    imported_count += 1
+            
+            except json.JSONDecodeError as e:
+                print(f"  ✗ Failed to parse {filepath.name}: {e}")
+            except Exception as e:
+                print(f"  ✗ Error importing {filepath.name}: {e}")
+        
+        conn.commit()
+        conn.close()
+        
+        print("-" * 40)
+        print(f"Summary: {imported_count} new, {updated_count} updated")
+    
+    except Exception as e:
+        print(f"Database error: {e}")
+
+
 def show_character_template() -> None:
     """Print a JSON template for creating characters"""
     import json
@@ -1240,6 +1354,12 @@ def main() -> None:
             # Clear recent rolls: db clear-rolls [campaign_id]
             campaign_id = sys.argv[3] if len(sys.argv) > 3 else None
             clear_rolls(campaign_id)
+        elif subcommand == "templates":
+            # Show character templates
+            show_templates()
+        elif subcommand == "import-templates":
+            # Import JSON files from SampleCharacters into CharacterTemplates
+            import_templates()
         else:
             # Treat as SQL query
             query_db(subcommand)

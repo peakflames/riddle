@@ -92,15 +92,20 @@ This structure allows Riddle to:
 
 To support a system where the "Brain" (LLM) is stateless and the "Body" (Software) must maintain continuity, we require specialized datastores:
 
-1.  **The GameState Store (The "Single Source of Truth")**
+1.  **Character Templates (The "Character Library")**
+    *   **Purpose:** A reusable library of pre-made characters that DMs can import into campaigns. Separates template storage from campaign-specific state.
+    *   **Contents:** System templates (pre-made characters like Gandalf, Katniss Everdeen) and user-created templates. Each template stores the full Character model as JSON, plus indexed metadata (race, class, level) for filtering.
+    *   **Workflow:** DM browses templates → Selects character → Template copied to campaign's PartyState with fresh ID → Player claims character via invite link.
+
+2.  **The GameState Store (The "Single Source of Truth")**
     *   **Purpose:** Since LLMs operate within finite context windows and often reset, we cannot rely on them to remember current Health Points (HP), player locations, or active inventory. This store persists the absolute current reality of the Campaign Instance.
     *   **Contents:** Character stats, current HP, active conditions (Poisoned, Prone), current location ID, and the turn order tracker.
 
-2.  **The Narrative Log (The "Compressed Memory")**
+3.  **The Narrative Log (The "Compressed Memory")**
     *   **Purpose:** To handle the constraint of limited input context. When the Human DM resets the conversation or the play session times out, the LLM loses all memory. This store acts as a journal of high-level events scoped to the Campaign Instance.
     *   **Contents:** Summaries of past events ("The party defeated the goblins and found a map"). When a new conversation starts, the system feeds this summary to the LLM so it can "catch up" instantly without needing the full chat history.
 
-3.  **The Media Library**
+4.  **The Media Library**
     *   **Purpose:** To support immersion without bloating the LLM prompt with raw image data.
     *   **Contents:** References to generated scene images and ambient audio tracks selected by the DM.
 

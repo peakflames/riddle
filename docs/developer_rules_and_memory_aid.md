@@ -59,6 +59,8 @@ Use the Python automation:
 - `python build.py db create-character "@file.json"` — create a character from JSON file
 - `python build.py db delete-character "<name>"` — delete a character by name
 - `python build.py db character-template` — show JSON template for creating characters
+- `python build.py db templates` — show all character templates in CharacterTemplates table
+- `python build.py db import-templates` — import JSON files from SampleCharacters into CharacterTemplates table (upsert by name)
 - `python build.py db "SELECT * FROM CampaignInstances"` — execute custom SQL query
 
 **When to use these commands:**
@@ -66,6 +68,8 @@ Use the Python automation:
 - **db campaigns**: Use to verify database persistence after UI actions (e.g., after adding characters, check if PartyDataLen increased)
 - **db characters**: Use to verify character claims are persisted (PlayerId should show user GUID when claimed)
 - **db party**: Use to inspect full character data including roleplay fields (PersonalityTraits, Ideals, Bonds, Flaws, Backstory)
+- **db templates**: Use to verify character templates are stored correctly in the CharacterTemplates table
+- **db import-templates**: Use after adding/editing JSON files in SampleCharacters/ to sync them to the database
 - **db update**: Use to set character properties directly (bypasses UI for testing/automation)
 - **db "SQL"**: Use for detailed data inspection when verifying features work correctly
 
@@ -432,6 +436,54 @@ private static (bool success, int value, string? error) ParseIntValue(JsonElemen
 ```
 
 **Apply to:** `current_hp`, `initiative`, and any other integer fields the LLM updates.
+
+### CharacterTemplates Architecture Pattern
+**Character templates are a picklist** for DMs to import pre-made characters into campaigns. The architecture separates reusable templates (in the database) from campaign-specific characters (embedded JSON in `PartyStateJson`).
+
+**Key Design Decisions:**
+1. **Unique constraint**: `Name + OwnerId` (allows same-named characters for different owners)
+2. **System templates**: `OwnerId = NULL` (available to all DMs)
+3. **User templates**: `OwnerId = userId` (private to that DM)
+4. **Shadow columns**: `Race`, `Class`, `Level` are denormalized from JSON for filtering/sorting
+5. **JSON import**: `build.py db import-templates` syncs `SampleCharacters/*.json` → database
+
+**Entity Pattern:**
+```csharp
+public class CharacterTemplate
+{
+    public string Id { get; set; } = Guid.CreateVersion7().ToString();
+    public string Name { get; set; } = string.Empty;
+    public string? OwnerId { get; set; }              // NULL = system template
+    public string CharacterJson { get; set; } = "{}";  // Full Character model serialized
+    
+    // Shadow columns (denormalized for indexing/display)
+    public string? Race { get; set; }
+    public string? Class { get; set; }
+    public int Level { get; set; } = 1;
+    public string? SourceFile { get; set; }           // Original JSON filename
+    
+    [NotMapped]
+    public Character Character => JsonSerializer.Deserialize<Character>(CharacterJson)!;
+}
+```
+
+**Upsert Pattern:**
+```csharp
+// Find existing by Name + OwnerId (case-insensitive)
+var existing = await _db.CharacterTemplates
+    .FirstOrDefaultAsync(t => t.OwnerId == ownerId && t.Name.ToLower() == normalizedName);
+
+if (existing != null) { /* update fields */ }
+else { _db.CharacterTemplates.Add(newTemplate); }
+```
+
+**Copy to Campaign:**
+```csharp
+var character = template.Character;
+character.Id = Guid.CreateVersion7().ToString();  // Fresh ID!
+character.PlayerId = null;  // Not claimed yet
+campaign.PartyState.Add(character);
+```
 
 ## Git Workflow
 - Branch from `develop`: `git checkout develop && git pull origin develop`.

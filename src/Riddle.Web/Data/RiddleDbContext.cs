@@ -24,6 +24,11 @@ public class RiddleDbContext : IdentityDbContext<ApplicationUser>
     /// </summary>
     public DbSet<PlaySession> PlaySessions => Set<PlaySession>();
 
+    /// <summary>
+    /// Character templates (reusable characters for DMs to import into campaigns)
+    /// </summary>
+    public DbSet<CharacterTemplate> CharacterTemplates => Set<CharacterTemplate>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -77,6 +82,42 @@ public class RiddleDbContext : IdentityDbContext<ApplicationUser>
             entity.Ignore(e => e.NarrativeLog);
             entity.Ignore(e => e.Preferences);
             entity.Ignore(e => e.ActivePlayerChoices);
+        });
+
+        // Configure CharacterTemplate
+        builder.Entity<CharacterTemplate>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            
+            // Unique constraint: Name + OwnerId (system templates vs user templates)
+            // This allows both a system "Gandalf" and user-owned "Gandalf" to coexist
+            entity.HasIndex(e => new { e.Name, e.OwnerId }).IsUnique();
+            
+            // Indexes for fast filtering
+            entity.HasIndex(e => e.OwnerId);
+            entity.HasIndex(e => e.Class);
+            entity.HasIndex(e => e.Race);
+            
+            // Foreign key to ApplicationUser (optional - null for system templates)
+            entity.HasOne(e => e.Owner)
+                .WithMany()
+                .HasForeignKey(e => e.OwnerId)
+                .OnDelete(DeleteBehavior.Cascade);
+            
+            // String length constraints
+            entity.Property(e => e.Name).HasMaxLength(200);
+            entity.Property(e => e.SourceFile).HasMaxLength(200);
+            entity.Property(e => e.Race).HasMaxLength(100);
+            entity.Property(e => e.Class).HasMaxLength(100);
+            
+            // JSON column (stored as text in SQLite)
+            entity.Property(e => e.CharacterJson).HasColumnType("text");
+            
+            // Ignore NotMapped property (uses JSON column)
+            entity.Ignore(e => e.Character);
+            entity.Ignore(e => e.IsSystemTemplate);
+            entity.Ignore(e => e.DisplayRaceClass);
+            entity.Ignore(e => e.DisplayLevel);
         });
 
         // Configure PlaySession

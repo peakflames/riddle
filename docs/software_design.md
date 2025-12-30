@@ -214,7 +214,38 @@ class PartyPreferences:
     avoided_topics: List[str]
 ```
 
-### 3.5 Character (Full D&D 5e Sheet)
+### 3.5 Character Templates (Reusable Character Library)
+
+Character templates provide a library of pre-made characters that DMs can import into campaigns. Templates are stored separately from campaign-specific characters.
+
+```python
+class CharacterTemplate:
+    id: str                           # UUID v7
+    name: str                         # e.g., "Gandalf"
+    owner_id: str | None              # NULL = system template, user_id = private template
+    character_json: str               # Full Character model serialized as JSON
+    
+    # Shadow columns (denormalized for filtering/display)
+    race: str                         # e.g., "Aasimar"
+    character_class: str              # e.g., "Cleric"
+    level: int
+    source_file: str | None           # Original JSON filename for system templates
+    
+    created_at: datetime
+    updated_at: datetime
+```
+
+**DM Workflow:**
+1. DM opens character picker in campaign setup
+2. DM browses system templates (Gandalf, Katniss, etc.) or their own templates
+3. DM selects a template → Template is copied into campaign's `PartyState` with a fresh ID
+4. Character appears in party, ready for player claim via invite link
+
+**Template Types:**
+- **System Templates:** `owner_id = NULL`, available to all DMs, seeded from `SampleCharacters/*.json`
+- **User Templates:** `owner_id = user_id`, private to the DM who created them
+
+### 3.6 Character (Full D&D 5e Sheet)
 
 The Character model supports full D&D 5th Edition character sheets, enabling both manual entry and LLM-assisted parsing from uploaded PDFs/images.
 
@@ -288,7 +319,7 @@ class CombatEncounter:
     surprised_entities: List[str]
 ```
 
-### 3.6 Narrative Log Entry
+### 3.7 Narrative Log Entry
 
 ```python
 class LogEntry:

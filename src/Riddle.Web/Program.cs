@@ -110,6 +110,7 @@ builder.Services.AddSingleton<IConnectionTracker, ConnectionTracker>();
 builder.Services.AddScoped<IAppEventService, AppEventService>();
 builder.Services.AddScoped<ICampaignService, CampaignService>();
 builder.Services.AddScoped<ICharacterService, CharacterService>();
+builder.Services.AddScoped<ICharacterTemplateService, CharacterTemplateService>();
 builder.Services.AddScoped<IGameStateService, GameStateService>();
 builder.Services.AddScoped<IToolExecutor, ToolExecutor>();
 builder.Services.AddScoped<IRiddleLlmService, RiddleLlmService>();
