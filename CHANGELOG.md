@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] - 2025-12-30
+
+### Added
+- **Character Template Library**
+  - Reusable character templates for quick campaign setup
+  - `CharacterTemplate` entity with JSON blob storage for full character data
+  - Shadow columns for Race, Class, Level for efficient querying
+  - System templates (OwnerId = null) vs user templates
+  - 10 sample system templates imported from SampleCharacters folder
+  - `/dm/templates` page with Flowbite Table displaying all templates
+  - "View" button to open read-only `CharacterViewModal` for full character details
+  - "Owner" column showing "System" badge for system templates
+
+- **Character Template Import**
+  - Import characters from templates directly into campaigns
+  - `CharacterTemplatePickerModal` with multi-select checkbox table
+  - DM Dashboard Party card "Import" icon button
+  - `CopyToCampaignAsync` service method creates fresh character instances
+  - Characters get new UUID v7 IDs and null PlayerId when imported
+
+- **CharacterViewModal Component**
+  - 6-tab read-only character detail view (Combat, Abilities, Skills, Spells, Equipment, Roleplay)
+  - Visual enhancements: borders around values, semibold labels, styled ability boxes
+  - Reusable for both template viewing and character inspection
+
+- **UI Improvements**
+  - Party card header buttons converted to icon-only style with hover tooltips
+  - Matches CharacterCard action button pattern for consistency
+
+### Technical
+- `ICharacterTemplateService` with CRUD operations and campaign import
+- EF Core migration `AddCharacterTemplates` for CharacterTemplates table
+- `GetAllAvailableTemplatesAsync(userId)` returns system + user's templates
+- Navigation property `Owner` for user templates with `.Include()`
+- Sidebar link to Character Templates page
+
 ## [0.14.3] - 2025-12-30
 
 ### Fixed
@@ -532,7 +568,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flowbite Blazor component library reference documentation
 - Incremental phase implementation workflow for development
 
-[Unreleased]: https://github.com/peakflames/riddle/compare/v0.14.3...HEAD
+[Unreleased]: https://github.com/peakflames/riddle/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/peakflames/riddle/compare/v0.14.3...v0.15.0
 [0.14.3]: https://github.com/peakflames/riddle/compare/v0.14.2...v0.14.3
 [0.14.2]: https://github.com/peakflames/riddle/compare/v0.14.1...v0.14.2
 [0.14.1]: https://github.com/peakflames/riddle/compare/v0.14.0...v0.14.1
