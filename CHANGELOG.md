@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0] - 2025-12-31
+
+### Added
+- **D&D 5e Death Saving Throw Mechanics**
+  - `DeathSaveSuccesses` and `DeathSaveFailures` properties on Character model
+  - Visual death save tracker UI on CombatantCard (skull icons for failures, heart icons for successes)
+  - Death save tracker shows only for defeated PCs (0 HP)
+  - `reset_death_saves` LLM tool to clear death saves (e.g., when healed)
+  - `update_character_state` tool supports `death_save_successes` and `death_save_failures` properties
+  - D&D 5e death save rules in system prompt:
+    - Roll d20 at start of turn when at 0 HP
+    - 10+ = success, 9- = failure
+    - Natural 20 = regain 1 HP and consciousness
+    - Natural 1 = 2 failures
+    - 3 successes = stabilized, 3 failures = dead
+  - 11 new E2E tests for death save mechanics (HLR_COMBAT_016 through HLR_COMBAT_026)
+
+### Fixed
+- **Combat Tracker HP synchronization bug** - Combat Tracker now shows correct HP after page reload
+  - Root cause: Dual data sources (PartyState vs ActiveCombat.Combatants) caused stale HP in Combat Tracker
+  - Solution: PartyState is now single source of truth for PC HP
+  - `BuildCombatStatePayload()` overlays fresh PartyState HP onto PC combatants
+  - Removed redundant dual-update code from ToolExecutor
+
+### Changed
+- **`build.py test` now auto-stops running app** before tests to prevent ObjectDisposedException
+
+### Technical
+- `CombatService.BuildCombatStatePayload()` accepts optional `partyState` parameter
+- All 7 callers updated to pass PartyState for HP lookup
+- Memory aid updated with HP synchronization pattern documentation
+
 ## [0.18.0] - 2025-12-31
 
 ### Added
@@ -680,7 +712,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flowbite Blazor component library reference documentation
 - Incremental phase implementation workflow for development
 
-[Unreleased]: https://github.com/peakflames/riddle/compare/v0.18.0...HEAD
+[Unreleased]: https://github.com/peakflames/riddle/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/peakflames/riddle/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/peakflames/riddle/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/peakflames/riddle/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/peakflames/riddle/compare/v0.15.0...v0.16.0
