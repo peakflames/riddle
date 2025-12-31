@@ -26,7 +26,7 @@ This workflow provides a repeatable process for implementing project phases incr
    - Identify what phase the project is in based on recent commits
 
 3. **Check for Existing Implementation Plans**
-   - Look for `docs/phase{N}_implementation_plan.md`
+   - Look for `docs/plans/phase{N}_implementation_plan.md`
    - Look for `docs/phase{N}_objectives_assessment.md`
    - Read the relevant plan to understand current objectives
 
@@ -82,14 +82,14 @@ Format the proposal clearly:
 If the next step is creating a new phase implementation plan, follow this process:
 
 1. **Gather Context**
-   - Read `docs/implementation_plan.md` (master plan)
+   - Read `docs/plans/implementation_plan.md` (master plan)
    - Read `docs/software_design.md`
-   - Read completed phase plans for patterns
+   - Read completed phase plans in `docs/plans/` for patterns
    - Review current codebase structure
 
 2. **Draft the Phase Plan**
    
-   Create `docs/phase{N}_implementation_plan.md` with:
+   Create `docs/plans/phase{N}_implementation_plan.md` with:
    - Overview and objectives
    - Type definitions (models, entities)
    - Files to create/modify
@@ -110,7 +110,7 @@ If the next step is creating a new phase implementation plan, follow this proces
 4. **Await Approval Before Creating File**
    
    Only after user approves:
-   - Create the `docs/phase{N}_implementation_plan.md` file
+   - Create the `docs/plans/phase{N}_implementation_plan.md` file
    - Commit with message: `docs(planning): add phase {N} implementation plan`
 
 ### Example: No Task Response
@@ -186,8 +186,8 @@ Before starting any objective:
    ```
 
 2. Read the implementation plan:
-   - `read_file` on `docs/implementation_plan.md`
-   - `read_file` on `docs/phase{N}_implementation_plan.md` if exists
+   - `read_file` on `docs/plans/implementation_plan.md`
+   - `read_file` on `docs/plans/phase{N}_implementation_plan.md` if exists
 
 3. Review project rules:
    - `read_file` on `.clinerules/AGENT.md`
