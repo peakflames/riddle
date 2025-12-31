@@ -6,20 +6,21 @@ using static Microsoft.Playwright.Assertions;
 namespace Riddle.Web.IntegrationTests.E2ETests;
 
 /// <summary>
-/// End-to-end tests verifying the full flow from LLM tool execution through SignalR to UI rendering.
+/// E2E tests for the update_character_state LLM tool.
+/// Verifies the full flow from tool execution through SignalR to UI rendering.
 /// These tests catch sender/receiver contract mismatches that transport-layer tests cannot detect.
 /// 
 /// See docs/e2e_testing_philosophy.md for patterns and rationale.
 /// </summary>
 [Collection("E2E")]
-public class CharacterStateE2ETests : IAsyncLifetime
+public class UpdateCharacterStateToolTests : IAsyncLifetime
 {
     private readonly CustomWebApplicationFactory _factory;
     private readonly PlaywrightFixture _playwrightFixture;
     private IPage _page = null!;
     private IBrowserContext _context = null!;
     
-    public CharacterStateE2ETests(CustomWebApplicationFactory factory, PlaywrightFixture playwrightFixture)
+    public UpdateCharacterStateToolTests(CustomWebApplicationFactory factory, PlaywrightFixture playwrightFixture)
     {
         _factory = factory;
         _playwrightFixture = playwrightFixture;

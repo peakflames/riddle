@@ -1,49 +1,217 @@
-# E2E Testing Philosophy for Blazor Server + SignalR
+# LLM Tool E2E Testing Philosophy
 
-This document captures the testing philosophy and patterns for end-to-end tests in Project Riddle.
+This document captures the testing philosophy and patterns for end-to-end tests of LLM tools in Project Riddle.
 
-## Why E2E Tests?
+## Core Philosophy: Test Tools, Not Transport
 
-Transport-layer integration tests verify that SignalR events are sent and received, but they **cannot** catch sender/receiver contract mismatches. For example:
+The primary purpose of E2E tests is to verify that **when the LLM invokes a tool, the expected UI changes occur**. We test the complete vertical slice:
 
-- **Sender (ToolExecutor.cs)**: Sends `Key="current_hp"` (snake_case)
+```
+LLM Tool Call → ToolExecutor → Service Layer → SignalR → Blazor UI → DOM
+```
+
+### Why Not Just Test SignalR Events?
+
+Transport-layer tests verify that SignalR events are sent and received correctly. However, they **cannot** catch sender/receiver contract mismatches. For example:
+
+- **Sender (ToolExecutor.cs)**: Sends `Key="current_hp"` (snake_case from LLM JSON)
 - **Receiver (CombatTracker.razor)**: Expects `Key=="CurrentHp"` (PascalCase)
 
-Transport tests pass because the message flows correctly. But the UI never updates because the key comparison fails silently. Only E2E tests that verify actual DOM state changes can catch these bugs.
+Transport tests pass because the message flows correctly. But the UI never updates because the key comparison fails silently. **Only E2E tests that verify actual DOM state changes can catch these bugs.**
 
-## The Donbavand/Costello Pattern
+### What We Actually Test
+
+Each E2E test class corresponds to an LLM tool:
+
+| Test Class | LLM Tool | What It Verifies |
+|------------|----------|------------------|
+| `UpdateCharacterStateToolTests` | `update_character_state` | HP/stats changes reflect in CombatTracker |
+| `StartCombatToolTests` | `start_combat` | Combat UI appears with correct initiative order |
+| `SendMessageToolTests` | `send_message` | Messages appear in chat panel |
+
+## Project Structure
+
+```
+tests/Riddle.Web.IntegrationTests/
+├── E2ETests/
+│   └── UpdateCharacterStateToolTests.cs    # One class per LLM tool
+├── Infrastructure/
+│   ├── CustomWebApplicationFactory.cs       # Dual-host Kestrel server
+│   ├── PlaywrightFixture.cs                 # Browser lifecycle
+│   └── E2ETestCollection.cs                 # xUnit collection definition
+└── GlobalUsings.cs
+```
+
+## Test Naming Convention
+
+**Pattern:** `{ToolName}ToolTests`
+
+Tests are named for the LLM tool they exercise, making it immediately clear what system capability is being validated:
+
+```csharp
+public class UpdateCharacterStateToolTests : IAsyncLifetime
+public class StartCombatToolTests : IAsyncLifetime  
+public class RollDiceToolTests : IAsyncLifetime
+```
+
+## Canonical Test Structure
+
+Every tool test follows this pattern:
+
+```csharp
+[Fact]
+public async Task Should_UpdateUI_When_ToolExecutes()
+{
+    // 1. ARRANGE: Seed database with required state
+    var campaign = await _factory.SetupTestCampaignAsync(...);
+    
+    // 2. ARRANGE: Navigate browser to page showing affected UI
+    await _page.GotoAsync($"{_factory.ServerAddress}/dm/{campaign.Id}",
+        new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle });
+    
+    // 3. ARRANGE: Wait for UI to render and verify initial state
+    await _page.WaitForSelectorAsync("[data-testid='target-element']");
+    await Expect(hpLocator).ToHaveTextAsync("30");
+    
+    // 4. ACT: Execute the LLM tool via DI container
+    using var scope = _factory.CreateScope();
+    var toolExecutor = scope.ServiceProvider.GetRequiredService<IToolExecutor>();
+    await toolExecutor.ExecuteAsync(campaignId, "tool_name", argsJson);
+    
+    // 5. ASSERT: Verify UI reflects the change (with polling)
+    await Expect(hpLocator).ToHaveTextAsync("20", 
+        new LocatorAssertionsToHaveTextOptions { Timeout = 5000 });
+}
+```
+
+## Real Example: UpdateCharacterStateToolTests
+
+```csharp
+[Fact]
+public async Task Should_UpdateCombatTrackerHp_When_ToolExecutorChangesCharacterHp()
+{
+    // Arrange - Create test campaign with character
+    const string testCharacterId = "test-hero-001";
+    const string testCharacterName = "TestHero";
+    const int initialHp = 30;
+    const int updatedHp = 20;
+    
+    var campaign = await _factory.SetupTestCampaignAsync(
+        name: "E2E Test Campaign",
+        dmUserId: TestAuthHandler.TestUserId,
+        party:
+        [
+            new Character
+            {
+                Id = testCharacterId,
+                Name = testCharacterName,
+                Type = "PC",
+                MaxHp = initialHp,
+                CurrentHp = initialHp,
+                // ...
+            }
+        ]);
+    
+    // Arrange - Start combat (required for CombatTracker to display)
+    using (var scope = _factory.CreateScope())
+    {
+        var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+        await combatService.StartCombatAsync(campaign.Id, [...]);
+    }
+    
+    // Arrange - Navigate and verify initial state
+    await _page.GotoAsync($"{_factory.ServerAddress}/dm/{campaign.Id}",
+        new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle });
+    
+    var combatantSelector = $"[data-testid='combatant-{testCharacterId}']";
+    await _page.WaitForSelectorAsync(combatantSelector);
+    
+    var hpLocator = _page.Locator($"{combatantSelector} [data-testid='hp-current']");
+    await Expect(hpLocator).ToHaveTextAsync(initialHp.ToString());
+    
+    // Act - Execute the LLM tool
+    using (var scope = _factory.CreateScope())
+    {
+        var toolExecutor = scope.ServiceProvider.GetRequiredService<IToolExecutor>();
+        
+        var argumentsJson = $$"""
+        {
+            "character_name": "{{testCharacterName}}",
+            "key": "current_hp",
+            "value": {{updatedHp}}
+        }
+        """;
+        
+        await toolExecutor.ExecuteAsync(campaign.Id, "update_character_state", argumentsJson);
+    }
+    
+    // Assert - UI should update via SignalR
+    await Expect(hpLocator).ToHaveTextAsync(updatedHp.ToString(),
+        new LocatorAssertionsToHaveTextOptions { Timeout = 5000 });
+}
+```
+
+## Infrastructure: The Donbavand/Costello Pattern
 
 `WebApplicationFactory.Server.BaseAddress` returns `http://localhost/` - an in-memory TestServer that Playwright cannot connect to. The solution is the **dual-host pattern**:
 
 ```csharp
 protected override IHost CreateHost(IHostBuilder builder)
 {
-    // Host 1: TestServer (required by WebApplicationFactory internals)
-    var testHost = builder.Build();
+    // Configure Kestrel on the EXISTING builder (preserves all config)
+    builder.ConfigureWebHost(webBuilder =>
+    {
+        webBuilder.UseKestrel(options => options.Listen(IPAddress.Loopback, 0));
+    });
     
-    // Host 2: Real Kestrel server for Playwright
-    builder.ConfigureWebHost(wb => wb.UseKestrel(o => o.ListenLocalhost(0)));
+    // Build and start Kestrel host
     _kestrelHost = builder.Build();
     _kestrelHost.Start();
     
-    // Capture dynamic port
+    // Capture the dynamic port
     var server = _kestrelHost.Services.GetRequiredService<IServer>();
-    var addresses = server.Features.Get<IServerAddressesFeature>();
-    ClientOptions.BaseAddress = new Uri(addresses!.Addresses.First());
+    var addresses = server.Features.Get<IServerAddressesFeature>()!;
+    ServerAddress = addresses.Addresses.First();
     
-    testHost.Start();
-    return testHost;  // Return TestServer (required)
+    // Return a dummy TestServer (required by WebApplicationFactory internals)
+    var dummyBuilder = new HostBuilder();
+    dummyBuilder.ConfigureWebHost(wb => wb.UseTestServer().Configure(_ => { }));
+    var dummyHost = dummyBuilder.Build();
+    dummyHost.Start();
+    return dummyHost;
 }
 ```
 
-## Blazor Server Async Rendering
+## Key Patterns
 
-Blazor Server uses a two-phase rendering model:
+### 1. Use `data-testid` Attributes
 
-1. **`OnInitialized`** (sync) - Initial component setup
-2. **`OnAfterRenderAsync`** (async) - Data fetching, SignalR connections
+Components must expose `data-testid` attributes for reliable selectors:
 
-When navigating to a page, the initial HTML arrives quickly but async data loads later. Use `WaitUntil.NetworkIdle` to ensure the page is fully hydrated:
+```razor
+<!-- CombatantCard.razor -->
+<div data-testid="combatant-@Character.Id">
+    <span data-testid="hp-current">@Character.CurrentHp</span>
+</div>
+```
+
+### 2. Use `Expect()` Polling for SignalR
+
+SignalR events are asynchronous. Never use immediate assertions:
+
+```csharp
+// ❌ WRONG - Races with async SignalR
+var text = await page.Locator("[data-testid='hp-current']").TextContentAsync();
+text.Should().Be("20");
+
+// ✅ CORRECT - Polls until condition met or timeout
+await Expect(page.Locator("[data-testid='hp-current']"))
+    .ToHaveTextAsync("20", new() { Timeout = 5000 });
+```
+
+### 3. Use `NetworkIdle` for Blazor Navigation
+
+Blazor Server renders asynchronously. Wait for the page to fully hydrate:
 
 ```csharp
 await page.GotoAsync(url, new PageGotoOptions 
@@ -52,305 +220,84 @@ await page.GotoAsync(url, new PageGotoOptions
 });
 ```
 
-## Expect() Polling for SignalR Propagation
-
-SignalR events are asynchronous. Never use immediate assertions - use Playwright's `Expect()` which polls until the condition is met or timeout:
+### 4. Get Services from Kestrel Host via `CreateScope()`
 
 ```csharp
-// ❌ WRONG - Immediate assertion, races with SignalR
-var text = await page.Locator("[data-testid='hp-current']").TextContentAsync();
-text.Should().Be("20");
-
-// ✅ CORRECT - Polls until HP updates or timeout
-await Expect(page.Locator("[data-testid='hp-current']"))
-    .ToHaveTextAsync("20", new LocatorAssertionsToHaveTextOptions { Timeout = 5000 });
-```
-
-Alternative using `WaitForFunctionAsync`:
-
-```csharp
-await page.WaitForFunctionAsync("""
-    () => {
-        const el = document.querySelector('[data-testid="hp-current"]');
-        return el && el.textContent === '20';
-    }
-""", new PageWaitForFunctionOptions { Timeout = 5000 });
-```
-
-## Page Readiness Assertions
-
-Before testing SignalR updates, verify the page is in a known state:
-
-```csharp
-// 1. Navigate with NetworkIdle
-await page.GotoAsync(url, new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle });
-
-// 2. Wait for specific element to exist
-await page.WaitForSelectorAsync("[data-testid='combatant-hero-001']", 
-    new PageWaitForSelectorOptions { Timeout = 10000 });
-
-// 3. Verify initial state before acting
-await Expect(page.Locator("[data-testid='hp-current']")).ToHaveTextAsync("30");
-
-// 4. Now perform the action and verify the change
-```
-
-## Trace Capture for Debugging
-
-Record traces for failed tests to debug timing issues and race conditions:
-
-```csharp
-// In test setup
-_context = await _browser.NewContextAsync(new BrowserNewContextOptions
-{
-    RecordVideoDir = "test-videos/",
-});
-
-// Start tracing
-await _context.Tracing.StartAsync(new TracingStartOptions
-{
-    Screenshots = true,
-    Snapshots = true,
-    Sources = true
-});
-
-// In teardown - save on failure
-await _context.Tracing.StopAsync(new TracingStopOptions
-{
-    Path = $"traces/{TestContext.CurrentContext.Test.Name}.zip"
-});
-```
-
-View traces at: https://trace.playwright.dev/
-
-## data-testid Selectors
-
-Components must expose `data-testid` attributes for reliable test selectors:
-
-```razor
-<!-- CombatantCard.razor -->
-<div data-testid="combatant-@Character.Id">
-    <span data-testid="hp-current">@Character.CurrentHp</span>
-    <span data-testid="hp-max">@Character.MaxHp</span>
-</div>
-```
-
-Benefits:
-- Decoupled from CSS classes (styling changes don't break tests)
-- Decoupled from text content (localization doesn't break tests)
-- Explicit test contract between components and E2E tests
-
-## Belt & Suspenders Philosophy
-
-E2E tests are inherently flaky due to timing. Use multiple layers of verification:
-
-1. **NetworkIdle** - Wait for initial page load
-2. **WaitForSelector** - Wait for specific element existence
-3. **Initial State Assertion** - Verify starting conditions
-4. **Action** - Trigger the change (e.g., tool execution)
-5. **Polling Assertion** - Wait for expected end state
-6. **Final Verification** - Explicit assertion for test output clarity
-
-```csharp
-// Belt & suspenders example
-await page.GotoAsync(url, new() { WaitUntil = WaitUntilState.NetworkIdle });
-await page.WaitForSelectorAsync("[data-testid='combatant-hero']");
-await Expect(page.Locator("[data-testid='hp-current']")).ToHaveTextAsync("30");
-
-// Execute action via DI
-await toolExecutor.ExecuteAsync(campaignId, "update_character_state", args);
-
-// Polling wait
-await Expect(page.Locator("[data-testid='hp-current']"))
-    .ToHaveTextAsync("20", new() { Timeout = 5000 });
-
-// Final verification (for test output clarity)
-var finalHp = await page.Locator("[data-testid='hp-current']").TextContentAsync();
-finalHp.Should().Be("20", "HP should update after tool execution");
-```
-
-## Test Structure Pattern
-
-```csharp
-[Fact]
-public async Task Should_UpdateUI_When_SignalREventReceived()
-{
-    // Arrange - Setup data
-    var campaign = await _factory.SetupTestCampaignAsync(...);
-    
-    // Arrange - Navigate and verify initial state
-    await _page.GotoAsync($"{_factory.ServerAddress}/dm/campaign/{campaign.Id}",
-        new() { WaitUntil = WaitUntilState.NetworkIdle });
-    await _page.WaitForSelectorAsync("[data-testid='target-element']");
-    await Expect(...).ToHaveTextAsync("initial value");
-    
-    // Act - Trigger change via server-side action
-    using var scope = _factory.CreateScope();
-    var service = scope.ServiceProvider.GetRequiredService<IService>();
-    await service.DoSomethingAsync(...);
-    
-    // Assert - Wait for UI update with polling
-    await Expect(...).ToHaveTextAsync("updated value", new() { Timeout = 5000 });
-}
-```
-
-## Common Pitfalls
-
-### 1. Using TestServer BaseAddress with Playwright
-```csharp
-// ❌ WRONG - TestServer is in-memory only
-var baseUrl = _factory.Server.BaseAddress.ToString();
-
-// ✅ CORRECT - Use CustomWebApplicationFactory.ServerAddress
-var baseUrl = _factory.ServerAddress;
-```
-
-### 2. Immediate Assertions After SignalR
-```csharp
-// ❌ WRONG - Races with async SignalR propagation
-await notificationService.SendAsync(...);
-var text = await page.Locator(...).TextContentAsync();
-text.Should().Be("expected");  // FLAKY!
-
-// ✅ CORRECT - Poll until condition or timeout
-await Expect(page.Locator(...)).ToHaveTextAsync("expected", new() { Timeout = 5000 });
-```
-
-### 3. Forgetting NetworkIdle for Blazor
-```csharp
-// ❌ WRONG - HTML arrives but data not loaded
-await page.GotoAsync(url);
-
-// ✅ CORRECT - Wait for async rendering complete
-await page.GotoAsync(url, new() { WaitUntil = WaitUntilState.NetworkIdle });
-```
-
-### 4. Using DI from Wrong Host
-```csharp
-// ❌ WRONG - Gets services from TestServer (might differ from Kestrel)
-var service = _factory.Services.GetRequiredService<IService>();
-
-// ✅ CORRECT - Use CreateScope() which accesses Kestrel host
+// ✅ CORRECT - Uses Kestrel host's DI container
 using var scope = _factory.CreateScope();
-var service = scope.ServiceProvider.GetRequiredService<IService>();
+var toolExecutor = scope.ServiceProvider.GetRequiredService<IToolExecutor>();
 ```
 
 ---
 
-## Lessons Learned: ASP.NET Core + Blazor + Playwright Integration
+## Hard-Won Lessons
 
-These hard-won lessons came from debugging E2E test failures. Each represents a gotcha that caused hours of troubleshooting.
+These lessons came from debugging E2E test failures. Each represents hours of troubleshooting.
 
-### 1. Dual-Host Pattern: Kestrel Config MUST Apply BEFORE Build
+### 1. Kestrel Config Must Apply BEFORE Build
 
-The naive approach creates a Kestrel host from a separate builder, but this loses all `ConfigureWebHost` configuration (environment, services, authentication).
+The `ConfigureWebHost` calls must apply to the builder BEFORE calling `Build()`:
 
 ```csharp
-// ❌ WRONG - Kestrel host misses ConfigureWebHost settings
-protected override IHost CreateHost(IHostBuilder builder)
-{
-    var testHost = builder.Build();  // Gets all ConfigureWebHost config
-    
-    var kestrelBuilder = new HostBuilder();  // FRESH builder - no config!
-    kestrelBuilder.ConfigureWebHost(wb => wb.UseKestrel());
-    _kestrelHost = kestrelBuilder.Build();  // Missing auth, DB, services
-    ...
-}
+// ❌ WRONG - Separate builder loses all config
+var kestrelBuilder = new HostBuilder();  // Fresh builder!
+_kestrelHost = kestrelBuilder.Build();   // Missing auth, DB, services
 
-// ✅ CORRECT - Configure Kestrel THEN build (config already applied)
-protected override IHost CreateHost(IHostBuilder builder)
-{
-    // ConfigureWebHost already called by this point - add Kestrel to same builder
-    builder.ConfigureWebHost(wb => wb.UseKestrel(o => o.Listen(IPAddress.Loopback, 0)));
-    
-    _kestrelHost = builder.Build();  // Has ALL configuration
-    _kestrelHost.Start();
-    
-    // Return a dummy TestServer for WAF internals
-    var dummyBuilder = new HostBuilder();
-    dummyBuilder.ConfigureWebHost(wb => wb.UseTestServer().Configure(app => { }));
-    return dummyBuilder.Build();
-}
+// ✅ CORRECT - Same builder, add Kestrel config
+builder.ConfigureWebHost(wb => wb.UseKestrel(...));
+_kestrelHost = builder.Build();  // Has ALL configuration
 ```
 
-### 2. Blazor Server Requires AuthenticationStateProvider (Not Just AuthenticationHandler)
+### 2. Blazor Requires AuthenticationStateProvider
 
-When replacing Identity services with test auth, you need BOTH:
-- `AuthenticationHandler` - For HTTP request authentication (middleware)
-- `AuthenticationStateProvider` - For Blazor component auth state (`<AuthorizeView>`, `@attribute [Authorize]`)
+When replacing Identity with test auth, you need BOTH:
 
 ```csharp
-// ❌ WRONG - HTTP auth works but Blazor components throw
+// HTTP auth handler (for middleware)
 services.AddAuthentication("Test")
     .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("Test", null);
 
-// ✅ CORRECT - Both HTTP and Blazor auth covered
-services.AddAuthentication("Test")
-    .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("Test", null);
+// Blazor auth state (for <AuthorizeView> and [Authorize])
 services.AddScoped<AuthenticationStateProvider, TestAuthenticationStateProvider>();
 ```
 
-**Error without AuthenticationStateProvider:**
-```
-InvalidOperationException: No service for type 
-'Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider' has been registered.
-```
+### 3. Remove ALL EF Core Services Before Adding InMemory
 
-### 3. In-Memory Database: Must Remove ALL EF Core Registrations
-
-SQLite and InMemory providers conflict. When switching to InMemory for tests, remove ALL EF Core services - not just `DbContextOptions`:
+SQLite and InMemory providers conflict. Remove everything:
 
 ```csharp
-// Remove DbContext options (generic and typed)
-var dbContextOptionsDescriptors = services
-    .Where(d => d.ServiceType == typeof(DbContextOptions<RiddleDbContext>) ||
-               d.ServiceType == typeof(DbContextOptions))
-    .ToList();
-foreach (var descriptor in dbContextOptionsDescriptors)
-    services.Remove(descriptor);
+// Remove DbContextOptions (both generic and typed)
+var dbOptions = services.Where(d => 
+    d.ServiceType == typeof(DbContextOptions<RiddleDbContext>) ||
+    d.ServiceType == typeof(DbContextOptions)).ToList();
+foreach (var d in dbOptions) services.Remove(d);
 
-// Remove DbContext registrations
+// Remove DbContext and factory
 services.RemoveAll<RiddleDbContext>();
-
-// Remove any IDbContextFactory registrations
 services.RemoveAll(typeof(IDbContextFactory<RiddleDbContext>));
 
-// Remove ALL EF Core-related service registrations (providers cache internally)
-var efCoreDescriptors = services
-    .Where(d => d.ServiceType.Namespace?.StartsWith("Microsoft.EntityFrameworkCore") == true ||
-               d.ImplementationType?.Namespace?.StartsWith("Microsoft.EntityFrameworkCore") == true)
+// Remove all EF Core namespace services (they cache provider info)
+var efServices = services.Where(d => 
+    d.ServiceType.Namespace?.StartsWith("Microsoft.EntityFrameworkCore") == true)
     .ToList();
-foreach (var descriptor in efCoreDescriptors)
-    services.Remove(descriptor);
+foreach (var d in efServices) services.Remove(d);
 
 // NOW add InMemory
-services.AddDbContext<RiddleDbContext>(options => 
-    options.UseInMemoryDatabase($"TestDb_{Guid.NewGuid()}"));
+services.AddDbContext<RiddleDbContext>(o => 
+    o.UseInMemoryDatabase($"TestDb_{Guid.NewGuid()}"));
 ```
 
-### 4. HTTPS Redirect Must Be Disabled for E2E Tests
+### 4. Disable HTTPS Redirect for Tests
 
-If your app uses `UseHttpsRedirection()`, HTTP requests will redirect to HTTPS - but your Kestrel test server only listens on HTTP. Either:
-
-A) Add to `Program.cs`:
 ```csharp
+// In Program.cs
 if (!app.Environment.IsEnvironment("Testing"))
 {
     app.UseHttpsRedirection();
 }
 ```
 
-B) Or use this workaround in test navigation:
-```csharp
-_context = await _browser.NewContextAsync(new BrowserNewContextOptions
-{
-    IgnoreHTTPSErrors = true  // Allows HTTP even when app wants HTTPS
-});
-```
-
-### 5. Identity Endpoints Must Skip in Testing Environment
-
-If using ASP.NET Identity, the `MapAdditionalIdentityEndpoints()` extension adds routes that conflict with test authentication. Skip them in Testing:
+### 5. Skip Identity Endpoints in Testing
 
 ```csharp
 // In Program.cs
@@ -360,95 +307,25 @@ if (!app.Environment.IsEnvironment("Testing"))
 }
 ```
 
-**Error without this:**
-```
-InvalidOperationException: A suitable method 'MapIdentityApi<TUser>' could not be found
-```
-
-### 6. Kestrel Requires IPAddress.Loopback, Not "localhost" String
-
-When binding Kestrel to a dynamic port, use `IPAddress.Loopback` not `"localhost"`:
-
-```csharp
-// ❌ WRONG - Kestrel doesn't accept localhost:0
-options.ListenLocalhost(0);  // May fail or bind incorrectly
-
-// ✅ CORRECT - Explicit loopback IP with dynamic port
-options.Listen(IPAddress.Loopback, 0);
-```
-
-### 7. Enable Developer Exception Page for Debugging 500 Errors
-
-When E2E tests get 500 errors, the default error page hides details. Enable developer exceptions in Testing:
-
-```csharp
-// In Program.cs  
-if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
-{
-    app.UseDeveloperExceptionPage();
-}
-```
-
-Then save the page content for inspection:
-```csharp
-var response = await page.GotoAsync(url);
-if ((int)response.Status >= 400)
-{
-    var content = await page.ContentAsync();
-    await File.WriteAllTextAsync("error-page.html", content);
-    throw new Exception($"Server returned {response.Status}. View error page at: error-page.html");
-}
-```
-
-### 8. Remove ALL Authentication Services Before Adding Test Auth
-
-ASP.NET Identity registers many services. Remove them ALL before adding test authentication:
-
-```csharp
-// Remove ALL existing authentication services
-var authDescriptors = services
-    .Where(d => d.ServiceType.FullName?.Contains("Authentication") == true ||
-               d.ServiceType.FullName?.Contains("Identity") == true ||
-               d.ImplementationType?.FullName?.Contains("Authentication") == true ||
-               d.ImplementationType?.FullName?.Contains("Identity") == true)
-    .ToList();
-foreach (var descriptor in authDescriptors)
-    services.Remove(descriptor);
-
-// NOW add test auth with Test as DEFAULT scheme
-services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = "Test";
-    options.DefaultChallengeScheme = "Test";
-    options.DefaultScheme = "Test";
-})
-.AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("Test", null);
-```
-
-### 9. Test User Constants Should Be Shared
-
-Define test user info as constants and share between `TestAuthHandler` and `TestAuthenticationStateProvider`:
+### 6. Share Test User Constants
 
 ```csharp
 public class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
 {
     public const string TestUserId = "test-dm-user-123";
     public const string TestUserName = "Test DM";
-    public const string TestUserEmail = "testdm@test.com";
-    
-    // Use these constants in both classes
-}
-
-public class TestAuthenticationStateProvider : AuthenticationStateProvider
-{
-    public override Task<AuthenticationState> GetAuthenticationStateAsync()
-    {
-        var claims = new[]
-        {
-            new Claim(ClaimTypes.NameIdentifier, TestAuthHandler.TestUserId),  // Same user!
-            // ...
-        };
-        // ...
-    }
+    // Use in both TestAuthHandler and TestAuthenticationStateProvider
 }
 ```
+
+---
+
+## What We Deliberately Don't Test
+
+We removed transport-layer tests (e.g., `CharacterStateEventTests`, `PlayerChoiceEventTests`) because:
+
+1. **They don't catch contract mismatches** - The bug that inspired E2E testing was a snake_case/PascalCase mismatch that passed all transport tests
+2. **They test implementation, not behavior** - Verifying "SignalR sends X event" isn't valuable if the UI ignores it
+3. **They duplicate coverage** - If E2E tests pass, transport must be working
+
+The E2E tests are our **single source of truth** for LLM tool behavior.
