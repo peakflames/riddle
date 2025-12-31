@@ -100,7 +100,7 @@ public class CombatService : ICombatService
             "Initiative set: CampaignId={CampaignId}, CharacterId={CharacterId}, Initiative={Initiative}",
             campaignId, characterId, initiative);
 
-        await _notificationService.NotifyInitiativeSetAsync(campaignId, characterId, initiative, ct);
+        await _notificationService.NotifyInitiativeSetAsync(campaignId, new InitiativeSetPayload(characterId, initiative), ct);
     }
 
     public async Task<(int NewTurnIndex, string CurrentCombatantId)> AdvanceTurnAsync(Guid campaignId, CancellationToken ct = default)
@@ -140,7 +140,7 @@ public class CombatService : ICombatService
             "Turn advanced: CampaignId={CampaignId}, Round={Round}, TurnIndex={TurnIndex}, CurrentCombatant={CombatantId}",
             campaignId, combat.RoundNumber, combat.CurrentTurnIndex, currentCombatantId);
 
-        await _notificationService.NotifyTurnAdvancedAsync(campaignId, combat.CurrentTurnIndex, currentCombatantId, combat.RoundNumber, ct);
+        await _notificationService.NotifyTurnAdvancedAsync(campaignId, new TurnAdvancedPayload(combat.CurrentTurnIndex, currentCombatantId, combat.RoundNumber), ct);
 
         return (combat.CurrentTurnIndex, currentCombatantId);
     }

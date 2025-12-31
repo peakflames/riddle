@@ -17,8 +17,26 @@ Project Riddle is a LLM-driven Dungeon Master assistant for D&D 5th Edition buil
 
 ## Project Reference Documentation
 - **Flowbite Blazor Component Reference**: `docs/flowbite_blazor_docs.md` - API reference for Flowbite Blazor components (enums, sizes, colors, common patterns)
+- **SignalR documentation**: `docs/signalr` - Architecture, groups, event references, flow sequences
 
-- **SignalR documenation**: `docs/signalr` - Architecture, groups, event referecnes, flows sequences
+## CRITICAL: SignalR Payload Contract Rule
+
+**ALL SignalR events MUST use a single payload record argument.** Never send multiple arguments - client handlers silently fail if argument count doesn't match.
+
+```csharp
+// ❌ WRONG - Multi-argument events cause silent client-side failures
+await Clients.Group(group).SendAsync("TurnAdvanced", turnIndex, combatantId, roundNumber);
+
+// ✅ CORRECT - Single payload record (defined in GameHubEvents.cs)
+await Clients.Group(group).SendAsync(GameHubEvents.TurnAdvanced, new TurnAdvancedPayload(turnIndex, combatantId, roundNumber));
+```
+
+**Why:** SignalR client handlers register for a specific argument count. A handler expecting 1 argument will NEVER fire if the server sends 3 arguments - no error, just silent failure.
+
+**Implementation:**
+1. Define payload records in `src/Riddle.Web/Hubs/GameHubEvents.cs`
+2. Use payload records in `INotificationService` and `NotificationService` method signatures
+3. For events with no data, use no-arg `SendAsync` (e.g., `CombatEnded`)
 
 ## Build, Test, and Development Commands
 Use the Python automation:

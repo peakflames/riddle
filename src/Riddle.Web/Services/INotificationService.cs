@@ -81,14 +81,14 @@ public interface INotificationService
     Task NotifyCombatEndedAsync(Guid campaignId, CancellationToken ct = default);
     
     /// <summary>
-    /// Notify all clients when turn advances (includes round number for UI update)
+    /// Notify all clients when turn advances
     /// </summary>
-    Task NotifyTurnAdvancedAsync(Guid campaignId, int newTurnIndex, string currentCombatantId, int roundNumber, CancellationToken ct = default);
+    Task NotifyTurnAdvancedAsync(Guid campaignId, TurnAdvancedPayload payload, CancellationToken ct = default);
     
     /// <summary>
     /// Notify when initiative is set for a combatant
     /// </summary>
-    Task NotifyInitiativeSetAsync(Guid campaignId, string characterId, int initiative, CancellationToken ct = default);
+    Task NotifyInitiativeSetAsync(Guid campaignId, InitiativeSetPayload payload, CancellationToken ct = default);
     
     // === Atmospheric Events (Players Only) ===
     

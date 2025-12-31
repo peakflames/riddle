@@ -144,11 +144,15 @@ app.MapGroup("/Account").MapAdditionalIdentityEndpoints();
 // Map SignalR hub for real-time game events
 app.MapHub<GameHub>("/gamehub");
 
-// Ensure database is created
-using (var scope = app.Services.CreateScope())
+// Ensure database is created (skip during integration testing to avoid provider conflicts)
+if (!app.Environment.IsEnvironment("Testing"))
 {
+    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<RiddleDbContext>();
     db.Database.EnsureCreated();
 }
 
 app.Run();
+
+// Marker class for WebApplicationFactory<Program> in integration tests
+public partial class Program { }

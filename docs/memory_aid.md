@@ -418,3 +418,121 @@ Version is set in `.csproj` via `<Version>` or `<InformationalVersion>` property
 - User prefers functional/integration tests over unit tests
 - Use Playwright MCP for browser-based verification
 - Create API endpoints for testing when Blazor interactivity has issues
+
+### CRITICAL: EF Core Integration Testing with WebApplicationFactory
+
+When testing Blazor Server apps with `WebApplicationFactory<Program>` and replacing SQLite with InMemory database, you must:
+
+1. **Skip database init in Program.cs** - Add environment check around `EnsureCreated()`:
+   ```csharp
+   if (!app.Environment.IsEnvironment("Testing"))
+   {
+       using var scope = app.Services.CreateScope();
+       var db = scope.ServiceProvider.GetRequiredService<RiddleDbContext>();
+       db.Database.EnsureCreated();
+   }
+   ```
+
+2. **Remove ALL EF Core services** in test fixture - EF Core caches provider registrations internally. Removing just `DbContextOptions` is NOT enough:
+   ```csharp
+   builder.ConfigureServices(services =>
+   {
+       // Remove DbContext options
+       var dbContextOptionsDescriptors = services
+           .Where(d => d.ServiceType == typeof(DbContextOptions<RiddleDbContext>) ||
+                      d.ServiceType == typeof(DbContextOptions))
+           .ToList();
+       foreach (var descriptor in dbContextOptionsDescriptors)
+           services.Remove(descriptor);
+       
+       services.RemoveAll<RiddleDbContext>();
+       services.RemoveAll(typeof(IDbContextFactory<RiddleDbContext>));
+       
+       // CRITICAL: Remove ALL EF Core namespace services to prevent provider caching
+       var efCoreDescriptors = services
+           .Where(d => d.ServiceType.Namespace?.StartsWith("Microsoft.EntityFrameworkCore") == true ||
+                      d.ImplementationType?.Namespace?.StartsWith("Microsoft.EntityFrameworkCore") == true)
+           .ToList();
+       foreach (var descriptor in efCoreDescriptors)
+           services.Remove(descriptor);
+       
+       // Now add fresh InMemory provider
+       services.AddDbContext<RiddleDbContext>(options =>
+           options.UseInMemoryDatabase($"TestDb_{Guid.NewGuid()}"));
+   });
+   ```
+
+3. **Use "Testing" environment** in fixture:
+   ```csharp
+   builder.UseEnvironment("Testing");
+   ```
+
+**Symptom:** `InvalidOperationException: Services for database providers 'Sqlite', 'InMemory' have been registered`
+
+### CRITICAL: SignalR Argument Arity Must Match
+
+**SignalR client handlers must match the exact number of arguments sent from the server.** A handler with wrong arity will NEVER fire - no error, just silent failure.
+
+❌ **WRONG - Server sends 3 args, client expects 1:**
+```csharp
+// Server sends:
+await Clients.Group(group).SendAsync("TurnAdvanced", turnIndex, combatantId, roundNumber);
+
+// Client handler with 1 arg NEVER fires - silent failure!
+connection.On<TurnAdvancedPayload>("TurnAdvanced", handler);  // ❌ Expects 1 arg, server sends 3
+```
+
+✅ **CORRECT - Wrap multiple values in a single payload record:**
+```csharp
+// Server sends single payload:
+await Clients.Group(group).SendAsync("TurnAdvanced", new TurnAdvancedPayload(turnIndex, combatantId, roundNumber));
+
+// Client handler expects 1 arg - matches!
+connection.On<TurnAdvancedPayload>("TurnAdvanced", handler);  // ✅ Both sides agree on arity
+```
+
+**Diagnostic pattern:**
+- **5.0s timeout** → Handler never fired (arity mismatch, wrong event name, or event not sent)
+- **Immediate failure** → Handler fired but payload didn't match assertions
+
+**Best practice:** Always use single payload records for SignalR events, even for simple data. Easier to extend and self-documenting.
+
+### CRITICAL: SignalR Client Handler Registration Conflicts
+
+**Problem:** When registering SignalR client handlers with `HubConnection.On<T>()`, **registering multiple handlers for the same event name with different type arguments causes conflicts**. Only the first registration is invoked - subsequent handlers are silently ignored.
+
+❌ **WRONG - Multiple handlers for same event, only first invoked:**
+```csharp
+// These conflict! Only the no-arg handler fires
+Connection.On(eventName, () => RecordEvent(eventName, []));
+Connection.On<object?>(eventName, (arg1) => RecordEvent(eventName, [arg1]));
+Connection.On<object?, object?>(eventName, (arg1, arg2) => RecordEvent(eventName, [arg1, arg2]));
+```
+
+✅ **CORRECT - Single handler per event name:**
+```csharp
+// Most SignalR events send a single payload object
+Connection.On<object?>(eventName, (arg1) => RecordEvent(eventName, [arg1]));
+```
+
+**Root cause:** SignalR's client-side handler registry uses event name as the key. Multiple `On()` calls for the same event name overwrite or conflict with each other.
+
+**Symptom:** Test client shows "Events received: []" even though server sends events and connection is in `Connected` state.
+
+### JSON Deserialization of `object` Types
+
+When a record has an `object` property (like `CharacterStatePayload.Value`), **JSON deserializes numbers as `JsonElement`, not the native type**. Direct comparison with FluentAssertions fails:
+
+❌ **WRONG - Types don't match:**
+```csharp
+payload.Value.Should().Be(30);  // ❌ Fails: JsonElement != int
+```
+
+✅ **CORRECT - Compare as strings for type-agnostic matching:**
+```csharp
+payload.Value?.ToString().Should().Be("30");  // ✅ Works regardless of underlying type
+```
+
+**Why this happens:** When JSON deserializes `{ "value": 30 }` into `object Value`, the runtime type is `System.Text.Json.JsonElement`, not `int`. FluentAssertions' `.Be()` compares by type AND value.
+
+**Alternative fix:** Change payload record to use concrete types (e.g., `int? Value`) if the type is always known.
