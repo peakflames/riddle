@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Riddle.Web/Riddle.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Riddle.Web.IntegrationTests/Riddle.Web.IntegrationTests.csproj" />
+  </Folder>
+</Solution>

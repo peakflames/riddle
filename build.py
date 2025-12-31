@@ -22,6 +22,7 @@ REQUIRED_DOTNET_VERSION = "9.0"
 TAILWIND_VERSION = "v3.4.15"
 TOOLS_DIR = Path("src/Riddle.Web/tools")
 DOTNET_DIR = Path("./dotnet")
+SOLUTION_PATH = "Riddle.slnx"
 PROJECT_PATH = "src/Riddle.Web/Riddle.Web.csproj"
 PID_FILE = Path(".riddle.pid")
 LOG_FILE = Path("riddle.log")
@@ -376,12 +377,12 @@ def run_dotnet_command(dotnet_path: str, command: str) -> None:
                 print("Stopping running application before build...")
                 stop_background()
             
-            print("Building project...")
+            print("Building solution (web app + tests)...")
             subprocess.run(
-                [dotnet_path, "build", PROJECT_PATH],
+                [dotnet_path, "build", SOLUTION_PATH],
                 check=True
             )
-            print("Successfully built project")
+            print("Successfully built solution")
         
         elif command == "start":
             # Auto-stop any running application to prevent file lock issues
@@ -390,10 +391,10 @@ def run_dotnet_command(dotnet_path: str, command: str) -> None:
                 print("Stopping running application before build...")
                 stop_background()
             
-            # Auto-build before starting
-            print("Building project before start...")
+            # Auto-build solution before starting
+            print("Building solution before start...")
             subprocess.run(
-                [dotnet_path, "build", PROJECT_PATH],
+                [dotnet_path, "build", SOLUTION_PATH],
                 check=True
             )
             start_background(dotnet_path)

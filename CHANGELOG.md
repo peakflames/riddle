@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] - 2025-12-31
+
+### Added
+- **14 Player Dashboard E2E Tests** (`PlayerDashboardTests.cs`)
+  - HLR_PLAYER_001: Player Dashboard renders correctly
+  - HLR_PLAYER_002: Player sees own character card
+  - HLR_PLAYER_003: Player sees Read Aloud text
+  - HLR_PLAYER_004: Player sees player choices
+  - HLR_PLAYER_005: Player can submit choice
+  - HLR_PLAYER_007: Player sees dice roll history
+  - HLR_PLAYER_008: Player character HP updates in real-time
+  - HLR_PLAYER_009: Player sees combat tracker when combat active
+  - HLR_PLAYER_010: Player sees party members during combat
+  - HLR_PLAYER_011: Player cannot see enemy HP (shows health description instead)
+  - HLR_PLAYER_012: Player can see own character HP
+  - HLR_PLAYER_013: Player sees turn indicator in combat
+  - HLR_PLAYER_014: Player choice submission updates DM view
+  - HLR_PLAYER_015: Player Dashboard SignalR reconnects after disconnect
+
+- **Enemy HP Hidden from Players** (HLR_PLAYER_011)
+  - `CombatantCard.razor` gains `IsPlayerView` parameter
+  - Players see health description badges instead of exact HP for enemies:
+    - "Healthy" (green) - >75% HP
+    - "Bloodied" (yellow) - 25-75% HP
+    - "Near Death" (red) - 1-25% HP
+    - "Critical" (dark red) - 0% HP
+  - DM still sees exact HP values for all combatants
+  - Players can see exact HP for their own character
+
+### Changed
+- **Solution format upgraded to SLNX** (.NET 10 XML-based solution format)
+  - Replaced `Riddle.sln` (GUID-heavy) with `Riddle.slnx` (clean XML)
+  - Solution now includes both web app and integration tests
+- **`build.py` now builds full solution**
+  - `python build.py` builds both `Riddle.Web` and `Riddle.Web.IntegrationTests`
+  - Eliminates separate test project build step
+
+### Technical
+- `CombatantCard.razor`: New `IsPlayerView` parameter propagated from `CombatTracker`
+- Health description logic: `GetHealthDescription()` and `GetApproximateHealthWidth()` helper methods
+- `data-testid='health-description'` attribute for E2E test selectors
+
 ## [0.17.0] - 2025-12-31
 
 ### Added
@@ -638,7 +680,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flowbite Blazor component library reference documentation
 - Incremental phase implementation workflow for development
 
-[Unreleased]: https://github.com/peakflames/riddle/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/peakflames/riddle/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/peakflames/riddle/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/peakflames/riddle/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/peakflames/riddle/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/peakflames/riddle/compare/v0.14.3...v0.15.0
