@@ -6,6 +6,19 @@ This document captures gotchas, patterns, and hard-won knowledge discovered thro
 
 ---
 
+## Documentation Structure
+
+### `docs/` Directory Organization
+
+- **`docs/`** - Active reference documentation (developer_rules, memory_aid, e2e_testing_philosophy, flowbite_blazor_docs)
+- **`docs/plans/`** - Implementation plans and roadmaps (archived planning documents)
+- **`docs/signalr/`** - SignalR architecture documentation (events, groups, flows)
+- **`docs/design/`** - UX and feature design specs
+- **`docs/verification/`** - Phase completion checklists
+- **`docs/surveys/`** - User research (DM/Player surveys)
+
+---
+
 ## Framework & Platform Gotchas
 
 ### Blazor Server vs WASM
