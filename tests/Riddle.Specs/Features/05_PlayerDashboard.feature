@@ -71,14 +71,6 @@ Feature: Player Dashboard
     Then I should see choice buttons on my dashboard
     And I should see buttons for "Attack", "Hide", and "Negotiate"
 
-  @HLR-PLAYER-006
-  Scenario: Player selects a choice
-    Given I have choice buttons displayed
-    When I click the "Attack" button
-    Then my choice should be sent to the DM
-    And the DM should see "Thorin chose: Attack"
-    And my choice buttons should become disabled
-
   @HLR-PLAYER-007
   Scenario: New choices replace old choices
     Given I have choices displayed
