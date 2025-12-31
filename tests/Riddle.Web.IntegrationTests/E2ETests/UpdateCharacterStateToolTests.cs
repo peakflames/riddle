@@ -42,7 +42,7 @@ public class UpdateCharacterStateToolTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// REQ: HLR-COMBAT-001 - The software shall propagate the updated character data to the 
+    /// REQ: HLR-COMBAT-000 - The software shall propagate the updated character data to the 
     /// following UI areas when the LLM invokes the update_character_state tool:
     /// - DM Dashboard Combat Tracker
     /// - DM Dashboard Party Panel

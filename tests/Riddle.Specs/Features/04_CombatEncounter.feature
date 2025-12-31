@@ -1,3 +1,14 @@
+# ==============================================================================
+# E2E Test Coverage: tests/Riddle.Web.IntegrationTests/E2ETests/CombatEncounterTests.cs
+# 
+# Each @HLR-COMBAT-XXX scenario has a corresponding test method:
+#   @HLR-COMBAT-001 → HLR_COMBAT_001_DM_starts_combat_from_narrative()
+#   @HLR-COMBAT-002 → HLR_COMBAT_002_DM_inputs_initiative_rolls()
+#   ... (pattern: replace hyphens with underscores)
+# 
+# See docs/e2e_testing_philosophy.md for testing patterns.
+# ==============================================================================
+
 @phase2 @phase3 @combat @llm @signalr
 Feature: Combat Encounter
   As a Dungeon Master
