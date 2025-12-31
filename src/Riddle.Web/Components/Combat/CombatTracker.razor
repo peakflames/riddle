@@ -5,7 +5,7 @@
 @implements IAsyncDisposable
 
 @* Display-only combat tracker - combat is controlled by LLM via tools *@
-<Card Size="CardSize.ExtraLarge" class="max-w-none">
+<Card Size="CardSize.ExtraLarge" class="max-w-none" data-testid="combat-tracker">
     <div class="p-4">
         <div class="flex items-center justify-between mb-3">
             <h3 class="font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -14,7 +14,7 @@
             </h3>
             @if (Combat?.IsActive == true)
             {
-                <Badge Color="BadgeColor.Pink" Size="BadgeSize.Small">Round @Combat.RoundNumber</Badge>
+                <Badge Color="BadgeColor.Pink" Size="BadgeSize.Small" data-testid="round-number">Round @Combat.RoundNumber</Badge>
             }
         </div>
         
@@ -103,13 +103,13 @@
                 });
             });
 
-            _hubConnection.On<int, string, int>(GameHubEvents.TurnAdvanced, async (newIndex, currentId, roundNumber) =>
+            _hubConnection.On<TurnAdvancedPayload>(GameHubEvents.TurnAdvanced, async payload =>
             {
-                Logger.LogDebug("[CombatTracker] TurnAdvanced SignalR event RECEIVED: Round={RoundNumber}, newIndex={NewIndex}", roundNumber, newIndex);
+                Logger.LogDebug("[CombatTracker] TurnAdvanced SignalR event RECEIVED: Round={RoundNumber}, newIndex={NewIndex}", payload.RoundNumber, payload.NewTurnIndex);
                 if (Combat != null)
                 {
                     // Create updated state with both turn index and round number
-                    var updatedState = Combat with { CurrentTurnIndex = newIndex, RoundNumber = roundNumber };
+                    var updatedState = Combat with { CurrentTurnIndex = payload.NewTurnIndex, RoundNumber = payload.RoundNumber };
                     await InvokeAsync(async () =>
                     {
                         await CombatChanged.InvokeAsync(updatedState);

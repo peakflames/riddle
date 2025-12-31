@@ -5,7 +5,7 @@
         @* Turn indicator *@
         @if (IsCurrentTurn)
         {
-            <div class="flex items-center justify-center w-8 h-8 rounded-full bg-primary-500 text-white text-sm font-bold">
+            <div data-testid="current-turn-indicator" class="flex items-center justify-center w-8 h-8 rounded-full bg-primary-500 text-white text-sm font-bold">
                 ▶
             </div>
         }
@@ -39,21 +39,21 @@
                 
                 @if (Combatant.IsSurprised)
                 {
-                    <span class="px-1.5 py-0.5 text-xs rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300">
+                    <span data-testid="surprised-badge" class="px-1.5 py-0.5 text-xs rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300">
                         Surprised
                     </span>
                 }
                 
                 @if (Combatant.IsDefeated)
                 {
-                    <span class="px-1.5 py-0.5 text-xs rounded bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                    <span data-testid="defeated-badge" class="px-1.5 py-0.5 text-xs rounded bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
                         ☠️ Defeated
                     </span>
                 }
             </div>
             
             <div class="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
-                <span>Init: @Combatant.Initiative</span>
+                <span data-testid="initiative">Init: @Combatant.Initiative</span>
             </div>
         </div>
     </div>

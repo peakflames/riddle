@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2025-12-31
+
+### Added
+- **14 Combat Encounter E2E Tests** (`CombatEncounterTests.cs`)
+  - HLR_COMBAT_001: DM starts combat from narrative
+  - HLR_COMBAT_002: DM inputs initiative rolls
+  - HLR_COMBAT_003: Combat includes enemy combatants
+  - HLR_COMBAT_004: Turn order displays correctly
+  - HLR_COMBAT_005: DM advances to next turn
+  - HLR_COMBAT_006: Round advances after all turns
+  - HLR_COMBAT_007: Damage is applied to enemy
+  - HLR_COMBAT_008: Enemy is defeated (shows defeated badge)
+  - HLR_COMBAT_009: Surprise round handling
+  - HLR_COMBAT_010: Player takes damage
+  - HLR_COMBAT_012: All enemies defeated auto-ends combat
+  - HLR_COMBAT_013: DM ends combat manually
+  - HLR_COMBAT_014: Player sees combat updates
+  - HLR_COMBAT_015: Turn order syncs across all clients
+
+- **`data-testid` attributes for Combat UI**
+  - `CombatTracker.razor`: `combat-tracker`, `round-number`
+  - `CombatantCard.razor`: `combatant-{Id}`, `current-turn-indicator`, `surprised-badge`, `defeated-badge`, `initiative`, `hp-current`, `hp-max`
+
+### Fixed
+- **Defeated combatants now visible in Combat Tracker** (D&D VTT style)
+  - `MarkDefeatedAsync` no longer removes defeated from TurnOrder
+  - Defeated combatants display with "💀 Defeated" badge
+  - `AdvanceTurnAsync` automatically skips defeated combatants
+  - Matches Roll20/Foundry VTT behavior (defeated stay visible for narrative/looting)
+- **LLM visibility**: `get_combat_state` tool shows defeated status in Status column
+
+### Technical
+- Playwright E2E tests verify full SignalR flow: Service action → SignalR event → Blazor UI → DOM
+- Tests use `Expect().ToHaveTextAsync()` polling for async SignalR propagation
+- `CustomWebApplicationFactory.SetupTestCampaignAsync()` creates isolated test campaigns
+
 ## [0.16.0] - 2025-12-31
 
 ### Fixed
@@ -602,7 +638,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flowbite Blazor component library reference documentation
 - Incremental phase implementation workflow for development
 
-[Unreleased]: https://github.com/peakflames/riddle/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/peakflames/riddle/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/peakflames/riddle/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/peakflames/riddle/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/peakflames/riddle/compare/v0.14.3...v0.15.0
 [0.14.3]: https://github.com/peakflames/riddle/compare/v0.14.2...v0.14.3

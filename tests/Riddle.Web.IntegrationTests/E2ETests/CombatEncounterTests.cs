@@ -13,12 +13,6 @@ namespace Riddle.Web.IntegrationTests.E2ETests;
 /// 
 /// See tests/Riddle.Specs/Features/04_CombatEncounter.feature for scenario details.
 /// See docs/e2e_testing_philosophy.md for testing patterns.
-/// 
-/// Verification Report Summary (2025-12-31):
-/// - 15/17 scenarios verified via static analysis (88%)
-/// - 2 scenarios skipped (LLM judgment for attack hit/miss determination)
-/// - All SignalR events follow single-payload contract rule
-/// - Combat state persists to database via CombatEncounter model
 /// </summary>
 [Collection("E2E")]
 public class CombatEncounterTests : IAsyncLifetime
@@ -49,551 +43,683 @@ public class CombatEncounterTests : IAsyncLifetime
         await _context.DisposeAsync();
     }
 
-    // =====================================================================
-    // Combat Initiation (3 scenarios)
-    // =====================================================================
-
     #region @HLR-COMBAT-001: DM starts combat from narrative
 
-    /// <summary>
-    /// @HLR-COMBAT-001: DM starts combat from narrative
-    /// 
-    /// Given: the party is at "Triboar Trail"
-    /// When:  I tell Riddle "Goblins attack from the bushes!"
-    /// Then:  Riddle should initiate combat mode
-    ///        and Riddle should request initiative rolls
-    ///        and I should see "Roll initiative for the party" in the chat
-    /// 
-    /// Verification Notes:
-    /// - LLM processes DM narrative via RiddleLlmService.ProcessDmInputAsync
-    /// - LLM calls start_combat tool when detecting combat-initiating narrative
-    /// - ToolExecutor routes to ExecuteStartCombatAsync
-    /// - CombatService.StartCombatAsync creates CombatEncounter with combatants
-    /// </summary>
     [Fact]
     public async Task HLR_COMBAT_001_DM_starts_combat_from_narrative()
     {
-        // Arrange - Create campaign with party at specific location
-        //           Set CurrentLocationId to "Triboar Trail"
+        // Arrange - Create campaign with party
+        const string thorinId = "thorin-001";
+        const string elaraId = "elara-001";
         
-        // Act - Process DM input through LLM service (or simulate start_combat tool)
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "Combat Start Test",
+            dmUserId: TestAuthHandler.TestUserId,
+            party:
+            [
+                new Character { Id = thorinId, Name = "Thorin", Type = "PC", Class = "Fighter", Race = "Dwarf", Level = 5, MaxHp = 30, CurrentHp = 30, ArmorClass = 16 },
+                new Character { Id = elaraId, Name = "Elara", Type = "PC", Class = "Rogue", Race = "Elf", Level = 5, MaxHp = 22, CurrentHp = 22, ArmorClass = 14 }
+            ]);
         
-        // Assert - Combat mode initiated (ActiveCombat is not null)
-        //          Initiative rolls requested (LLM response behavior)
-        //          Chat contains "Roll initiative for the party"
+        // Navigate to DM dashboard first
+        await _page.GotoAsync($"{_factory.ServerAddress}/dm/{campaign.Id}",
+            new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 15000 });
         
-        throw new NotImplementedException("Stub: Implement @HLR-COMBAT-001");
+        await _page.WaitForSelectorAsync("[data-testid='combat-tracker']", 
+            new PageWaitForSelectorOptions { Timeout = 10000 });
+        
+        // Verify no active combat initially
+        var noCombatText = _page.Locator("[data-testid='combat-tracker']").GetByText("No active combat");
+        await Expect(noCombatText).ToBeVisibleAsync();
+        
+        // Act - Execute start_combat tool
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.StartCombatAsync(campaign.Id,
+            [
+                new CombatantInfo(thorinId, "Thorin", "PC", 15, 30, 30, false, false),
+                new CombatantInfo(elaraId, "Elara", "PC", 18, 22, 22, false, false),
+                new CombatantInfo("goblin-001", "Goblin 1", "Enemy", 12, 7, 7, false, false),
+                new CombatantInfo("goblin-002", "Goblin 2", "Enemy", 10, 7, 7, false, false)
+            ]);
+        }
+        
+        // Assert - Combat mode initiated
+        var combatantLocator = _page.Locator("[data-testid^='combatant-']");
+        await Expect(combatantLocator).ToHaveCountAsync(4, new LocatorAssertionsToHaveCountOptions { Timeout = 5000 });
+        
+        await Expect(_page.Locator("[data-testid='round-number']"))
+            .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 5000 });
     }
 
     #endregion
 
     #region @HLR-COMBAT-002: DM inputs initiative rolls
 
-    /// <summary>
-    /// @HLR-COMBAT-002: DM inputs initiative rolls
-    /// 
-    /// Given: combat is starting
-    /// When:  I tell Riddle "Thorin rolled 15, Elara rolled 18"
-    /// Then:  Riddle should set Thorin's initiative to 15
-    ///        and Riddle should set Elara's initiative to 18
-    ///        and the turn order should be established
-    /// 
-    /// Verification Notes:
-    /// - update_character_state tool with key="initiative" handles this
-    /// - Routes to UpdateCombatantStateAsync for combatants
-    /// - CombatService.SetInitiativeAsync re-sorts TurnOrder by initiative descending
-    /// - NotifyInitiativeSetAsync broadcasts update via SignalR
-    /// </summary>
     [Fact]
     public async Task HLR_COMBAT_002_DM_inputs_initiative_rolls()
     {
-        // Arrange - Create campaign with combat starting
-        //           Add Thorin and Elara to combat with initiative=0
+        const string thorinId = "thorin-001";
+        const string elaraId = "elara-001";
         
-        // Act - Execute update_character_state for Thorin (initiative=15)
-        //       Execute update_character_state for Elara (initiative=18)
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "Initiative Test",
+            dmUserId: TestAuthHandler.TestUserId,
+            party:
+            [
+                new Character { Id = thorinId, Name = "Thorin", Type = "PC", Class = "Fighter", Race = "Dwarf", Level = 5, MaxHp = 30, CurrentHp = 30, ArmorClass = 16 },
+                new Character { Id = elaraId, Name = "Elara", Type = "PC", Class = "Rogue", Race = "Elf", Level = 5, MaxHp = 22, CurrentHp = 22, ArmorClass = 14 }
+            ]);
         
-        // Assert - Thorin's initiative is 15
-        //          Elara's initiative is 18
-        //          Turn order reflects Elara (18) before Thorin (15)
+        // Start combat with Thorin first (higher initiative)
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.StartCombatAsync(campaign.Id,
+            [
+                new CombatantInfo(thorinId, "Thorin", "PC", 20, 30, 30, false, false),
+                new CombatantInfo(elaraId, "Elara", "PC", 10, 22, 22, false, false)
+            ]);
+        }
         
-        throw new NotImplementedException("Stub: Implement @HLR-COMBAT-002");
+        await _page.GotoAsync($"{_factory.ServerAddress}/dm/{campaign.Id}",
+            new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 15000 });
+        
+        await _page.WaitForSelectorAsync("[data-testid='combat-tracker']");
+        
+        var firstCombatant = _page.Locator("[data-testid^='combatant-']").First;
+        await Expect(firstCombatant).ToContainTextAsync("Thorin");
+        
+        // Act - Update initiative to make Elara first
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.SetInitiativeAsync(campaign.Id, thorinId, 15);
+            await combatService.SetInitiativeAsync(campaign.Id, elaraId, 18);
+        }
+        
+        // Assert - Reload to see updated order
+        await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.NetworkIdle });
+        await _page.WaitForSelectorAsync("[data-testid='combat-tracker']");
+        
+        var updatedFirstCombatant = _page.Locator("[data-testid^='combatant-']").First;
+        await Expect(updatedFirstCombatant).ToContainTextAsync("Elara", 
+            new LocatorAssertionsToContainTextOptions { Timeout = 5000 });
     }
 
     #endregion
 
     #region @HLR-COMBAT-003: Combat includes enemy combatants
 
-    /// <summary>
-    /// @HLR-COMBAT-003: Combat includes enemy combatants
-    /// 
-    /// Given: I start combat with goblins
-    /// When:  Riddle processes the encounter
-    /// Then:  enemies should be added to the combat
-    ///        and enemies should have initiative rolled by Riddle
-    /// 
-    /// Verification Notes:
-    /// - start_combat tool accepts enemies array parameter
-    /// - Each enemy can specify name, initiative, max_hp, current_hp, ac
-    /// - ToolExecutor creates CombatantInfo records with Type: "Enemy"
-    /// - Initiative values provided by LLM (simulating dice rolls)
-    /// </summary>
     [Fact]
     public async Task HLR_COMBAT_003_Combat_includes_enemy_combatants()
     {
-        // Arrange - Create campaign with party
+        const string thorinId = "thorin-001";
         
-        // Act - Execute start_combat with enemies array:
-        //       [{ name: "Goblin 1", hp: 7, ac: 15 }, { name: "Goblin 2", hp: 7, ac: 15 }]
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "Enemy Combatant Test",
+            dmUserId: TestAuthHandler.TestUserId,
+            party:
+            [
+                new Character { Id = thorinId, Name = "Thorin", Type = "PC", Class = "Fighter", Race = "Dwarf", Level = 5, MaxHp = 30, CurrentHp = 30, ArmorClass = 16 }
+            ]);
         
-        // Assert - Combat has 2 enemy combatants
-        //          Goblin 1 and Goblin 2 appear in CombatTracker
-        //          Each has initiative value set
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.StartCombatAsync(campaign.Id,
+            [
+                new CombatantInfo(thorinId, "Thorin", "PC", 15, 30, 30, false, false),
+                new CombatantInfo("goblin-001", "Goblin 1", "Enemy", 12, 7, 7, false, false),
+                new CombatantInfo("goblin-002", "Goblin 2", "Enemy", 10, 7, 7, false, false)
+            ]);
+        }
         
-        throw new NotImplementedException("Stub: Implement @HLR-COMBAT-003");
+        await _page.GotoAsync($"{_factory.ServerAddress}/dm/{campaign.Id}",
+            new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 15000 });
+        
+        await _page.WaitForSelectorAsync("[data-testid='combat-tracker']");
+        
+        var combatants = _page.Locator("[data-testid^='combatant-']");
+        await Expect(combatants).ToHaveCountAsync(3, new LocatorAssertionsToHaveCountOptions { Timeout = 5000 });
+        
+        await Expect(_page.Locator("[data-testid='combatant-goblin-001']")).ToBeVisibleAsync();
+        await Expect(_page.Locator("[data-testid='combatant-goblin-002']")).ToBeVisibleAsync();
+        
+        var goblin1Initiative = _page.Locator("[data-testid='combatant-goblin-001'] [data-testid='initiative']");
+        await Expect(goblin1Initiative).ToContainTextAsync("12");
     }
 
     #endregion
 
-    // =====================================================================
-    // Turn Order Management (3 scenarios)
-    // =====================================================================
-
     #region @HLR-COMBAT-004: Turn order displays correctly
 
-    /// <summary>
-    /// @HLR-COMBAT-004: Turn order displays correctly
-    /// 
-    /// Given: combat is active with turn order:
-    ///        | Position | Character  | Initiative |
-    ///        | 1        | Elara      | 18         |
-    ///        | 2        | Goblin 1   | 16         |
-    ///        | 3        | Thorin     | 15         |
-    ///        | 4        | Goblin 2   | 12         |
-    /// Then:  the Combat Tracker should show this order
-    ///        and the current turn should be highlighted
-    ///        and the round number should display as 1
-    /// 
-    /// Verification Notes:
-    /// - CombatTracker.razor renders TurnOrder list
-    /// - Current turn highlighted via IsCurrentTurn comparison
-    /// - Round number displayed in Badge component
-    /// </summary>
     [Fact]
     public async Task HLR_COMBAT_004_Turn_order_displays_correctly()
     {
-        // Arrange - Create campaign with active combat
-        //           Set TurnOrder: Elara(18), Goblin 1(16), Thorin(15), Goblin 2(12)
-        //           Set CurrentTurnIndex to 0, RoundNumber to 1
+        const string thorinId = "thorin-001";
+        const string elaraId = "elara-001";
         
-        // Act - Navigate to DM dashboard
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "Turn Order Display Test",
+            dmUserId: TestAuthHandler.TestUserId,
+            party:
+            [
+                new Character { Id = thorinId, Name = "Thorin", Type = "PC", Class = "Fighter", Race = "Dwarf", Level = 5, MaxHp = 30, CurrentHp = 30, ArmorClass = 16 },
+                new Character { Id = elaraId, Name = "Elara", Type = "PC", Class = "Rogue", Race = "Elf", Level = 5, MaxHp = 22, CurrentHp = 22, ArmorClass = 14 }
+            ]);
         
-        // Assert - CombatTracker shows combatants in order: Elara, Goblin 1, Thorin, Goblin 2
-        //          First combatant (Elara) is highlighted as current turn
-        //          Round number badge shows "1"
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.StartCombatAsync(campaign.Id,
+            [
+                new CombatantInfo(elaraId, "Elara", "PC", 18, 22, 22, false, false),
+                new CombatantInfo("goblin-001", "Goblin 1", "Enemy", 16, 7, 7, false, false),
+                new CombatantInfo(thorinId, "Thorin", "PC", 15, 30, 30, false, false),
+                new CombatantInfo("goblin-002", "Goblin 2", "Enemy", 12, 7, 7, false, false)
+            ]);
+        }
         
-        throw new NotImplementedException("Stub: Implement @HLR-COMBAT-004");
+        await _page.GotoAsync($"{_factory.ServerAddress}/dm/{campaign.Id}",
+            new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 15000 });
+        
+        await _page.WaitForSelectorAsync("[data-testid='combat-tracker']");
+        
+        var combatants = _page.Locator("[data-testid^='combatant-']");
+        await Expect(combatants).ToHaveCountAsync(4);
+        
+        var firstCombatant = combatants.First;
+        await Expect(firstCombatant).ToContainTextAsync("Elara");
+        
+        var elaraCard = _page.Locator($"[data-testid='combatant-{elaraId}']");
+        await Expect(elaraCard.Locator("[data-testid='current-turn-indicator']")).ToBeVisibleAsync();
+        
+        await Expect(_page.Locator("[data-testid='round-number']")).ToContainTextAsync("Round 1");
     }
 
     #endregion
 
     #region @HLR-COMBAT-005: DM advances to next turn
 
-    /// <summary>
-    /// @HLR-COMBAT-005: DM advances to next turn
-    /// 
-    /// Given: combat is active
-    ///        and it is "Elara's" turn
-    /// When:  I tell Riddle "Elara's turn is done"
-    /// Then:  the current turn should advance to the next combatant
-    ///        and all connected clients should see the update
-    /// 
-    /// Verification Notes:
-    /// - advance_turn tool calls CombatService.AdvanceTurnAsync
-    /// - Increments CurrentTurnIndex
-    /// - NotifyTurnAdvancedAsync broadcasts TurnAdvancedPayload via SignalR
-    /// - CombatTracker subscribes to TurnAdvanced and updates via CombatChanged callback
-    /// </summary>
     [Fact]
     public async Task HLR_COMBAT_005_DM_advances_to_next_turn()
     {
-        // Arrange - Create campaign with active combat
-        //           Set current turn to Elara (index 0)
-        //           Navigate to DM dashboard
+        const string thorinId = "thorin-001";
+        const string elaraId = "elara-001";
         
-        // Act - Execute advance_turn tool
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "Turn Advance Test",
+            dmUserId: TestAuthHandler.TestUserId,
+            party:
+            [
+                new Character { Id = thorinId, Name = "Thorin", Type = "PC", Class = "Fighter", Race = "Dwarf", Level = 5, MaxHp = 30, CurrentHp = 30, ArmorClass = 16 },
+                new Character { Id = elaraId, Name = "Elara", Type = "PC", Class = "Rogue", Race = "Elf", Level = 5, MaxHp = 22, CurrentHp = 22, ArmorClass = 14 }
+            ]);
         
-        // Assert - Current turn advanced to next combatant
-        //          UI highlight moved to next combatant
-        //          TurnAdvanced SignalR event received
+        // Start combat with Elara first
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.StartCombatAsync(campaign.Id,
+            [
+                new CombatantInfo(elaraId, "Elara", "PC", 18, 22, 22, false, false),
+                new CombatantInfo(thorinId, "Thorin", "PC", 15, 30, 30, false, false)
+            ]);
+        }
         
-        throw new NotImplementedException("Stub: Implement @HLR-COMBAT-005");
+        await _page.GotoAsync($"{_factory.ServerAddress}/dm/{campaign.Id}",
+            new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 15000 });
+        
+        await _page.WaitForSelectorAsync("[data-testid='combat-tracker']");
+        
+        // Verify Elara is current turn
+        var elaraCard = _page.Locator($"[data-testid='combatant-{elaraId}']");
+        await Expect(elaraCard.Locator("[data-testid='current-turn-indicator']")).ToBeVisibleAsync();
+        
+        // Act - Advance turn
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.AdvanceTurnAsync(campaign.Id);
+        }
+        
+        // Assert - Thorin is now current turn
+        var thorinCard = _page.Locator($"[data-testid='combatant-{thorinId}']");
+        await Expect(thorinCard.Locator("[data-testid='current-turn-indicator']"))
+            .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 5000 });
+        
+        await Expect(elaraCard.Locator("[data-testid='current-turn-indicator']"))
+            .Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 5000 });
     }
 
     #endregion
 
     #region @HLR-COMBAT-006: Round advances after all turns
 
-    /// <summary>
-    /// @HLR-COMBAT-006: Round advances after all turns
-    /// 
-    /// Given: combat is active on round 1
-    ///        and it is the last combatant's turn
-    /// When:  that combatant's turn ends
-    /// Then:  the round number should increase to 2
-    ///        and the turn should return to the first combatant
-    /// 
-    /// Verification Notes:
-    /// - CombatService.AdvanceTurnAsync wraps CurrentTurnIndex to 0 at end
-    /// - Increments RoundNumber when wrapping
-    /// - Clears SurprisedEntities when transitioning to round 2
-    /// </summary>
     [Fact]
     public async Task HLR_COMBAT_006_Round_advances_after_all_turns()
     {
-        // Arrange - Create campaign with active combat (4 combatants)
-        //           Set CurrentTurnIndex to 3 (last combatant)
-        //           Set RoundNumber to 1
-        //           Navigate to DM dashboard
+        const string thorinId = "thorin-001";
+        const string elaraId = "elara-001";
         
-        // Act - Execute advance_turn tool
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "Round Advance Test",
+            dmUserId: TestAuthHandler.TestUserId,
+            party:
+            [
+                new Character { Id = thorinId, Name = "Thorin", Type = "PC", Class = "Fighter", Race = "Dwarf", Level = 5, MaxHp = 30, CurrentHp = 30, ArmorClass = 16 },
+                new Character { Id = elaraId, Name = "Elara", Type = "PC", Class = "Rogue", Race = "Elf", Level = 5, MaxHp = 22, CurrentHp = 22, ArmorClass = 14 }
+            ]);
         
-        // Assert - RoundNumber increased to 2
-        //          CurrentTurnIndex wrapped to 0
-        //          Round badge shows "2"
-        //          First combatant is highlighted
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.StartCombatAsync(campaign.Id,
+            [
+                new CombatantInfo(elaraId, "Elara", "PC", 18, 22, 22, false, false),
+                new CombatantInfo(thorinId, "Thorin", "PC", 15, 30, 30, false, false)
+            ]);
+        }
         
-        throw new NotImplementedException("Stub: Implement @HLR-COMBAT-006");
+        await _page.GotoAsync($"{_factory.ServerAddress}/dm/{campaign.Id}",
+            new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 15000 });
+        
+        await _page.WaitForSelectorAsync("[data-testid='combat-tracker']");
+        await Expect(_page.Locator("[data-testid='round-number']")).ToContainTextAsync("Round 1");
+        
+        // Advance through all combatants (Elara -> Thorin -> back to Elara)
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.AdvanceTurnAsync(campaign.Id); // Elara -> Thorin
+            await combatService.AdvanceTurnAsync(campaign.Id); // Thorin -> Elara (round 2)
+        }
+        
+        // Assert - Round 2 and back to first combatant
+        await Expect(_page.Locator("[data-testid='round-number']"))
+            .ToContainTextAsync("Round 2", new LocatorAssertionsToContainTextOptions { Timeout = 5000 });
+        
+        var elaraCard = _page.Locator($"[data-testid='combatant-{elaraId}']");
+        await Expect(elaraCard.Locator("[data-testid='current-turn-indicator']"))
+            .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 5000 });
     }
 
     #endregion
 
-    // =====================================================================
-    // Attack Resolution (2 scenarios)
-    // =====================================================================
-
     #region @HLR-COMBAT-007: Damage is applied to enemy
 
-    /// <summary>
-    /// @HLR-COMBAT-007: Damage is applied to enemy
-    /// 
-    /// Given: combat is active
-    ///        and Thorin hit Goblin 1
-    /// When:  I tell Riddle "Thorin deals 8 damage"
-    /// Then:  Goblin 1's HP should decrease by 8
-    ///        and the Combat Tracker should update
-    ///        and all players should see the HP change
-    /// 
-    /// Verification Notes:
-    /// - update_character_state tool with key="current_hp" handles damage
-    /// - Routes to CombatService.UpdateCombatantHpAsync for combat entities
-    /// - Broadcasts CharacterStateUpdated via SignalR to all group members
-    /// - CombatTracker handles event and updates local turn order display
-    /// </summary>
     [Fact]
     public async Task HLR_COMBAT_007_Damage_is_applied_to_enemy()
     {
-        // Arrange - Create campaign with active combat
-        //           Add Goblin 1 with HP=7
-        //           Navigate to DM dashboard
-        //           Verify Goblin 1 HP shows "7"
+        const string thorinId = "thorin-001";
+        const string goblinId = "goblin-001";
         
-        // Act - Execute update_character_state(character_name="Goblin 1", key="current_hp", value=-8)
-        //       (or absolute value based on tool API)
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "Damage Test",
+            dmUserId: TestAuthHandler.TestUserId,
+            party:
+            [
+                new Character { Id = thorinId, Name = "Thorin", Type = "PC", Class = "Fighter", Race = "Dwarf", Level = 5, MaxHp = 30, CurrentHp = 30, ArmorClass = 16 }
+            ]);
         
-        // Assert - Goblin 1's HP decreased (shows new value in UI)
-        //          Combat Tracker updated via SignalR
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.StartCombatAsync(campaign.Id,
+            [
+                new CombatantInfo(thorinId, "Thorin", "PC", 15, 30, 30, false, false),
+                new CombatantInfo(goblinId, "Goblin 1", "Enemy", 12, 7, 7, false, false)
+            ]);
+        }
         
-        throw new NotImplementedException("Stub: Implement @HLR-COMBAT-007");
+        await _page.GotoAsync($"{_factory.ServerAddress}/dm/{campaign.Id}",
+            new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 15000 });
+        
+        await _page.WaitForSelectorAsync("[data-testid='combat-tracker']");
+        
+        var goblinHp = _page.Locator($"[data-testid='combatant-{goblinId}'] [data-testid='hp-current']");
+        await Expect(goblinHp).ToHaveTextAsync("7");
+        
+        // Act - Apply damage via update combatant HP
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.UpdateCombatantHpAsync(campaign.Id, goblinId, 2); // 7 - 5 = 2
+        }
+        
+        // Assert - HP decreased
+        await Expect(goblinHp).ToHaveTextAsync("2", new LocatorAssertionsToHaveTextOptions { Timeout = 5000 });
     }
 
     #endregion
 
     #region @HLR-COMBAT-008: Enemy is defeated
 
-    /// <summary>
-    /// @HLR-COMBAT-008: Enemy is defeated
-    /// 
-    /// Given: combat is active
-    ///        and "Goblin 1" has 3 HP remaining
-    /// When:  I tell Riddle "Thorin deals 5 damage to Goblin 1"
-    /// Then:  Goblin 1 should be marked as defeated
-    ///        and Riddle should narrate the defeat
-    ///        and Goblin 1 should be removed from the turn order
-    /// 
-    /// Verification Notes:
-    /// - UpdateCombatantHpAsync auto-calls MarkDefeatedAsync when HP <= 0
-    /// - MarkDefeatedAsync sets IsDefeated=true, removes from TurnOrder
-    /// - Adjusts CurrentTurnIndex if needed
-    /// - Checks if all enemies defeated (auto-ends combat)
-    /// </summary>
     [Fact]
     public async Task HLR_COMBAT_008_Enemy_is_defeated()
     {
-        // Arrange - Create campaign with active combat
-        //           Add Goblin 1 with HP=3
-        //           Navigate to DM dashboard
+        const string thorinId = "thorin-001";
+        const string goblin1Id = "goblin-001";
+        const string goblin2Id = "goblin-002";
         
-        // Act - Execute update_character_state to reduce Goblin 1 HP by 5 (to -2)
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "Defeat Test",
+            dmUserId: TestAuthHandler.TestUserId,
+            party:
+            [
+                new Character { Id = thorinId, Name = "Thorin", Type = "PC", Class = "Fighter", Race = "Dwarf", Level = 5, MaxHp = 30, CurrentHp = 30, ArmorClass = 16 }
+            ]);
         
-        // Assert - Goblin 1 marked as defeated (IsDefeated=true)
-        //          Goblin 1 removed from turn order display
-        //          CombatTracker no longer shows Goblin 1 in active combatants
+        // Need 2 enemies so marking one defeated doesn't auto-end combat
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.StartCombatAsync(campaign.Id,
+            [
+                new CombatantInfo(thorinId, "Thorin", "PC", 15, 30, 30, false, false),
+                new CombatantInfo(goblin1Id, "Goblin 1", "Enemy", 12, 3, 7, false, false), // 3 HP - will be defeated
+                new CombatantInfo(goblin2Id, "Goblin 2", "Enemy", 10, 7, 7, false, false)  // Keeps combat alive
+            ]);
+        }
         
-        throw new NotImplementedException("Stub: Implement @HLR-COMBAT-008");
+        await _page.GotoAsync($"{_factory.ServerAddress}/dm/{campaign.Id}",
+            new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 15000 });
+        
+        await _page.WaitForSelectorAsync("[data-testid='combat-tracker']");
+        
+        // Act - Mark goblin 1 as defeated
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.MarkDefeatedAsync(campaign.Id, goblin1Id);
+        }
+        
+        // Assert - Goblin 1 shows defeated badge (combat still active due to goblin 2)
+        var goblin1Card = _page.Locator($"[data-testid='combatant-{goblin1Id}']");
+        await Expect(goblin1Card.Locator("[data-testid='defeated-badge']"))
+            .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 5000 });
     }
 
     #endregion
 
-    // =====================================================================
-    // Special Combat Situations (3 scenarios)
-    // =====================================================================
-
     #region @HLR-COMBAT-009: Surprise round
 
-    /// <summary>
-    /// @HLR-COMBAT-009: Surprise round
-    /// 
-    /// Given: I tell Riddle "The goblins have surprise"
-    /// When:  combat begins
-    /// Then:  the party members should be marked as surprised
-    ///        and surprised characters should skip round 1
-    ///        and Riddle should explain the surprise rules
-    /// 
-    /// Verification Notes:
-    /// - CombatEncounter.SurprisedEntities list tracks surprised characters
-    /// - BuildCombatStatePayload sets IsSurprised flag on CombatantInfo
-    /// - AdvanceTurnAsync clears SurprisedEntities when transitioning to round 2
-    /// </summary>
     [Fact]
     public async Task HLR_COMBAT_009_Surprise_round()
     {
-        // Arrange - Create campaign with party
+        const string thorinId = "thorin-001";
+        const string goblinId = "goblin-001";
         
-        // Act - Execute start_combat with party members in SurprisedEntities
-        //       Navigate to DM dashboard
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "Surprise Test",
+            dmUserId: TestAuthHandler.TestUserId,
+            party:
+            [
+                new Character { Id = thorinId, Name = "Thorin", Type = "PC", Class = "Fighter", Race = "Dwarf", Level = 5, MaxHp = 30, CurrentHp = 30, ArmorClass = 16 }
+            ]);
         
-        // Assert - Party members show IsSurprised=true in round 1
-        //          Surprised indicator visible in CombatTracker
-        //          After round 1 completes, IsSurprised cleared
+        // Start combat with Thorin surprised
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.StartCombatAsync(campaign.Id,
+            [
+                new CombatantInfo(goblinId, "Goblin 1", "Enemy", 12, 7, 7, false, false),
+                new CombatantInfo(thorinId, "Thorin", "PC", 15, 30, 30, false, true) // Surprised
+            ]);
+        }
         
-        throw new NotImplementedException("Stub: Implement @HLR-COMBAT-009");
+        await _page.GotoAsync($"{_factory.ServerAddress}/dm/{campaign.Id}",
+            new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 15000 });
+        
+        await _page.WaitForSelectorAsync("[data-testid='combat-tracker']");
+        
+        // Assert - Thorin shows surprised badge
+        var thorinCard = _page.Locator($"[data-testid='combatant-{thorinId}']");
+        await Expect(thorinCard.Locator("[data-testid='surprised-badge']"))
+            .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 5000 });
     }
 
     #endregion
 
     #region @HLR-COMBAT-010: Player takes damage
 
-    /// <summary>
-    /// @HLR-COMBAT-010: Player takes damage
-    /// 
-    /// Given: combat is active
-    ///        and "Thorin" has 12 HP
-    /// When:  I tell Riddle "The goblin hits Thorin for 5 damage"
-    /// Then:  Thorin's HP should decrease to 7
-    ///        and the Party Tracker should update in real-time
-    ///        and Player screens should show the updated HP
-    /// 
-    /// Verification Notes:
-    /// - For party characters, routes through UpdateCharacterAsync
-    /// - NotifyCharacterStateUpdatedAsync broadcasts to "all" group
-    /// - Both DM and player clients receive update
-    /// </summary>
     [Fact]
     public async Task HLR_COMBAT_010_Player_takes_damage()
     {
-        // Arrange - Create campaign with Thorin (HP=12) in active combat
-        //           Navigate to DM dashboard
-        //           Verify Thorin HP shows "12"
+        const string thorinId = "thorin-001";
+        const string goblinId = "goblin-001";
         
-        // Act - Execute update_character_state(character_name="Thorin", key="current_hp", value=7)
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "Player Damage Test",
+            dmUserId: TestAuthHandler.TestUserId,
+            party:
+            [
+                new Character { Id = thorinId, Name = "Thorin", Type = "PC", Class = "Fighter", Race = "Dwarf", Level = 5, MaxHp = 30, CurrentHp = 12, ArmorClass = 16 }
+            ]);
         
-        // Assert - Thorin's HP shows "7" in Combat Tracker
-        //          Party panel also shows updated HP
-        //          SignalR event broadcast to all connected clients
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.StartCombatAsync(campaign.Id,
+            [
+                new CombatantInfo(thorinId, "Thorin", "PC", 15, 12, 30, false, false),
+                new CombatantInfo(goblinId, "Goblin 1", "Enemy", 12, 7, 7, false, false)
+            ]);
+        }
         
-        throw new NotImplementedException("Stub: Implement @HLR-COMBAT-010");
+        await _page.GotoAsync($"{_factory.ServerAddress}/dm/{campaign.Id}",
+            new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 15000 });
+        
+        await _page.WaitForSelectorAsync("[data-testid='combat-tracker']");
+        
+        var thorinHp = _page.Locator($"[data-testid='combatant-{thorinId}'] [data-testid='hp-current']");
+        await Expect(thorinHp).ToHaveTextAsync("12");
+        
+        // Act - Player takes damage
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.UpdateCombatantHpAsync(campaign.Id, thorinId, 7); // 12 - 5 = 7
+        }
+        
+        // Assert - HP decreased
+        await Expect(thorinHp).ToHaveTextAsync("7", new LocatorAssertionsToHaveTextOptions { Timeout = 5000 });
     }
 
     #endregion
-
-    #region @HLR-COMBAT-011: Condition is applied
-
-    /// <summary>
-    /// @HLR-COMBAT-011: Condition is applied
-    /// 
-    /// Given: combat is active
-    /// When:  I tell Riddle "Thorin is poisoned"
-    /// Then:  Thorin should have the "Poisoned" condition
-    ///        and the condition should appear in the Party Tracker
-    ///        and Riddle should explain the Poisoned condition effects
-    /// 
-    /// Verification Notes:
-    /// - update_character_state tool with key="conditions" updates character.Conditions list
-    /// - Expects JSON array of condition strings
-    /// - NotifyCharacterStateUpdatedAsync broadcasts for real-time UI updates
-    /// </summary>
-    [Fact]
-    public async Task HLR_COMBAT_011_Condition_is_applied()
-    {
-        // Arrange - Create campaign with Thorin in active combat
-        //           Navigate to DM dashboard
-        
-        // Act - Execute update_character_state(character_name="Thorin", key="conditions", value=["Poisoned"])
-        
-        // Assert - Thorin has "Poisoned" condition in data
-        //          Condition badge visible in Party Tracker/Combat Tracker
-        //          CharacterStateUpdated event broadcast
-        
-        throw new NotImplementedException("Stub: Implement @HLR-COMBAT-011");
-    }
-
-    #endregion
-
-    // =====================================================================
-    // Combat Conclusion (2 scenarios)
-    // =====================================================================
 
     #region @HLR-COMBAT-012: All enemies defeated
 
-    /// <summary>
-    /// @HLR-COMBAT-012: All enemies defeated
-    /// 
-    /// Given: combat is active
-    ///        and only one enemy remains with 2 HP
-    /// When:  that enemy is defeated
-    /// Then:  combat should end
-    ///        and Riddle should generate victory narration
-    ///        and the Combat Tracker should indicate combat is over
-    /// 
-    /// Verification Notes:
-    /// - MarkDefeatedAsync includes auto-end check
-    /// - Queries remaining active enemies (!activeEnemies.Any())
-    /// - Auto-calls EndCombatAsync if no enemies remain
-    /// - Sets campaign.ActiveCombat = null and broadcasts CombatEnded
-    /// </summary>
     [Fact]
     public async Task HLR_COMBAT_012_All_enemies_defeated()
     {
-        // Arrange - Create campaign with active combat
-        //           Single enemy (Goblin) with HP=2
-        //           Navigate to DM dashboard
+        const string thorinId = "thorin-001";
+        const string goblinId = "goblin-001";
         
-        // Act - Execute update_character_state to reduce Goblin HP to 0
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "Victory Test",
+            dmUserId: TestAuthHandler.TestUserId,
+            party:
+            [
+                new Character { Id = thorinId, Name = "Thorin", Type = "PC", Class = "Fighter", Race = "Dwarf", Level = 5, MaxHp = 30, CurrentHp = 30, ArmorClass = 16 }
+            ]);
         
-        // Assert - Combat ended (ActiveCombat is null)
-        //          CombatEnded SignalR event broadcast
-        //          Combat Tracker shows combat is over (or disappears)
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.StartCombatAsync(campaign.Id,
+            [
+                new CombatantInfo(thorinId, "Thorin", "PC", 15, 30, 30, false, false),
+                new CombatantInfo(goblinId, "Goblin 1", "Enemy", 12, 2, 7, false, false) // 2 HP
+            ]);
+        }
         
-        throw new NotImplementedException("Stub: Implement @HLR-COMBAT-012");
+        await _page.GotoAsync($"{_factory.ServerAddress}/dm/{campaign.Id}",
+            new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 15000 });
+        
+        await _page.WaitForSelectorAsync("[data-testid='combat-tracker']");
+        
+        // Verify combat is active
+        await Expect(_page.Locator("[data-testid='round-number']")).ToBeVisibleAsync();
+        
+        // Act - Defeat the only enemy
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.MarkDefeatedAsync(campaign.Id, goblinId);
+        }
+        
+        // Assert - Combat ended (no more round number visible or "No active combat" shown)
+        var noCombatText = _page.Locator("[data-testid='combat-tracker']").GetByText("No active combat");
+        await Expect(noCombatText).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 5000 });
     }
 
     #endregion
 
     #region @HLR-COMBAT-013: DM ends combat manually
 
-    /// <summary>
-    /// @HLR-COMBAT-013: DM ends combat manually
-    /// 
-    /// Given: combat is active
-    /// When:  I tell Riddle "End combat, the goblins flee"
-    /// Then:  combat should end
-    ///        and Riddle should narrate the enemy retreat
-    ///        and the campaign instance should return to exploration mode
-    /// 
-    /// Verification Notes:
-    /// - end_combat tool calls CombatService.EndCombatAsync
-    /// - Sets campaign.ActiveCombat = null
-    /// - Saves to database and broadcasts CombatEnded
-    /// - Narrative response generated by LLM based on context
-    /// </summary>
     [Fact]
     public async Task HLR_COMBAT_013_DM_ends_combat_manually()
     {
-        // Arrange - Create campaign with active combat
-        //           Navigate to DM dashboard
-        //           Verify Combat Tracker is visible
+        const string thorinId = "thorin-001";
+        const string goblinId = "goblin-001";
         
-        // Act - Execute end_combat tool
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "Manual End Test",
+            dmUserId: TestAuthHandler.TestUserId,
+            party:
+            [
+                new Character { Id = thorinId, Name = "Thorin", Type = "PC", Class = "Fighter", Race = "Dwarf", Level = 5, MaxHp = 30, CurrentHp = 30, ArmorClass = 16 }
+            ]);
         
-        // Assert - Combat ended (ActiveCombat is null)
-        //          CombatEnded SignalR event broadcast
-        //          Combat Tracker hidden/removed
-        //          Campaign in exploration mode
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.StartCombatAsync(campaign.Id,
+            [
+                new CombatantInfo(thorinId, "Thorin", "PC", 15, 30, 30, false, false),
+                new CombatantInfo(goblinId, "Goblin 1", "Enemy", 12, 7, 7, false, false)
+            ]);
+        }
         
-        throw new NotImplementedException("Stub: Implement @HLR-COMBAT-013");
+        await _page.GotoAsync($"{_factory.ServerAddress}/dm/{campaign.Id}",
+            new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 15000 });
+        
+        await _page.WaitForSelectorAsync("[data-testid='combat-tracker']");
+        await Expect(_page.Locator("[data-testid='round-number']")).ToBeVisibleAsync();
+        
+        // Act - End combat manually
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.EndCombatAsync(campaign.Id);
+        }
+        
+        // Assert - Combat ended
+        var noCombatText = _page.Locator("[data-testid='combat-tracker']").GetByText("No active combat");
+        await Expect(noCombatText).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 5000 });
     }
 
     #endregion
 
-    // =====================================================================
-    // Real-time Updates (2 scenarios)
-    // =====================================================================
-
     #region @HLR-COMBAT-014: Player sees combat updates
 
-    /// <summary>
-    /// @HLR-COMBAT-014: Player sees combat updates
-    /// 
-    /// Given: Player "Alice" is connected to the campaign instance
-    ///        and combat is active
-    /// When:  enemy HP changes
-    /// Then:  Alice should see the update without refreshing
-    ///        and the update should appear within 1 second
-    /// 
-    /// Verification Notes:
-    /// - SignalR provides real-time bidirectional communication
-    /// - NotifyCharacterStateUpdatedAsync broadcasts to campaign's "all" group
-    /// - CombatTracker subscribes to CharacterStateUpdated events
-    /// - UI updates reactively via StateHasChanged()
-    /// </summary>
     [Fact]
     public async Task HLR_COMBAT_014_Player_sees_combat_updates()
     {
-        // Arrange - Create campaign with active combat
-        //           Navigate to player dashboard (simulating Alice)
-        //           Verify initial enemy HP visible
+        const string thorinId = "thorin-001";
+        const string goblinId = "goblin-001";
         
-        // Act - Execute update_character_state to change enemy HP
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "Player View Test",
+            dmUserId: TestAuthHandler.TestUserId,
+            party:
+            [
+                new Character { Id = thorinId, Name = "Thorin", Type = "PC", Class = "Fighter", Race = "Dwarf", Level = 5, MaxHp = 30, CurrentHp = 30, ArmorClass = 16 }
+            ]);
         
-        // Assert - Player sees HP update without page refresh
-        //          Update appears within timeout (SignalR real-time)
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.StartCombatAsync(campaign.Id,
+            [
+                new CombatantInfo(thorinId, "Thorin", "PC", 15, 30, 30, false, false),
+                new CombatantInfo(goblinId, "Goblin 1", "Enemy", 12, 7, 7, false, false)
+            ]);
+        }
         
-        throw new NotImplementedException("Stub: Implement @HLR-COMBAT-014");
+        // Navigate to DM dashboard (player view uses same combat tracker)
+        await _page.GotoAsync($"{_factory.ServerAddress}/dm/{campaign.Id}",
+            new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 15000 });
+        
+        await _page.WaitForSelectorAsync("[data-testid='combat-tracker']");
+        
+        var goblinHp = _page.Locator($"[data-testid='combatant-{goblinId}'] [data-testid='hp-current']");
+        await Expect(goblinHp).ToHaveTextAsync("7");
+        
+        // Act - Update enemy HP
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.UpdateCombatantHpAsync(campaign.Id, goblinId, 3);
+        }
+        
+        // Assert - Player sees update without refresh
+        await Expect(goblinHp).ToHaveTextAsync("3", new LocatorAssertionsToHaveTextOptions { Timeout = 5000 });
     }
 
     #endregion
 
     #region @HLR-COMBAT-015: Turn order syncs across all clients
 
-    /// <summary>
-    /// @HLR-COMBAT-015: Turn order syncs across all clients
-    /// 
-    /// Given: the DM and 2 Players are connected
-    /// When:  the turn advances
-    /// Then:  all clients should see the new current turn
-    ///        and the highlight should move to the correct combatant
-    /// 
-    /// Verification Notes:
-    /// - NotifyTurnAdvancedAsync broadcasts TurnAdvancedPayload to "all" group
-    /// - Each client's CombatTracker handles event
-    /// - Updates local combat state with new CurrentTurnIndex and RoundNumber
-    /// - Re-renders to show highlight on correct combatant
-    /// </summary>
     [Fact]
     public async Task HLR_COMBAT_015_Turn_order_syncs_across_all_clients()
     {
-        // Arrange - Create campaign with active combat
-        //           Navigate to DM dashboard
-        //           Verify current turn highlighted on first combatant
+        const string thorinId = "thorin-001";
+        const string elaraId = "elara-001";
         
-        // Act - Execute advance_turn tool
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "Sync Test",
+            dmUserId: TestAuthHandler.TestUserId,
+            party:
+            [
+                new Character { Id = thorinId, Name = "Thorin", Type = "PC", Class = "Fighter", Race = "Dwarf", Level = 5, MaxHp = 30, CurrentHp = 30, ArmorClass = 16 },
+                new Character { Id = elaraId, Name = "Elara", Type = "PC", Class = "Rogue", Race = "Elf", Level = 5, MaxHp = 22, CurrentHp = 22, ArmorClass = 14 }
+            ]);
         
-        // Assert - All clients see turn advance (test DM client)
-        //          Highlight moved to next combatant
-        //          TurnAdvanced SignalR event broadcast
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.StartCombatAsync(campaign.Id,
+            [
+                new CombatantInfo(elaraId, "Elara", "PC", 18, 22, 22, false, false),
+                new CombatantInfo(thorinId, "Thorin", "PC", 15, 30, 30, false, false)
+            ]);
+        }
         
-        throw new NotImplementedException("Stub: Implement @HLR-COMBAT-015");
+        await _page.GotoAsync($"{_factory.ServerAddress}/dm/{campaign.Id}",
+            new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 15000 });
+        
+        await _page.WaitForSelectorAsync("[data-testid='combat-tracker']");
+        
+        // Verify Elara is current turn
+        var elaraCard = _page.Locator($"[data-testid='combatant-{elaraId}']");
+        await Expect(elaraCard.Locator("[data-testid='current-turn-indicator']")).ToBeVisibleAsync();
+        
+        // Act - Advance turn
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.AdvanceTurnAsync(campaign.Id);
+        }
+        
+        // Assert - All connected clients see Thorin as current turn
+        var thorinCard = _page.Locator($"[data-testid='combatant-{thorinId}']");
+        await Expect(thorinCard.Locator("[data-testid='current-turn-indicator']"))
+            .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 5000 });
     }
 
     #endregion

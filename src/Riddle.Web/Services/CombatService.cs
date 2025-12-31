@@ -50,7 +50,12 @@ public class CombatService : ICombatService
                 CurrentHp = c.CurrentHp,
                 MaxHp = c.MaxHp,
                 IsDefeated = c.IsDefeated
-            })
+            }),
+            // Populate surprised entities from input
+            SurprisedEntities = combatants
+                .Where(c => c.IsSurprised)
+                .Select(c => c.Id)
+                .ToList()
         };
 
         // Persist to database
@@ -114,21 +119,42 @@ public class CombatService : ICombatService
         if (combat.TurnOrder.Count == 0)
             throw new InvalidOperationException("No combatants in turn order");
 
-        // Advance turn
-        combat.CurrentTurnIndex++;
+        // Find next non-defeated combatant
+        var startIndex = combat.CurrentTurnIndex;
+        var roundAdvanced = false;
         
-        // Check if we've completed a round
-        if (combat.CurrentTurnIndex >= combat.TurnOrder.Count)
+        do
         {
-            combat.CurrentTurnIndex = 0;
-            combat.RoundNumber++;
+            combat.CurrentTurnIndex++;
             
-            // Clear surprised status after first round
-            if (combat.RoundNumber == 2)
+            // Check if we've completed a round
+            if (combat.CurrentTurnIndex >= combat.TurnOrder.Count)
             {
-                combat.SurprisedEntities.Clear();
+                combat.CurrentTurnIndex = 0;
+                combat.RoundNumber++;
+                roundAdvanced = true;
+                
+                // Clear surprised status after first round
+                if (combat.RoundNumber == 2)
+                {
+                    combat.SurprisedEntities.Clear();
+                }
             }
-        }
+            
+            var candidateId = combat.TurnOrder[combat.CurrentTurnIndex];
+            
+            // Skip defeated combatants
+            if (combat.Combatants.TryGetValue(candidateId, out var candidate) && !candidate.IsDefeated)
+            {
+                break; // Found a non-defeated combatant
+            }
+            
+            // Safety: prevent infinite loop if all are defeated
+            if (combat.CurrentTurnIndex == startIndex && roundAdvanced)
+            {
+                throw new InvalidOperationException("All combatants are defeated");
+            }
+        } while (true);
 
         var currentCombatantId = combat.TurnOrder[combat.CurrentTurnIndex];
 
@@ -153,31 +179,15 @@ public class CombatService : ICombatService
         var combat = campaign.ActiveCombat
             ?? throw new InvalidOperationException("No active combat");
 
-        // Update persisted combatant
+        // Update persisted combatant - keep in TurnOrder so UI shows defeated badge
         if (combat.Combatants.TryGetValue(characterId, out var combatant))
         {
             combatant.IsDefeated = true;
             combatant.CurrentHp = 0;
         }
 
-        // Remove from turn order
-        var currentIndex = combat.CurrentTurnIndex;
-        var defeatedIndex = combat.TurnOrder.IndexOf(characterId);
-        
-        if (defeatedIndex >= 0)
-        {
-            combat.TurnOrder.RemoveAt(defeatedIndex);
-            
-            // Adjust current turn index if needed
-            if (defeatedIndex < currentIndex)
-            {
-                combat.CurrentTurnIndex--;
-            }
-            else if (defeatedIndex == currentIndex && combat.CurrentTurnIndex >= combat.TurnOrder.Count)
-            {
-                combat.CurrentTurnIndex = 0;
-            }
-        }
+        // DON'T remove from turn order - defeated combatants stay visible with badge
+        // AdvanceTurnAsync will skip them automatically
 
         campaign.ActiveCombat = combat;
         campaign.LastActivityAt = DateTime.UtcNow;
@@ -199,12 +209,9 @@ public class CombatService : ICombatService
             return;
         }
 
-        // Broadcast updated combat state
-        var payload = await GetCombatStateAsync(campaignId, ct);
-        if (payload != null)
-        {
-            await _notificationService.NotifyCombatStartedAsync(campaignId, payload, ct);
-        }
+        // Broadcast updated combat state (defeated combatant still in TurnOrder with IsDefeated=true)
+        var payload = BuildCombatStatePayload(combat);
+        await _notificationService.NotifyCombatStartedAsync(campaignId, payload, ct);
     }
 
     public async Task EndCombatAsync(Guid campaignId, CancellationToken ct = default)
@@ -364,7 +371,7 @@ public class CombatService : ICombatService
         // Broadcast character state update
         await _notificationService.NotifyCharacterStateUpdatedAsync(
             campaignId,
-            new CharacterStatePayload(characterId, "CurrentHp", newHp),
+            new CharacterStatePayload(characterId, "current_hp", newHp),
             ct);
     }
 
