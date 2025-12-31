@@ -454,6 +454,17 @@ public class RiddleLlmService : IRiddleLlmService
             - All combat events are automatically logged to the narrative log
             - The Combat Tracker is VISUAL - players see HP bars, turn order, current turn
             - Don't repeat information that's already visible in the tracker
+
+            **Death Saving Throws (0 HP Characters):**
+            When a PC drops to 0 HP, they begin making death saving throws:
+            - On success: call `update_character_state` with key `death_save_success` and value `1`
+            - On failure: call `update_character_state` with key `death_save_failure` and value `1`
+            - Natural 20: use value `nat20` (character regains 1 HP and is conscious!)
+            - Natural 1: use value `2` (counts as 2 failures)
+            - 3 successes = character stabilizes (still unconscious but no longer dying)
+            - 3 failures = character dies
+            - Medicine DC 10 or Spare the Dying: use key `stabilize` with any value
+            - Healing from 0 HP: just update `current_hp` - system auto-clears death saves
             </combat_protocol>
 
             {debugSystemPromptExtension}
@@ -631,10 +642,10 @@ public class RiddleLlmService : IRiddleLlmService
                         key = new 
                         { 
                             type = "string", 
-                            @enum = new[] { "current_hp", "conditions", "status_notes", "initiative" },
-                            description = "The property to update. Note: Combat combatants (enemies/allies) only support 'current_hp' and 'initiative'." 
+                            @enum = new[] { "current_hp", "conditions", "add_condition", "remove_condition", "status_notes", "initiative", "death_save_success", "death_save_failure", "stabilize" },
+                            description = "The property to update. Keys: current_hp (int), conditions (string[]), add_condition/remove_condition (string), status_notes (string), initiative (int), death_save_success (1 or 'nat20'), death_save_failure (1 or 2), stabilize (any). Note: Combatants only support current_hp and initiative." 
                         },
-                        value = new { description = "New value (int for HP/initiative, string[] for conditions, string for notes)" }
+                        value = new { description = "New value. For death_save_success: 1 (normal) or 'nat20' (regains 1 HP). For death_save_failure: 1 (normal) or 2 (critical). For stabilize: any truthy value." }
                     },
                     required = new[] { "character_name", "key", "value" }
                 })),

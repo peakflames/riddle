@@ -590,6 +590,36 @@
             await InvokeAsync(StateHasChanged);
         });
         
+        // Receive death save updates (must update PartyCharacters before CombatTracker calls StateHasChanged)
+        _hubConnection.On<DeathSavePayload>(GameHubEvents.DeathSaveUpdated, async payload =>
+        {
+            if (campaign == null) return;
+            
+            var partyState = campaign.PartyState;
+            var character = partyState.FirstOrDefault(c => c.Id == payload.CharacterId);
+            
+            if (character != null)
+            {
+                character.DeathSaveSuccesses = payload.DeathSaveSuccesses;
+                character.DeathSaveFailures = payload.DeathSaveFailures;
+                
+                // Update conditions based on IsStable/IsDead
+                if (payload.IsDead && !character.Conditions.Contains("Dead"))
+                {
+                    character.Conditions.Add("Dead");
+                    character.Conditions.Remove("Stable");
+                    character.Conditions.Remove("Unconscious");
+                }
+                else if (payload.IsStable && !character.Conditions.Contains("Stable"))
+                {
+                    character.Conditions.Add("Stable");
+                }
+                
+                campaign.PartyState = partyState;
+                await InvokeAsync(StateHasChanged);
+            }
+        });
+        
         // Receive character state updates (HP changes, conditions, etc.)
         _hubConnection.On<CharacterStatePayload>(GameHubEvents.CharacterStateUpdated, async payload =>
         {
@@ -625,6 +655,42 @@
                         if (int.TryParse(payload.Value?.ToString(), out var newInit))
                         {
                             character.Initiative = newInit;
+                        }
+                        break;
+                    case "death_save_success":
+                    case "death_save_successes":
+                        // ToolExecutor sends increment value (e.g., 1), not absolute count
+                        // Reload from DB to get the actual updated value
+                        var updatedCampaign = await CampaignService.GetCampaignAsync(CampaignId);
+                        var updatedChar = updatedCampaign?.PartyState.FirstOrDefault(c => c.Id == payload.CharacterId);
+                        if (updatedChar != null)
+                        {
+                            character.DeathSaveSuccesses = updatedChar.DeathSaveSuccesses;
+                            character.DeathSaveFailures = updatedChar.DeathSaveFailures;
+                            character.Conditions = updatedChar.Conditions;
+                        }
+                        break;
+                    case "death_save_failure":
+                    case "death_save_failures":
+                        // Same as above - reload to get actual state
+                        var reloadedCampaign = await CampaignService.GetCampaignAsync(CampaignId);
+                        var reloadedChar = reloadedCampaign?.PartyState.FirstOrDefault(c => c.Id == payload.CharacterId);
+                        if (reloadedChar != null)
+                        {
+                            character.DeathSaveSuccesses = reloadedChar.DeathSaveSuccesses;
+                            character.DeathSaveFailures = reloadedChar.DeathSaveFailures;
+                            character.Conditions = reloadedChar.Conditions;
+                        }
+                        break;
+                    case "stabilize":
+                        // Reload to get the stabilized state
+                        var stableCampaign = await CampaignService.GetCampaignAsync(CampaignId);
+                        var stableChar = stableCampaign?.PartyState.FirstOrDefault(c => c.Id == payload.CharacterId);
+                        if (stableChar != null)
+                        {
+                            character.DeathSaveSuccesses = stableChar.DeathSaveSuccesses;
+                            character.DeathSaveFailures = stableChar.DeathSaveFailures;
+                            character.Conditions = stableChar.Conditions;
                         }
                         break;
                 }
