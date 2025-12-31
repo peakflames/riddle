@@ -493,13 +493,43 @@
         // Character state updates (HP changes, conditions, etc.)
         _hubConnection.On<CharacterStatePayload>(GameHubEvents.CharacterStateUpdated, async payload =>
         {
-            // Refresh campaign to get updated character state
-            campaign = await CampaignService.GetCampaignAsync(CampaignId);
-            if (campaign != null && selectedCharacter != null)
+            if (campaign == null) return;
+            
+            // Update local state directly from payload (same pattern as PlayerChoices)
+            var character = campaign.PartyState.FirstOrDefault(c => c.Id == payload.CharacterId);
+            if (character != null)
             {
-                // Re-select the character to get updated state
-                selectedCharacter = campaign.PartyState.FirstOrDefault(c => c.Id == selectedCharacter.Id);
+                switch (payload.Key)
+                {
+                    case "current_hp":
+                        if (int.TryParse(payload.Value?.ToString(), out var hp))
+                            character.CurrentHp = hp;
+                        break;
+                    case "conditions":
+                        // Conditions are sent as JSON array string
+                        try
+                        {
+                            var conditionsJson = payload.Value?.ToString() ?? "[]";
+                            character.Conditions = System.Text.Json.JsonSerializer.Deserialize<List<string>>(conditionsJson) ?? [];
+                        }
+                        catch { /* Ignore parse errors */ }
+                        break;
+                    case "status_notes":
+                        character.StatusNotes = payload.Value?.ToString();
+                        break;
+                    case "initiative":
+                        if (int.TryParse(payload.Value?.ToString(), out var init))
+                            character.Initiative = init;
+                        break;
+                }
+                
+                // Update selectedCharacter reference if it's the same character
+                if (selectedCharacter?.Id == payload.CharacterId)
+                {
+                    selectedCharacter = character;
+                }
             }
+            
             await InvokeAsync(StateHasChanged);
         });
         
