@@ -549,3 +549,46 @@ payload.Value?.ToString().Should().Be("30");  // ✅ Works regardless of underly
 **Why this happens:** When JSON deserializes `{ "value": 30 }` into `object Value`, the runtime type is `System.Text.Json.JsonElement`, not `int`. FluentAssertions' `.Be()` compares by type AND value.
 
 **Alternative fix:** Change payload record to use concrete types (e.g., `int? Value`) if the type is always known.
+
+### CRITICAL: SignalR Handlers Must Update Local State Directly
+
+**Problem:** When a SignalR event arrives with updated data, **DO NOT re-fetch from database**. The scoped `DbContext` in the component may have a stale cached entity, causing the UI to show old data.
+
+❌ **WRONG - Re-fetching from DB returns stale data:**
+```csharp
+// CharacterStateUpdated handler
+_hubConnection.On<CharacterStatePayload>(GameHubEvents.CharacterStateUpdated, async payload =>
+{
+    // WRONG! DbContext may have stale cached entity
+    campaign = await CampaignService.GetCampaignAsync(CampaignId);
+    await InvokeAsync(StateHasChanged);  // Shows OLD data!
+});
+```
+
+✅ **CORRECT - Update local state directly from payload:**
+```csharp
+// CharacterStateUpdated handler  
+_hubConnection.On<CharacterStatePayload>(GameHubEvents.CharacterStateUpdated, async payload =>
+{
+    if (campaign == null) return;
+    
+    // Update local state directly from payload
+    var character = campaign.PartyState.FirstOrDefault(c => c.Id == payload.CharacterId);
+    if (character != null)
+    {
+        switch (payload.Key)
+        {
+            case "current_hp":
+                if (int.TryParse(payload.Value?.ToString(), out var hp))
+                    character.CurrentHp = hp;
+                break;
+            // ... other cases
+        }
+    }
+    await InvokeAsync(StateHasChanged);  // Shows FRESH data!
+});
+```
+
+**Pattern consistency:** Compare with `PlayerChoicesReceived` handler which correctly updates `campaign.ActivePlayerChoices = choices;` directly from the payload.
+
+**Symptom:** DM Dashboard updates correctly but Player Dashboard shows stale data after SignalR events.
