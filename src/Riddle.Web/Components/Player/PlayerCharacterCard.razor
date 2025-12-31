@@ -65,6 +65,15 @@
                         <span class="w-4 h-4 rounded-full border-2 @(i < Character.DeathSaveFailures ? "bg-red-500 border-red-500" : "border-gray-500")"></span>
                     }
                 </div>
+                @* Stable/Dead Status Badge *@
+                @if (Character.IsDead)
+                {
+                    <Badge Color="BadgeColor.Pink" class="!text-sm animate-pulse">💀 Dead</Badge>
+                }
+                else if (Character.IsStable)
+                {
+                    <Badge Color="BadgeColor.Success" class="!text-sm">✓ Stable</Badge>
+                }
             </div>
         }
 
@@ -415,6 +424,8 @@
         "charmed" => BadgeColor.Pink,
         "restrained" => BadgeColor.Gray,
         "exhausted" => BadgeColor.Pink,
+        "stable" => BadgeColor.Success,
+        "dead" => BadgeColor.Pink,
         _ => BadgeColor.Info
     };
     

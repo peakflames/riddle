@@ -592,3 +592,91 @@ _hubConnection.On<CharacterStatePayload>(GameHubEvents.CharacterStateUpdated, as
 **Pattern consistency:** Compare with `PlayerChoicesReceived` handler which correctly updates `campaign.ActivePlayerChoices = choices;` directly from the payload.
 
 **Symptom:** DM Dashboard updates correctly but Player Dashboard shows stale data after SignalR events.
+
+---
+
+## CRITICAL: Dual Data Sources for PC HP During Combat
+
+**Problem:** When a PC is in active combat, their HP exists in TWO places:
+1. **`PartyState`** (canonical source) - Character's authoritative HP
+2. **`ActiveCombat.Combatants`** (combat snapshot) - HP captured when combat started
+
+When `update_character_state` updates PC HP, both sources must be synchronized. Otherwise:
+- **Party Card** (reads from `PartyState`) → Shows correct HP
+- **Combat Tracker** (reads from `ActiveCombat.Combatants`) → Shows stale HP
+
+**Symptom:** After LLM updates a PC's HP via `update_character_state`, the Party Card shows "0/27" but Combat Tracker shows "27/27" - even after page reload.
+
+**Root Cause:** `ToolExecutor.UpdateCharacterPropertyAsync` only updated `PartyState`, not the corresponding combatant in `ActiveCombat.Combatants`.
+
+**Fix:** In `ToolExecutor`, when updating `current_hp` for a PC, also update the matching combatant in active combat:
+
+```csharp
+// Update PartyState (canonical source)
+character.CurrentHp = newHp;
+await _stateService.UpdateCharacterAsync(campaignId, character, ct);
+
+// ALSO sync to ActiveCombat.Combatants if PC is in combat
+if (campaign.ActiveCombat?.Combatants != null)
+{
+    if (campaign.ActiveCombat.Combatants.TryGetValue(character.Id, out var combatant))
+    {
+        combatant.CurrentHp = newHp;
+        await _combatService.SaveCombatStateAsync(campaignId, campaign.ActiveCombat, ct);
+    }
+}
+```
+
+**Verification:** Use `python build.py db party` to check `PartyState` HP, and check `ActiveCombat` JSON in database to verify both show synchronized values.
+
+---
+
+## D&D 5e Rules Implementation
+
+### Death Saving Throw Pattern
+
+**D&D 5e death saves** are implemented via `update_character_state` tool with special keys:
+
+| Key | Value | Behavior |
+|-----|-------|----------|
+| `death_save_success` | `true` or `"nat20"` | Increment successes (+1 or wake with 1 HP on nat20) |
+| `death_save_failure` | `true` or `2` | Increment failures (+1 or +2 for crit damage) |
+| `stabilize` | `true` | Set successes to 3 (Medicine check/Spare the Dying) |
+
+**Auto-rules enforcement in ToolExecutor:**
+```csharp
+// When HP drops to 0: Add Unconscious, reset death saves
+if (newHp <= 0 && oldHp > 0)
+{
+    character.Conditions.Add("Unconscious");
+    character.DeathSaveSuccesses = 0;
+    character.DeathSaveFailures = 0;
+}
+
+// When healed from 0: Remove Unconscious, reset death saves
+if (newHp > 0 && oldHp <= 0)
+{
+    character.Conditions.Remove("Unconscious");
+    character.DeathSaveSuccesses = 0;
+    character.DeathSaveFailures = 0;
+}
+
+// 3 successes = Stable (add condition)
+if (character.DeathSaveSuccesses >= 3)
+    character.Conditions.Add("Stable");
+
+// 3 failures = Dead (add condition)
+if (character.DeathSaveFailures >= 3)
+    character.Conditions.Add("Dead");
+```
+
+**Computed properties on Character model:**
+```csharp
+[NotMapped]
+public bool IsStable => DeathSaveSuccesses >= 3;
+
+[NotMapped]
+public bool IsDead => DeathSaveFailures >= 3;
+```
+
+**SignalR broadcast:** Use `DeathSaveUpdated` event with `DeathSavePayload` to update all clients when death save state changes.

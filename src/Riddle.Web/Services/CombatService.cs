@@ -64,7 +64,7 @@ public class CombatService : ICombatService
         await _context.SaveChangesAsync(ct);
 
         // Build payload
-        var payload = BuildCombatStatePayload(combat);
+        var payload = BuildCombatStatePayload(combat, campaign.PartyState);
 
         _logger.LogInformation(
             "Combat started: CampaignId={CampaignId}, CombatId={CombatId}, Combatants={Count}",
@@ -210,7 +210,7 @@ public class CombatService : ICombatService
         }
 
         // Broadcast updated combat state (defeated combatant still in TurnOrder with IsDefeated=true)
-        var payload = BuildCombatStatePayload(combat);
+        var payload = BuildCombatStatePayload(combat, campaign.PartyState);
         await _notificationService.NotifyCombatStartedAsync(campaignId, payload, ct);
     }
 
@@ -237,7 +237,7 @@ public class CombatService : ICombatService
         if (campaign?.ActiveCombat == null)
             return null;
 
-        return BuildCombatStatePayload(campaign.ActiveCombat);
+        return BuildCombatStatePayload(campaign.ActiveCombat, campaign.PartyState);
     }
 
     public async Task AddCombatantAsync(Guid campaignId, CombatantInfo combatant, CancellationToken ct = default)
@@ -376,9 +376,11 @@ public class CombatService : ICombatService
     }
 
     /// <summary>
-    /// Builds CombatStatePayload from persisted CombatEncounter data
+    /// Builds CombatStatePayload from persisted CombatEncounter data.
+    /// For PCs, HP is read from PartyState (single source of truth).
+    /// For Enemies, HP is read from CombatantDetails (only place it exists).
     /// </summary>
-    private static CombatStatePayload BuildCombatStatePayload(CombatEncounter combat)
+    private static CombatStatePayload BuildCombatStatePayload(CombatEncounter combat, List<Character> partyState)
     {
         // Convert persisted CombatantDetails to CombatantInfo in turn order
         var combatants = combat.TurnOrder
@@ -386,14 +388,32 @@ public class CombatService : ICombatService
             .Select(id =>
             {
                 var c = combat.Combatants[id];
+                
+                // For PCs: read HP from PartyState (single source of truth)
+                // For Enemies: read HP from CombatantDetails (only place it exists)
+                int currentHp = c.CurrentHp;
+                int maxHp = c.MaxHp;
+                bool isDefeated = c.IsDefeated;
+                
+                if (c.Type == "PC")
+                {
+                    var pc = partyState.FirstOrDefault(p => p.Id == c.Id);
+                    if (pc != null)
+                    {
+                        currentHp = pc.CurrentHp;
+                        maxHp = pc.MaxHp;
+                        isDefeated = pc.CurrentHp <= 0;
+                    }
+                }
+                
                 return new CombatantInfo(
                     c.Id,
                     c.Name,
                     c.Type,
                     c.Initiative,
-                    c.CurrentHp,
-                    c.MaxHp,
-                    c.IsDefeated,
+                    currentHp,
+                    maxHp,
+                    isDefeated,
                     combat.SurprisedEntities.Contains(c.Id)
                 );
             })

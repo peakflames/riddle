@@ -486,10 +486,21 @@ public class CombatEncounterTests : IAsyncLifetime
 
     #region @HLR-COMBAT-010: Player takes damage
 
+    /// <summary>
+    /// Tests that PC HP update via LLM tool syncs to both Party Tracker and Combat Tracker.
+    /// 
+    /// Enhanced scenario verifies:
+    /// - PartyState HP is updated
+    /// - ActiveCombat.Combatants HP is synchronized  
+    /// - Combat Tracker UI shows updated HP
+    /// - DM dashboard shows consistent HP in both trackers
+    /// </summary>
     [Fact]
     public async Task HLR_COMBAT_010_Player_takes_damage()
     {
+        // Arrange
         const string thorinId = "thorin-001";
+        const string thorinName = "Thorin";
         const string goblinId = "goblin-001";
         
         var campaign = await _factory.SetupTestCampaignAsync(
@@ -497,7 +508,7 @@ public class CombatEncounterTests : IAsyncLifetime
             dmUserId: TestAuthHandler.TestUserId,
             party:
             [
-                new Character { Id = thorinId, Name = "Thorin", Type = "PC", Class = "Fighter", Race = "Dwarf", Level = 5, MaxHp = 30, CurrentHp = 12, ArmorClass = 16 }
+                new Character { Id = thorinId, Name = thorinName, Type = "PC", Class = "Fighter", Race = "Dwarf", Level = 5, MaxHp = 30, CurrentHp = 12, ArmorClass = 16 }
             ]);
         
         using (var scope = _factory.CreateScope())
@@ -505,7 +516,7 @@ public class CombatEncounterTests : IAsyncLifetime
             var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
             await combatService.StartCombatAsync(campaign.Id,
             [
-                new CombatantInfo(thorinId, "Thorin", "PC", 15, 12, 30, false, false),
+                new CombatantInfo(thorinId, thorinName, "PC", 15, 12, 30, false, false),
                 new CombatantInfo(goblinId, "Goblin 1", "Enemy", 12, 7, 7, false, false)
             ]);
         }
@@ -515,18 +526,52 @@ public class CombatEncounterTests : IAsyncLifetime
         
         await _page.WaitForSelectorAsync("[data-testid='combat-tracker']");
         
-        var thorinHp = _page.Locator($"[data-testid='combatant-{thorinId}'] [data-testid='hp-current']");
-        await Expect(thorinHp).ToHaveTextAsync("12");
+        // Verify initial HP in Combat Tracker
+        var thorinCombatHp = _page.Locator($"[data-testid='combatant-{thorinId}'] [data-testid='hp-current']");
+        await Expect(thorinCombatHp).ToHaveTextAsync("12");
         
-        // Act - Player takes damage
+        // Act - Player takes damage via ToolExecutor (the LLM code path)
+        using (var scope = _factory.CreateScope())
+        {
+            var toolExecutor = scope.ServiceProvider.GetRequiredService<IToolExecutor>();
+            
+            var argumentsJson = $$"""
+            {
+                "character_name": "{{thorinName}}",
+                "key": "current_hp",
+                "value": 7
+            }
+            """;
+            
+            var result = await toolExecutor.ExecuteAsync(campaign.Id, "update_character_state", argumentsJson);
+            result.Should().Contain("success", "Tool execution should succeed");
+        }
+        
+        // Assert 1: PartyState HP is updated
+        using (var scope = _factory.CreateScope())
+        {
+            var campaignService = scope.ServiceProvider.GetRequiredService<ICampaignService>();
+            var reloadedCampaign = await campaignService.GetCampaignAsync(campaign.Id);
+            var character = reloadedCampaign?.PartyState.FirstOrDefault(c => c.Name == thorinName);
+            
+            character.Should().NotBeNull();
+            character!.CurrentHp.Should().Be(7, "PartyState HP should be 7");
+        }
+        
+        // Assert 2: ActiveCombat.Combatants HP is synchronized
         using (var scope = _factory.CreateScope())
         {
             var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
-            await combatService.UpdateCombatantHpAsync(campaign.Id, thorinId, 7); // 12 - 5 = 7
+            var combatState = await combatService.GetCombatStateAsync(campaign.Id);
+            
+            combatState.Should().NotBeNull();
+            var thorinCombatant = combatState!.TurnOrder.FirstOrDefault(c => c.Id == thorinId);
+            thorinCombatant.Should().NotBeNull();
+            thorinCombatant!.CurrentHp.Should().Be(7, "ActiveCombat combatant HP should be 7");
         }
         
-        // Assert - HP decreased
-        await Expect(thorinHp).ToHaveTextAsync("7", new LocatorAssertionsToHaveTextOptions { Timeout = 5000 });
+        // Assert 3: Combat Tracker UI shows updated HP
+        await Expect(thorinCombatHp).ToHaveTextAsync("7", new LocatorAssertionsToHaveTextOptions { Timeout = 5000 });
     }
 
     #endregion
@@ -720,6 +765,778 @@ public class CombatEncounterTests : IAsyncLifetime
         var thorinCard = _page.Locator($"[data-testid='combatant-{thorinId}']");
         await Expect(thorinCard.Locator("[data-testid='current-turn-indicator']"))
             .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 5000 });
+    }
+
+    #endregion
+
+    // ========================================================================
+    // PLAYER CHARACTER DEATH & DYING (HLR-COMBAT-016 through HLR-COMBAT-026)
+    // ========================================================================
+
+    #region @HLR-COMBAT-016: Player character drops to 0 HP
+
+    /// <summary>
+    /// Tests that reducing HP to 0 automatically applies Unconscious condition
+    /// and resets death save counters.
+    /// </summary>
+    [Fact]
+    public async Task HLR_COMBAT_016_Player_character_drops_to_0_HP()
+    {
+        // Arrange
+        const string elaraId = "elara-016";
+        const string elaraName = "Elara";
+        
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "Death Save Test - Drop to 0 HP",
+            dmUserId: TestAuthHandler.TestUserId,
+            party:
+            [
+                new Character
+                {
+                    Id = elaraId,
+                    Name = elaraName,
+                    Type = "PC",
+                    Class = "Rogue",
+                    Race = "Elf",
+                    Level = 5,
+                    MaxHp = 22,
+                    CurrentHp = 3,  // Low HP
+                    ArmorClass = 14,
+                    DeathSaveSuccesses = 0,
+                    DeathSaveFailures = 0
+                }
+            ]);
+        
+        // Act - Reduce HP to 0 (goblin deals 5 damage)
+        using (var scope = _factory.CreateScope())
+        {
+            var toolExecutor = scope.ServiceProvider.GetRequiredService<IToolExecutor>();
+            
+            var argumentsJson = $$"""
+            {
+                "character_name": "{{elaraName}}",
+                "key": "current_hp",
+                "value": 0
+            }
+            """;
+            
+            var result = await toolExecutor.ExecuteAsync(campaign.Id, "update_character_state", argumentsJson);
+            result.Should().Contain("success", "Tool execution should succeed");
+        }
+        
+        // Assert - Verify character has Unconscious condition and reset death saves
+        using (var scope = _factory.CreateScope())
+        {
+            var campaignService = scope.ServiceProvider.GetRequiredService<ICampaignService>();
+            var reloadedCampaign = await campaignService.GetCampaignAsync(campaign.Id);
+            var character = reloadedCampaign?.PartyState.FirstOrDefault(c => c.Name == elaraName);
+            
+            character.Should().NotBeNull();
+            character!.CurrentHp.Should().Be(0);
+            character.Conditions.Should().Contain("Unconscious");
+            character.DeathSaveSuccesses.Should().Be(0);
+            character.DeathSaveFailures.Should().Be(0);
+        }
+    }
+
+    #endregion
+
+    #region @HLR-COMBAT-017: DM records Death Saving Throw success
+
+    /// <summary>
+    /// Tests recording a successful death saving throw (e.g., rolled 11).
+    /// </summary>
+    [Fact]
+    public async Task HLR_COMBAT_017_DM_records_Death_Saving_Throw_success()
+    {
+        // Arrange
+        const string elaraId = "elara-017";
+        const string elaraName = "Elara";
+        
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "Death Save Test - Success",
+            dmUserId: TestAuthHandler.TestUserId,
+            party:
+            [
+                new Character
+                {
+                    Id = elaraId,
+                    Name = elaraName,
+                    Type = "PC",
+                    Class = "Rogue",
+                    Race = "Elf",
+                    Level = 5,
+                    MaxHp = 22,
+                    CurrentHp = 0,  // At 0 HP
+                    ArmorClass = 14,
+                    DeathSaveSuccesses = 0,
+                    DeathSaveFailures = 1,
+                    Conditions = ["Unconscious"]
+                }
+            ]);
+        
+        // Act - Record death save success (Elara rolled 11)
+        using (var scope = _factory.CreateScope())
+        {
+            var toolExecutor = scope.ServiceProvider.GetRequiredService<IToolExecutor>();
+            
+            var argumentsJson = $$"""
+            {
+                "character_name": "{{elaraName}}",
+                "key": "death_save_success",
+                "value": 1
+            }
+            """;
+            
+            var result = await toolExecutor.ExecuteAsync(campaign.Id, "update_character_state", argumentsJson);
+            result.Should().Contain("success", "Tool execution should succeed");
+        }
+        
+        // Assert - Verify death save success was recorded
+        using (var scope = _factory.CreateScope())
+        {
+            var campaignService = scope.ServiceProvider.GetRequiredService<ICampaignService>();
+            var reloadedCampaign = await campaignService.GetCampaignAsync(campaign.Id);
+            var character = reloadedCampaign?.PartyState.FirstOrDefault(c => c.Name == elaraName);
+            
+            character.Should().NotBeNull();
+            character!.DeathSaveSuccesses.Should().Be(1);
+            character.DeathSaveFailures.Should().Be(1);
+            character.CurrentHp.Should().Be(0);
+        }
+    }
+
+    #endregion
+
+    #region @HLR-COMBAT-018: DM records Death Saving Throw failure
+
+    /// <summary>
+    /// Tests recording a failed death saving throw (e.g., rolled 6).
+    /// </summary>
+    [Fact]
+    public async Task HLR_COMBAT_018_DM_records_Death_Saving_Throw_failure()
+    {
+        // Arrange
+        const string elaraId = "elara-018";
+        const string elaraName = "Elara";
+        
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "Death Save Test - Failure",
+            dmUserId: TestAuthHandler.TestUserId,
+            party:
+            [
+                new Character
+                {
+                    Id = elaraId,
+                    Name = elaraName,
+                    Type = "PC",
+                    Class = "Rogue",
+                    Race = "Elf",
+                    Level = 5,
+                    MaxHp = 22,
+                    CurrentHp = 0,
+                    ArmorClass = 14,
+                    DeathSaveSuccesses = 1,
+                    DeathSaveFailures = 0,
+                    Conditions = ["Unconscious"]
+                }
+            ]);
+        
+        // Act - Record death save failure (Elara rolled 6)
+        using (var scope = _factory.CreateScope())
+        {
+            var toolExecutor = scope.ServiceProvider.GetRequiredService<IToolExecutor>();
+            
+            var argumentsJson = $$"""
+            {
+                "character_name": "{{elaraName}}",
+                "key": "death_save_failure",
+                "value": 1
+            }
+            """;
+            
+            var result = await toolExecutor.ExecuteAsync(campaign.Id, "update_character_state", argumentsJson);
+            result.Should().Contain("success", "Tool execution should succeed");
+        }
+        
+        // Assert - Verify death save failure was recorded
+        using (var scope = _factory.CreateScope())
+        {
+            var campaignService = scope.ServiceProvider.GetRequiredService<ICampaignService>();
+            var reloadedCampaign = await campaignService.GetCampaignAsync(campaign.Id);
+            var character = reloadedCampaign?.PartyState.FirstOrDefault(c => c.Name == elaraName);
+            
+            character.Should().NotBeNull();
+            character!.DeathSaveSuccesses.Should().Be(1);
+            character.DeathSaveFailures.Should().Be(1);
+            character.CurrentHp.Should().Be(0);
+        }
+    }
+
+    #endregion
+
+    #region @HLR-COMBAT-019: Natural 20 on Death Saving Throw
+
+    /// <summary>
+    /// Tests that rolling a natural 20 on death save restores 1 HP,
+    /// removes Unconscious, and resets all death save counters.
+    /// </summary>
+    [Fact]
+    public async Task HLR_COMBAT_019_Natural_20_on_Death_Saving_Throw()
+    {
+        // Arrange
+        const string elaraId = "elara-019";
+        const string elaraName = "Elara";
+        
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "Death Save Test - Natural 20",
+            dmUserId: TestAuthHandler.TestUserId,
+            party:
+            [
+                new Character
+                {
+                    Id = elaraId,
+                    Name = elaraName,
+                    Type = "PC",
+                    Class = "Rogue",
+                    Race = "Elf",
+                    Level = 5,
+                    MaxHp = 22,
+                    CurrentHp = 0,
+                    ArmorClass = 14,
+                    DeathSaveSuccesses = 1,
+                    DeathSaveFailures = 2,  // In danger!
+                    Conditions = ["Unconscious"]
+                }
+            ]);
+        
+        // Act - Natural 20: HP goes to 1, conditions cleared, counters reset
+        using (var scope = _factory.CreateScope())
+        {
+            var toolExecutor = scope.ServiceProvider.GetRequiredService<IToolExecutor>();
+            
+            // Natural 20 is implemented as setting HP to 1
+            var argumentsJson = $$"""
+            {
+                "character_name": "{{elaraName}}",
+                "key": "current_hp",
+                "value": 1
+            }
+            """;
+            
+            var result = await toolExecutor.ExecuteAsync(campaign.Id, "update_character_state", argumentsJson);
+            result.Should().Contain("success", "Tool execution should succeed");
+        }
+        
+        // Assert - Verify character regained consciousness
+        using (var scope = _factory.CreateScope())
+        {
+            var campaignService = scope.ServiceProvider.GetRequiredService<ICampaignService>();
+            var reloadedCampaign = await campaignService.GetCampaignAsync(campaign.Id);
+            var character = reloadedCampaign?.PartyState.FirstOrDefault(c => c.Name == elaraName);
+            
+            character.Should().NotBeNull();
+            character!.CurrentHp.Should().Be(1);
+            character.Conditions.Should().NotContain("Unconscious");
+            character.DeathSaveSuccesses.Should().Be(0, "Death saves should reset on healing");
+            character.DeathSaveFailures.Should().Be(0, "Death saves should reset on healing");
+        }
+    }
+
+    #endregion
+
+    #region @HLR-COMBAT-020: Player character fails 3 Death Saves
+
+    /// <summary>
+    /// Tests that recording 3 death save failures marks character as Dead.
+    /// </summary>
+    [Fact]
+    public async Task HLR_COMBAT_020_Player_character_fails_3_Death_Saves()
+    {
+        // Arrange
+        const string elaraId = "elara-020";
+        const string elaraName = "Elara";
+        
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "Death Save Test - 3 Failures",
+            dmUserId: TestAuthHandler.TestUserId,
+            party:
+            [
+                new Character
+                {
+                    Id = elaraId,
+                    Name = elaraName,
+                    Type = "PC",
+                    Class = "Rogue",
+                    Race = "Elf",
+                    Level = 5,
+                    MaxHp = 22,
+                    CurrentHp = 0,
+                    ArmorClass = 14,
+                    DeathSaveSuccesses = 1,
+                    DeathSaveFailures = 2,  // Already has 2 failures
+                    Conditions = ["Unconscious"]
+                }
+            ]);
+        
+        // Act - Record third failure (Elara rolled 4)
+        using (var scope = _factory.CreateScope())
+        {
+            var toolExecutor = scope.ServiceProvider.GetRequiredService<IToolExecutor>();
+            
+            var argumentsJson = $$"""
+            {
+                "character_name": "{{elaraName}}",
+                "key": "death_save_failure",
+                "value": 1
+            }
+            """;
+            
+            var result = await toolExecutor.ExecuteAsync(campaign.Id, "update_character_state", argumentsJson);
+            result.Should().Contain("success", "Tool execution should succeed");
+        }
+        
+        // Assert - Verify character is dead
+        using (var scope = _factory.CreateScope())
+        {
+            var campaignService = scope.ServiceProvider.GetRequiredService<ICampaignService>();
+            var reloadedCampaign = await campaignService.GetCampaignAsync(campaign.Id);
+            var character = reloadedCampaign?.PartyState.FirstOrDefault(c => c.Name == elaraName);
+            
+            character.Should().NotBeNull();
+            character!.DeathSaveFailures.Should().Be(3);
+            character.IsDead.Should().BeTrue();
+            character.IsStable.Should().BeFalse();
+            character.Conditions.Should().Contain("Dead");
+        }
+    }
+
+    #endregion
+
+    #region @HLR-COMBAT-021: Player character becomes Stable
+
+    /// <summary>
+    /// Tests that recording 3 death save successes marks character as Stable.
+    /// </summary>
+    [Fact]
+    public async Task HLR_COMBAT_021_Player_character_becomes_Stable()
+    {
+        // Arrange
+        const string elaraId = "elara-021";
+        const string elaraName = "Elara";
+        
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "Death Save Test - Stable",
+            dmUserId: TestAuthHandler.TestUserId,
+            party:
+            [
+                new Character
+                {
+                    Id = elaraId,
+                    Name = elaraName,
+                    Type = "PC",
+                    Class = "Rogue",
+                    Race = "Elf",
+                    Level = 5,
+                    MaxHp = 22,
+                    CurrentHp = 0,
+                    ArmorClass = 14,
+                    DeathSaveSuccesses = 2,  // Already has 2 successes
+                    DeathSaveFailures = 1,
+                    Conditions = ["Unconscious"]
+                }
+            ]);
+        
+        // Act - Record third success (Elara rolled 14)
+        using (var scope = _factory.CreateScope())
+        {
+            var toolExecutor = scope.ServiceProvider.GetRequiredService<IToolExecutor>();
+            
+            var argumentsJson = $$"""
+            {
+                "character_name": "{{elaraName}}",
+                "key": "death_save_success",
+                "value": 1
+            }
+            """;
+            
+            var result = await toolExecutor.ExecuteAsync(campaign.Id, "update_character_state", argumentsJson);
+            result.Should().Contain("success", "Tool execution should succeed");
+        }
+        
+        // Assert - Verify character is stable
+        using (var scope = _factory.CreateScope())
+        {
+            var campaignService = scope.ServiceProvider.GetRequiredService<ICampaignService>();
+            var reloadedCampaign = await campaignService.GetCampaignAsync(campaign.Id);
+            var character = reloadedCampaign?.PartyState.FirstOrDefault(c => c.Name == elaraName);
+            
+            character.Should().NotBeNull();
+            character!.DeathSaveSuccesses.Should().Be(3);
+            character.IsStable.Should().BeTrue();
+            character.IsDead.Should().BeFalse();
+            character.Conditions.Should().Contain("Stable");
+        }
+    }
+
+    #endregion
+
+    #region @HLR-COMBAT-022: Unconscious character takes damage
+
+    /// <summary>
+    /// Tests that damage to an unconscious character counts as an automatic death save failure.
+    /// Note: This is handled by LLM/DM calling death_save_failure when damage is dealt.
+    /// </summary>
+    [Fact]
+    public async Task HLR_COMBAT_022_Unconscious_character_takes_damage()
+    {
+        // Arrange
+        const string elaraId = "elara-022";
+        const string elaraName = "Elara";
+        
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "Death Save Test - Damage While Unconscious",
+            dmUserId: TestAuthHandler.TestUserId,
+            party:
+            [
+                new Character
+                {
+                    Id = elaraId,
+                    Name = elaraName,
+                    Type = "PC",
+                    Class = "Rogue",
+                    Race = "Elf",
+                    Level = 5,
+                    MaxHp = 22,
+                    CurrentHp = 0,
+                    ArmorClass = 14,
+                    DeathSaveSuccesses = 1,
+                    DeathSaveFailures = 1,
+                    Conditions = ["Unconscious"]
+                }
+            ]);
+        
+        // Act - Damage to unconscious character = automatic death save failure
+        // (DM/LLM would call death_save_failure when damage is dealt)
+        using (var scope = _factory.CreateScope())
+        {
+            var toolExecutor = scope.ServiceProvider.GetRequiredService<IToolExecutor>();
+            
+            var argumentsJson = $$"""
+            {
+                "character_name": "{{elaraName}}",
+                "key": "death_save_failure",
+                "value": 1
+            }
+            """;
+            
+            var result = await toolExecutor.ExecuteAsync(campaign.Id, "update_character_state", argumentsJson);
+            result.Should().Contain("success", "Tool execution should succeed");
+        }
+        
+        // Assert - Verify death save failure was recorded
+        using (var scope = _factory.CreateScope())
+        {
+            var campaignService = scope.ServiceProvider.GetRequiredService<ICampaignService>();
+            var reloadedCampaign = await campaignService.GetCampaignAsync(campaign.Id);
+            var character = reloadedCampaign?.PartyState.FirstOrDefault(c => c.Name == elaraName);
+            
+            character.Should().NotBeNull();
+            character!.DeathSaveFailures.Should().Be(2, "Damage should cause death save failure");
+            character.CurrentHp.Should().Be(0, "HP should remain at 0");
+        }
+    }
+
+    #endregion
+
+    #region @HLR-COMBAT-023: Unconscious character takes critical hit
+
+    /// <summary>
+    /// Tests that a critical hit on unconscious character causes TWO death save failures.
+    /// Note: This is handled by LLM/DM calling death_save_failure with value 2.
+    /// </summary>
+    [Fact]
+    public async Task HLR_COMBAT_023_Unconscious_character_takes_critical_hit()
+    {
+        // Arrange
+        const string elaraId = "elara-023";
+        const string elaraName = "Elara";
+        
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "Death Save Test - Critical Hit",
+            dmUserId: TestAuthHandler.TestUserId,
+            party:
+            [
+                new Character
+                {
+                    Id = elaraId,
+                    Name = elaraName,
+                    Type = "PC",
+                    Class = "Rogue",
+                    Race = "Elf",
+                    Level = 5,
+                    MaxHp = 22,
+                    CurrentHp = 0,
+                    ArmorClass = 14,
+                    DeathSaveSuccesses = 1,
+                    DeathSaveFailures = 0,
+                    Conditions = ["Unconscious"]
+                }
+            ]);
+        
+        // Act - Critical hit = 2 death save failures
+        using (var scope = _factory.CreateScope())
+        {
+            var toolExecutor = scope.ServiceProvider.GetRequiredService<IToolExecutor>();
+            
+            var argumentsJson = $$"""
+            {
+                "character_name": "{{elaraName}}",
+                "key": "death_save_failure",
+                "value": 2
+            }
+            """;
+            
+            var result = await toolExecutor.ExecuteAsync(campaign.Id, "update_character_state", argumentsJson);
+            result.Should().Contain("success", "Tool execution should succeed");
+        }
+        
+        // Assert - Verify TWO death save failures were recorded
+        using (var scope = _factory.CreateScope())
+        {
+            var campaignService = scope.ServiceProvider.GetRequiredService<ICampaignService>();
+            var reloadedCampaign = await campaignService.GetCampaignAsync(campaign.Id);
+            var character = reloadedCampaign?.PartyState.FirstOrDefault(c => c.Name == elaraName);
+            
+            character.Should().NotBeNull();
+            character!.DeathSaveFailures.Should().Be(2, "Critical hit should cause 2 death save failures");
+        }
+    }
+
+    #endregion
+
+    #region @HLR-COMBAT-024: Another character stabilizes unconscious ally
+
+    /// <summary>
+    /// Tests that another character can stabilize an unconscious ally using the stabilize tool.
+    /// </summary>
+    [Fact]
+    public async Task HLR_COMBAT_024_Another_character_stabilizes_unconscious_ally()
+    {
+        // Arrange
+        const string thorinId = "thorin-024";
+        const string elaraId = "elara-024";
+        const string elaraName = "Elara";
+        
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "Death Save Test - Stabilize Ally",
+            dmUserId: TestAuthHandler.TestUserId,
+            party:
+            [
+                new Character
+                {
+                    Id = thorinId,
+                    Name = "Thorin",
+                    Type = "PC",
+                    Class = "Fighter",
+                    Race = "Dwarf",
+                    Level = 5,
+                    MaxHp = 30,
+                    CurrentHp = 30,
+                    ArmorClass = 16
+                },
+                new Character
+                {
+                    Id = elaraId,
+                    Name = elaraName,
+                    Type = "PC",
+                    Class = "Rogue",
+                    Race = "Elf",
+                    Level = 5,
+                    MaxHp = 22,
+                    CurrentHp = 0,
+                    ArmorClass = 14,
+                    DeathSaveSuccesses = 1,
+                    DeathSaveFailures = 2,  // In danger!
+                    Conditions = ["Unconscious"]
+                }
+            ]);
+        
+        // Act - Thorin uses action to stabilize Elara (Medicine check DC 10 success)
+        using (var scope = _factory.CreateScope())
+        {
+            var toolExecutor = scope.ServiceProvider.GetRequiredService<IToolExecutor>();
+            
+            var argumentsJson = $$"""
+            {
+                "character_name": "{{elaraName}}",
+                "key": "stabilize",
+                "value": true
+            }
+            """;
+            
+            var result = await toolExecutor.ExecuteAsync(campaign.Id, "update_character_state", argumentsJson);
+            result.Should().Contain("success", "Tool execution should succeed");
+        }
+        
+        // Assert - Verify character is stable
+        using (var scope = _factory.CreateScope())
+        {
+            var campaignService = scope.ServiceProvider.GetRequiredService<ICampaignService>();
+            var reloadedCampaign = await campaignService.GetCampaignAsync(campaign.Id);
+            var character = reloadedCampaign?.PartyState.FirstOrDefault(c => c.Name == elaraName);
+            
+            character.Should().NotBeNull();
+            character!.DeathSaveSuccesses.Should().Be(3);
+            character.IsStable.Should().BeTrue();
+            character.Conditions.Should().Contain("Stable");
+        }
+    }
+
+    #endregion
+
+    #region @HLR-COMBAT-025: Massive damage causes instant death
+
+    /// <summary>
+    /// Tests that massive damage (remaining damage >= MaxHP after dropping to 0) causes instant death.
+    /// Note: This is handled by LLM/DM recognizing the massive damage rule and marking dead.
+    /// </summary>
+    [Fact]
+    public async Task HLR_COMBAT_025_Massive_damage_causes_instant_death()
+    {
+        // Arrange - Elara has 5 HP, MaxHP 8. Ogre deals 15 damage (5 to drop to 0, 10 remaining >= 8 MaxHP)
+        const string elaraId = "elara-025";
+        const string elaraName = "Elara";
+        
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "Death Save Test - Massive Damage",
+            dmUserId: TestAuthHandler.TestUserId,
+            party:
+            [
+                new Character
+                {
+                    Id = elaraId,
+                    Name = elaraName,
+                    Type = "PC",
+                    Class = "Rogue",
+                    Race = "Elf",
+                    Level = 1,  // Low level character
+                    MaxHp = 8,
+                    CurrentHp = 5,
+                    ArmorClass = 14,
+                    DeathSaveSuccesses = 0,
+                    DeathSaveFailures = 0
+                }
+            ]);
+        
+        // Act - Massive damage: HP to 0 + add Dead condition directly
+        // (The LLM/DM recognizes massive damage and adds conditions appropriately)
+        using (var scope = _factory.CreateScope())
+        {
+            var toolExecutor = scope.ServiceProvider.GetRequiredService<IToolExecutor>();
+            
+            // First, set HP to 0
+            var hpJson = $$"""
+            {
+                "character_name": "{{elaraName}}",
+                "key": "current_hp",
+                "value": 0
+            }
+            """;
+            await toolExecutor.ExecuteAsync(campaign.Id, "update_character_state", hpJson);
+            
+            // Then add Dead condition (massive damage rule - damage >= MaxHP)
+            var deadJson = $$"""
+            {
+                "character_name": "{{elaraName}}",
+                "key": "add_condition",
+                "value": "Dead"
+            }
+            """;
+            var result = await toolExecutor.ExecuteAsync(campaign.Id, "update_character_state", deadJson);
+            result.Should().Contain("success", "Tool execution should succeed");
+        }
+        
+        // Assert - Verify character is dead
+        using (var scope = _factory.CreateScope())
+        {
+            var campaignService = scope.ServiceProvider.GetRequiredService<ICampaignService>();
+            var reloadedCampaign = await campaignService.GetCampaignAsync(campaign.Id);
+            var character = reloadedCampaign?.PartyState.FirstOrDefault(c => c.Name == elaraName);
+            
+            character.Should().NotBeNull();
+            character!.CurrentHp.Should().Be(0);
+            character.Conditions.Should().Contain("Dead");
+        }
+    }
+
+    #endregion
+
+    #region @HLR-COMBAT-026: Healing unconscious character
+
+    /// <summary>
+    /// Tests that healing an unconscious character restores HP, removes conditions,
+    /// and resets death save counters.
+    /// </summary>
+    [Fact]
+    public async Task HLR_COMBAT_026_Healing_unconscious_character()
+    {
+        // Arrange
+        const string elaraId = "elara-026";
+        const string elaraName = "Elara";
+        
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "Death Save Test - Healing",
+            dmUserId: TestAuthHandler.TestUserId,
+            party:
+            [
+                new Character
+                {
+                    Id = elaraId,
+                    Name = elaraName,
+                    Type = "PC",
+                    Class = "Rogue",
+                    Race = "Elf",
+                    Level = 5,
+                    MaxHp = 22,
+                    CurrentHp = 0,
+                    ArmorClass = 14,
+                    DeathSaveSuccesses = 2,
+                    DeathSaveFailures = 1,
+                    Conditions = ["Unconscious"]
+                }
+            ]);
+        
+        // Act - Thorin uses healing potion on Elara, restoring 7 HP
+        using (var scope = _factory.CreateScope())
+        {
+            var toolExecutor = scope.ServiceProvider.GetRequiredService<IToolExecutor>();
+            
+            var argumentsJson = $$"""
+            {
+                "character_name": "{{elaraName}}",
+                "key": "current_hp",
+                "value": 7
+            }
+            """;
+            
+            var result = await toolExecutor.ExecuteAsync(campaign.Id, "update_character_state", argumentsJson);
+            result.Should().Contain("success", "Tool execution should succeed");
+        }
+        
+        // Assert - Verify character regained consciousness and death saves reset
+        using (var scope = _factory.CreateScope())
+        {
+            var campaignService = scope.ServiceProvider.GetRequiredService<ICampaignService>();
+            var reloadedCampaign = await campaignService.GetCampaignAsync(campaign.Id);
+            var character = reloadedCampaign?.PartyState.FirstOrDefault(c => c.Name == elaraName);
+            
+            character.Should().NotBeNull();
+            character!.CurrentHp.Should().Be(7);
+            character.Conditions.Should().NotContain("Unconscious");
+            character.DeathSaveSuccesses.Should().Be(0, "Death saves should reset on healing");
+            character.DeathSaveFailures.Should().Be(0, "Death saves should reset on healing");
+        }
     }
 
     #endregion

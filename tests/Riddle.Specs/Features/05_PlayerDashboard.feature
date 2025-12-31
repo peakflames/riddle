@@ -162,3 +162,79 @@ Feature: Player Dashboard
     When I join the campaign instance
     Then I should be prompted to select a character
     And I can choose to play as "Thorin" or "Gandor"
+
+  # --- Death Saves & 0 HP Display ---
+
+  @HLR-PLAYER-016
+  Scenario: Player sees death save tracker at 0 HP
+    Given I am on the Player Dashboard
+    And "Thorin" is at 0 HP
+    When the character card renders
+    Then I should see the Death Save tracker section
+    And I should see 3 empty success circles
+    And I should see 3 empty failure circles
+
+  @HLR-PLAYER-017
+  Scenario: Death save success fills green circle
+    Given I am on the Player Dashboard
+    And "Thorin" is at 0 HP with 0 death saves
+    When the DM records a death save success for Thorin
+    Then the first success circle should turn green
+    And the other success circles should remain empty
+    And the update should appear without refreshing
+
+  @HLR-PLAYER-018
+  Scenario: Death save failure fills red circle
+    Given I am on the Player Dashboard
+    And "Thorin" is at 0 HP with 1 death save success
+    When the DM records a death save failure for Thorin
+    Then the first failure circle should turn red
+    And the other failure circles should remain empty
+    And the update should appear without refreshing
+
+  @HLR-PLAYER-019
+  Scenario: Death save tracker shows multiple saves
+    Given I am on the Player Dashboard
+    And "Thorin" is at 0 HP with:
+      | DeathSaveSuccesses | 2 |
+      | DeathSaveFailures  | 1 |
+    When the character card renders
+    Then I should see 2 green success circles
+    And I should see 1 red failure circle
+    And the remaining circles should be empty
+
+  @HLR-PLAYER-020
+  Scenario: Death save tracker resets on healing
+    Given I am on the Player Dashboard
+    And "Thorin" is at 0 HP with 2 successes and 1 failure
+    When the DM heals Thorin for 5 HP
+    Then Thorin's HP should update to "5 / 12"
+    And the Death Save tracker should disappear
+    And the "Unconscious" condition should be removed
+
+  @HLR-PLAYER-021
+  Scenario: Death save tracker resets on natural 20
+    Given I am on the Player Dashboard
+    And "Thorin" is at 0 HP with 1 success and 2 failures
+    When the DM records a natural 20 death save for Thorin
+    Then Thorin's HP should update to "1 / 12"
+    And the Death Save tracker should disappear
+    And the "Unconscious" condition should be removed
+
+  @HLR-PLAYER-022
+  Scenario: Player sees Stable condition after 3 successes
+    Given I am on the Player Dashboard
+    And "Thorin" is at 0 HP with 2 death save successes
+    When the DM records a third death save success
+    Then Thorin should show the "Stable" condition badge
+    And the Death Save tracker should show 3 green circles
+    And Thorin should remain Unconscious
+
+  @HLR-PLAYER-023
+  Scenario: Player sees character marked as Dead
+    Given I am on the Player Dashboard
+    And "Thorin" is at 0 HP with 2 death save failures
+    When the DM records a third death save failure
+    Then Thorin's character card should show a "Dead" indicator
+    And the Death Save tracker should show 3 red circles
+    And the character card should have visual death styling

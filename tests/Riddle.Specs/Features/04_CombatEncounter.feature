@@ -118,7 +118,9 @@ Feature: Combat Encounter
     When I tell Riddle "The goblin hits Thorin for 5 damage"
     Then Thorin's HP should decrease to 7
     And the Party Tracker should update in real-time
+    And the Combat Tracker should show Thorin at 7 HP
     And Player screens should show the updated HP
+    And DM dashboard should show the updated HP in both trackers
 
   @HLR-COMBAT-011
   Scenario: Condition is applied
@@ -163,3 +165,117 @@ Feature: Combat Encounter
     When the turn advances
     Then all clients should see the new current turn
     And the highlight should move to the correct combatant
+
+  # --- Player Character Death & Dying ---
+
+  @HLR-COMBAT-016
+  Scenario: Player character drops to 0 HP
+    Given combat is active
+    And "Elara" has 3 HP remaining
+    When I tell Riddle "The goblin hits Elara for 5 damage"
+    Then Elara's HP should decrease to 0
+    And Elara should gain the "Unconscious" condition
+    And Elara should remain in the turn order
+    And Elara's Death Save counters should be reset to 0
+
+  @HLR-COMBAT-017
+  Scenario: DM records Death Saving Throw success
+    Given combat is active
+    And "Elara" is at 0 HP with the Unconscious condition
+    And it is Elara's turn
+    When I tell Riddle "Elara rolls an 11 on her death save"
+    Then Elara's DeathSaveSuccesses should increase by 1
+    And Riddle should acknowledge the successful save
+    And all connected clients should see the updated death save tracker
+
+  @HLR-COMBAT-018
+  Scenario: DM records Death Saving Throw failure
+    Given combat is active
+    And "Elara" is at 0 HP with the Unconscious condition
+    And it is Elara's turn
+    When I tell Riddle "Elara rolls a 6 on her death save"
+    Then Elara's DeathSaveFailures should increase by 1
+    And Riddle should acknowledge the failed save
+    And all connected clients should see the updated death save tracker
+
+  @HLR-COMBAT-019
+  Scenario: Natural 20 on Death Saving Throw
+    Given combat is active
+    And "Elara" is at 0 HP with 1 DeathSaveSuccess and 2 DeathSaveFailures
+    When I tell Riddle "Elara rolls a natural 20 on her death save"
+    Then Elara's HP should increase to 1
+    And Elara should lose the "Unconscious" condition
+    And Elara's DeathSaveSuccesses should reset to 0
+    And Elara's DeathSaveFailures should reset to 0
+    And Riddle should narrate Elara regaining consciousness
+
+  @HLR-COMBAT-020
+  Scenario: Player character fails 3 Death Saves
+    Given combat is active
+    And "Elara" is at 0 HP with 2 DeathSaveFailures
+    When I tell Riddle "Elara rolls a 4 on her death save"
+    Then Elara's DeathSaveFailures should be 3
+    And Elara should be marked as "Dead"
+    And Riddle should narrate Elara's death
+    And Elara should be removed from the turn order
+
+  @HLR-COMBAT-021
+  Scenario: Player character becomes Stable
+    Given combat is active
+    And "Elara" is at 0 HP with 2 DeathSaveSuccesses
+    When I tell Riddle "Elara rolls a 14 on her death save"
+    Then Elara's DeathSaveSuccesses should be 3
+    And Elara should gain the "Stable" condition
+    And Elara should remain Unconscious but no longer make Death Saves
+    And Riddle should narrate Elara stabilizing
+
+  @HLR-COMBAT-022
+  Scenario: Unconscious character takes damage
+    Given combat is active
+    And "Elara" is at 0 HP with the Unconscious condition
+    And Elara has 1 DeathSaveFailure
+    When I tell Riddle "The goblin hits Elara for 3 damage"
+    Then Elara's DeathSaveFailures should increase by 1
+    And Elara's HP should remain at 0
+    And Riddle should explain that damage causes a death save failure
+
+  @HLR-COMBAT-023
+  Scenario: Unconscious character takes critical hit
+    Given combat is active
+    And "Elara" is at 0 HP with the Unconscious condition
+    And Elara has 0 DeathSaveFailures
+    When I tell Riddle "The goblin crits Elara"
+    Then Elara's DeathSaveFailures should increase by 2
+    And Riddle should explain that critical hits cause two death save failures
+
+  @HLR-COMBAT-024
+  Scenario: Another character stabilizes unconscious ally
+    Given combat is active
+    And "Elara" is at 0 HP with the Unconscious condition
+    And it is Thorin's turn
+    When I tell Riddle "Thorin uses his action to stabilize Elara with a Medicine check of 12"
+    Then Elara should gain the "Stable" condition
+    And Elara should no longer make Death Saves
+    And Riddle should narrate Thorin stabilizing Elara
+
+  @HLR-COMBAT-025
+  Scenario: Massive damage causes instant death
+    Given combat is active
+    And "Elara" has 5 HP remaining
+    And "Elara" has MaxHP of 8
+    When I tell Riddle "The ogre hits Elara for 15 damage"
+    Then Elara should be marked as "Dead"
+    And Riddle should explain that massive damage (remaining damage >= MaxHP) causes instant death
+    And Elara should be removed from the turn order
+
+  @HLR-COMBAT-026
+  Scenario: Healing unconscious character
+    Given combat is active
+    And "Elara" is at 0 HP with the Unconscious condition
+    And Elara has 2 DeathSaveSuccesses and 1 DeathSaveFailure
+    When I tell Riddle "Thorin uses a healing potion on Elara, restoring 7 HP"
+    Then Elara's HP should increase to 7
+    And Elara should lose the "Unconscious" condition
+    And Elara's DeathSaveSuccesses should reset to 0
+    And Elara's DeathSaveFailures should reset to 0
+    And Riddle should narrate Elara regaining consciousness

@@ -90,6 +90,11 @@ public interface INotificationService
     /// </summary>
     Task NotifyInitiativeSetAsync(Guid campaignId, InitiativeSetPayload payload, CancellationToken ct = default);
     
+    /// <summary>
+    /// Notify all clients when a character's death save state changes
+    /// </summary>
+    Task NotifyDeathSaveUpdatedAsync(Guid campaignId, DeathSavePayload payload, CancellationToken ct = default);
+    
     // === Atmospheric Events (Players Only) ===
     
     /// <summary>

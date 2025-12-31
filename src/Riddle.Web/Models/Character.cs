@@ -346,6 +346,16 @@ public class Character
     public string DisplayRaceClass => $"{Race ?? "Unknown"} {Class ?? "Unknown"}";
     
     /// <summary>
+    /// Whether the character is stable (3 death save successes while at 0 HP)
+    /// </summary>
+    public bool IsStable => CurrentHp <= 0 && DeathSaveSuccesses >= 3;
+    
+    /// <summary>
+    /// Whether the character is dead (3 death save failures)
+    /// </summary>
+    public bool IsDead => DeathSaveFailures >= 3;
+    
+    /// <summary>
     /// Calculate ability modifier from score using D&D 5e formula
     /// </summary>
     private static int CalculateModifier(int score) => (score - 10) / 2;
