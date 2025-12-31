@@ -50,10 +50,45 @@
                         ☠️ Defeated
                     </span>
                 }
+                
+                @* Death save status for PCs at 0 HP *@
+                @if (Combatant.Type == "PC" && IsPcDead)
+                {
+                    <span data-testid="dead-badge" class="px-1.5 py-0.5 text-xs rounded bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 animate-pulse">
+                        💀 Dead
+                    </span>
+                }
+                else if (Combatant.Type == "PC" && IsPcStable)
+                {
+                    <span data-testid="stable-badge" class="px-1.5 py-0.5 text-xs rounded bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300">
+                        ✓ Stable
+                    </span>
+                }
             </div>
             
             <div class="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
                 <span data-testid="initiative">Init: @Combatant.Initiative</span>
+                
+                @* Death save circles for PCs at 0 HP (or with any saves recorded) *@
+                @if (Combatant.Type == "PC" && (Combatant.CurrentHp <= 0 || PcDeathSaveSuccesses > 0 || PcDeathSaveFailures > 0))
+                {
+                    <div class="flex items-center gap-2 ml-2">
+                        <div class="flex items-center gap-0.5">
+                            <span class="text-xs text-gray-400">S:</span>
+                            @for (int i = 0; i < 3; i++)
+                            {
+                                <span class="w-2.5 h-2.5 rounded-full border @(i < PcDeathSaveSuccesses ? "bg-green-500 border-green-500" : "border-gray-500")"></span>
+                            }
+                        </div>
+                        <div class="flex items-center gap-0.5">
+                            <span class="text-xs text-gray-400">F:</span>
+                            @for (int i = 0; i < 3; i++)
+                            {
+                                <span class="w-2.5 h-2.5 rounded-full border @(i < PcDeathSaveFailures ? "bg-red-500 border-red-500" : "border-gray-500")"></span>
+                            }
+                        </div>
+                    </div>
+                }
             </div>
         </div>
     </div>
@@ -101,6 +136,30 @@
     
     [Parameter]
     public bool IsDm { get; set; }
+    
+    /// <summary>
+    /// Death save successes for PC combatants (passed from Character model)
+    /// </summary>
+    [Parameter]
+    public int PcDeathSaveSuccesses { get; set; }
+    
+    /// <summary>
+    /// Death save failures for PC combatants (passed from Character model)
+    /// </summary>
+    [Parameter]
+    public int PcDeathSaveFailures { get; set; }
+    
+    /// <summary>
+    /// Whether the PC is stable (3 successes at 0 HP)
+    /// </summary>
+    [Parameter]
+    public bool IsPcStable { get; set; }
+    
+    /// <summary>
+    /// Whether the PC is dead (3 failures)
+    /// </summary>
+    [Parameter]
+    public bool IsPcDead { get; set; }
     
     private string GetHpColorClass()
     {

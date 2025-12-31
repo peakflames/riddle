@@ -592,3 +592,55 @@ _hubConnection.On<CharacterStatePayload>(GameHubEvents.CharacterStateUpdated, as
 **Pattern consistency:** Compare with `PlayerChoicesReceived` handler which correctly updates `campaign.ActivePlayerChoices = choices;` directly from the payload.
 
 **Symptom:** DM Dashboard updates correctly but Player Dashboard shows stale data after SignalR events.
+
+---
+
+## D&D 5e Rules Implementation
+
+### Death Saving Throw Pattern
+
+**D&D 5e death saves** are implemented via `update_character_state` tool with special keys:
+
+| Key | Value | Behavior |
+|-----|-------|----------|
+| `death_save_success` | `true` or `"nat20"` | Increment successes (+1 or wake with 1 HP on nat20) |
+| `death_save_failure` | `true` or `2` | Increment failures (+1 or +2 for crit damage) |
+| `stabilize` | `true` | Set successes to 3 (Medicine check/Spare the Dying) |
+
+**Auto-rules enforcement in ToolExecutor:**
+```csharp
+// When HP drops to 0: Add Unconscious, reset death saves
+if (newHp <= 0 && oldHp > 0)
+{
+    character.Conditions.Add("Unconscious");
+    character.DeathSaveSuccesses = 0;
+    character.DeathSaveFailures = 0;
+}
+
+// When healed from 0: Remove Unconscious, reset death saves
+if (newHp > 0 && oldHp <= 0)
+{
+    character.Conditions.Remove("Unconscious");
+    character.DeathSaveSuccesses = 0;
+    character.DeathSaveFailures = 0;
+}
+
+// 3 successes = Stable (add condition)
+if (character.DeathSaveSuccesses >= 3)
+    character.Conditions.Add("Stable");
+
+// 3 failures = Dead (add condition)
+if (character.DeathSaveFailures >= 3)
+    character.Conditions.Add("Dead");
+```
+
+**Computed properties on Character model:**
+```csharp
+[NotMapped]
+public bool IsStable => DeathSaveSuccesses >= 3;
+
+[NotMapped]
+public bool IsDead => DeathSaveFailures >= 3;
+```
+
+**SignalR broadcast:** Use `DeathSaveUpdated` event with `DeathSavePayload` to update all clients when death save state changes.

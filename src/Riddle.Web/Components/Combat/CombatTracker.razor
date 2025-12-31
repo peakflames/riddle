@@ -31,11 +31,16 @@
             <div class="space-y-1">
             @foreach (var (combatant, index) in Combat.TurnOrder.Select((c, i) => (c, i)))
             {
+                var pcCharacter = combatant.Type == "PC" ? PartyCharacters.FirstOrDefault(c => c.Id == combatant.Id) : null;
                 <CombatantCard 
                     Combatant="combatant" 
                     Position="@(index + 1)"
                     IsCurrentTurn="@(index == Combat.CurrentTurnIndex)"
-                    IsDm="IsDm" />
+                    IsDm="IsDm"
+                    PcDeathSaveSuccesses="@(pcCharacter?.DeathSaveSuccesses ?? 0)"
+                    PcDeathSaveFailures="@(pcCharacter?.DeathSaveFailures ?? 0)"
+                    IsPcStable="@(pcCharacter?.IsStable ?? false)"
+                    IsPcDead="@(pcCharacter?.IsDead ?? false)" />
             }
         </div>
         
@@ -136,6 +141,16 @@
             _hubConnection.On<CharacterStatePayload>(GameHubEvents.CharacterStateUpdated, async payload =>
             {
                 await HandleCharacterStateUpdateAsync(payload);
+            });
+            
+            // Subscribe to death save updates to refresh PC death save UI
+            _hubConnection.On<DeathSavePayload>(GameHubEvents.DeathSaveUpdated, async payload =>
+            {
+                Logger.LogDebug("[CombatTracker] DeathSaveUpdated: {CharacterName} - S:{Successes}/F:{Failures}, Stable:{IsStable}, Dead:{IsDead}",
+                    payload.CharacterName, payload.DeathSaveSuccesses, payload.DeathSaveFailures, payload.IsStable, payload.IsDead);
+                
+                // Trigger UI refresh - the parent component should have updated PartyCharacters
+                await InvokeAsync(StateHasChanged);
             });
 
             await _hubConnection.StartAsync();

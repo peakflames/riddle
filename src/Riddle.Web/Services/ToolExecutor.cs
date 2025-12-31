@@ -87,6 +87,8 @@ public class ToolExecutor : IToolExecutor
         ["StatusNotes"] = c => c.StatusNotes,
         ["DeathSaveSuccesses"] = c => c.DeathSaveSuccesses,
         ["DeathSaveFailures"] = c => c.DeathSaveFailures,
+        ["IsStable"] = c => c.IsStable,
+        ["IsDead"] = c => c.IsDead,
         
         // Player Linking
         ["PlayerId"] = c => c.PlayerId,
@@ -254,12 +256,131 @@ public class ToolExecutor : IToolExecutor
                 {
                     return JsonSerializer.Serialize(new { error = hpError });
                 }
-                character.CurrentHp = hpValue;
+                var previousHp = character.CurrentHp;
+                character.CurrentHp = Math.Max(0, hpValue); // HP can't go below 0
+                
+                // Apply death save auto-rules
+                await ApplyDeathSaveRulesOnHpChangeAsync(campaignId, character, previousHp, ct);
+                break;
+            
+            case "death_save_success":
+                // Increment death save successes (supports natural 20 with value "nat20")
+                if (character.CurrentHp > 0)
+                {
+                    return JsonSerializer.Serialize(new { error = "Cannot record death save - character is not at 0 HP" });
+                }
+                if (character.IsDead)
+                {
+                    return JsonSerializer.Serialize(new { error = "Cannot record death save - character is dead" });
+                }
+                
+                var isNat20 = valueElement.ValueKind == JsonValueKind.String && 
+                              valueElement.GetString()?.Equals("nat20", StringComparison.OrdinalIgnoreCase) == true;
+                
+                if (isNat20)
+                {
+                    // Natural 20: regain 1 HP, remove Unconscious, reset death saves
+                    character.CurrentHp = 1;
+                    character.DeathSaveSuccesses = 0;
+                    character.DeathSaveFailures = 0;
+                    character.Conditions.Remove("Unconscious");
+                    _logger.LogInformation("Natural 20 death save! {CharacterName} regains 1 HP and is conscious", character.Name);
+                }
+                else
+                {
+                    var (successCountParsed, successCount, successError) = ParseIntValue(valueElement, "death_save_success");
+                    if (!successCountParsed) successCount = 1; // Default to 1 success
+                    
+                    character.DeathSaveSuccesses = Math.Min(3, character.DeathSaveSuccesses + successCount);
+                    
+                    // Check for stabilization (3 successes)
+                    if (character.IsStable && !character.Conditions.Contains("Stable"))
+                    {
+                        character.Conditions.Add("Stable");
+                        _logger.LogInformation("{CharacterName} is stable with 3 death save successes", character.Name);
+                    }
+                }
+                
+                // Broadcast death save update
+                await NotifyDeathSaveChangedAsync(campaignId, character, ct);
+                break;
+            
+            case "death_save_failure":
+                // Increment death save failures (supports crit failure with value 2)
+                if (character.CurrentHp > 0)
+                {
+                    return JsonSerializer.Serialize(new { error = "Cannot record death save - character is not at 0 HP" });
+                }
+                if (character.IsDead)
+                {
+                    return JsonSerializer.Serialize(new { error = "Cannot record death save - character is already dead" });
+                }
+                
+                var (failureCountParsed, failureCount, failureError) = ParseIntValue(valueElement, "death_save_failure");
+                if (!failureCountParsed) failureCount = 1; // Default to 1 failure
+                
+                character.DeathSaveFailures = Math.Min(3, character.DeathSaveFailures + failureCount);
+                
+                // Check for death (3 failures)
+                if (character.IsDead)
+                {
+                    character.Conditions.Remove("Stable");
+                    if (!character.Conditions.Contains("Dead"))
+                    {
+                        character.Conditions.Add("Dead");
+                    }
+                    _logger.LogInformation("{CharacterName} has died with 3 death save failures", character.Name);
+                }
+                
+                // Broadcast death save update
+                await NotifyDeathSaveChangedAsync(campaignId, character, ct);
+                break;
+            
+            case "stabilize":
+                // Manually stabilize character (e.g., from Medicine check or Spare the Dying)
+                if (character.CurrentHp > 0)
+                {
+                    return JsonSerializer.Serialize(new { error = "Cannot stabilize - character is not at 0 HP" });
+                }
+                if (character.IsDead)
+                {
+                    return JsonSerializer.Serialize(new { error = "Cannot stabilize - character is dead" });
+                }
+                
+                character.DeathSaveSuccesses = 3;
+                if (!character.Conditions.Contains("Stable"))
+                {
+                    character.Conditions.Add("Stable");
+                }
+                _logger.LogInformation("{CharacterName} has been stabilized", character.Name);
+                
+                // Broadcast death save update
+                await NotifyDeathSaveChangedAsync(campaignId, character, ct);
                 break;
             case "conditions":
                 character.Conditions = valueElement.EnumerateArray()
                     .Select(e => e.GetString()!)
                     .ToList();
+                break;
+            
+            case "add_condition":
+                var conditionToAdd = valueElement.GetString()!;
+                if (!character.Conditions.Contains(conditionToAdd))
+                {
+                    character.Conditions.Add(conditionToAdd);
+                    
+                    // When Dead is added, remove Unconscious (you can't be unconscious if you're dead)
+                    if (conditionToAdd == "Dead")
+                    {
+                        character.Conditions.Remove("Unconscious");
+                        character.Conditions.Remove("Stable");
+                    }
+                }
+                break;
+            
+            case "remove_condition":
+                var conditionToRemove = valueElement.GetString()!;
+                character.Conditions.Remove(conditionToRemove);
                 break;
             case "status_notes":
                 character.StatusNotes = valueElement.GetString();
@@ -273,7 +394,7 @@ public class ToolExecutor : IToolExecutor
                 character.Initiative = initValue;
                 break;
             default:
-                return JsonSerializer.Serialize(new { error = $"Unknown key: {key}. Valid keys: current_hp, conditions, status_notes, initiative" });
+                return JsonSerializer.Serialize(new { error = $"Unknown key: {key}. Valid keys: current_hp, conditions, status_notes, initiative, death_save_success, death_save_failure, stabilize" });
         }
 
         await _stateService.UpdateCharacterAsync(campaignId, character, ct);
@@ -682,6 +803,8 @@ public class ToolExecutor : IToolExecutor
         sb.AppendLine("- `StatusNotes` (string) - DM notes");
         sb.AppendLine("- `DeathSaveSuccesses` (int) - 0-3");
         sb.AppendLine("- `DeathSaveFailures` (int) - 0-3");
+        sb.AppendLine("- `IsStable` (bool) - True if 3 successes and at 0 HP (computed)");
+        sb.AppendLine("- `IsDead` (bool) - True if 3 failures (computed)");
         sb.AppendLine();
         
         sb.AppendLine("## Player Linking");
@@ -1284,6 +1407,63 @@ public class ToolExecutor : IToolExecutor
     }
 
     // ==================== Helper Methods ====================
+
+    /// <summary>
+    /// Applies automatic death save rules when HP changes.
+    /// - HP drops to 0: Add "Unconscious" condition, reset death saves
+    /// - HP rises from 0: Remove "Unconscious"/"Stable", reset death saves
+    /// </summary>
+    private async Task ApplyDeathSaveRulesOnHpChangeAsync(Guid campaignId, Character character, int previousHp, CancellationToken ct)
+    {
+        var hpDroppedToZero = previousHp > 0 && character.CurrentHp <= 0;
+        var hpRoseFromZero = previousHp <= 0 && character.CurrentHp > 0;
+        
+        if (hpDroppedToZero)
+        {
+            // Character dropped to 0 HP - apply Unconscious, reset death saves
+            if (!character.Conditions.Contains("Unconscious"))
+            {
+                character.Conditions.Add("Unconscious");
+            }
+            character.DeathSaveSuccesses = 0;
+            character.DeathSaveFailures = 0;
+            
+            _logger.LogInformation("{CharacterName} dropped to 0 HP - now Unconscious, death saves reset", character.Name);
+            
+            // Broadcast death save state
+            await NotifyDeathSaveChangedAsync(campaignId, character, ct);
+        }
+        else if (hpRoseFromZero)
+        {
+            // Character healed from 0 HP - remove dying/stable conditions, reset death saves
+            character.Conditions.Remove("Unconscious");
+            character.Conditions.Remove("Stable");
+            character.DeathSaveSuccesses = 0;
+            character.DeathSaveFailures = 0;
+            
+            _logger.LogInformation("{CharacterName} healed from 0 HP - Unconscious removed, death saves reset", character.Name);
+            
+            // Broadcast death save state
+            await NotifyDeathSaveChangedAsync(campaignId, character, ct);
+        }
+    }
+
+    /// <summary>
+    /// Broadcasts death save state change via SignalR.
+    /// </summary>
+    private async Task NotifyDeathSaveChangedAsync(Guid campaignId, Character character, CancellationToken ct)
+    {
+        var payload = new DeathSavePayload(
+            CharacterId: character.Id,
+            CharacterName: character.Name,
+            DeathSaveSuccesses: character.DeathSaveSuccesses,
+            DeathSaveFailures: character.DeathSaveFailures,
+            IsStable: character.IsStable,
+            IsDead: character.IsDead
+        );
+        
+        await _notificationService.NotifyDeathSaveUpdatedAsync(campaignId, payload, ct);
+    }
 
     /// <summary>
     /// Normalizes character names for comparison by converting to lowercase and replacing

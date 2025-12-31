@@ -31,6 +31,7 @@ public static class GameHubEvents
     public const string InitiativeSet = "InitiativeSet";
     public const string CombatantAdded = "CombatantAdded";
     public const string CombatantRemoved = "CombatantRemoved";
+    public const string DeathSaveUpdated = "DeathSaveUpdated";
     
     // === Connection Events ===
     public const string ConnectionStatusChanged = "ConnectionStatusChanged";
@@ -156,4 +157,16 @@ public record TurnAdvancedPayload(
 public record InitiativeSetPayload(
     string CharacterId,
     int Initiative
+);
+
+/// <summary>
+/// Payload for death save state updates
+/// </summary>
+public record DeathSavePayload(
+    string CharacterId,
+    string CharacterName,
+    int DeathSaveSuccesses,
+    int DeathSaveFailures,
+    bool IsStable,
+    bool IsDead
 );

@@ -218,6 +218,18 @@ public class NotificationService : INotificationService
             .SendAsync(GameHubEvents.InitiativeSet, payload, ct);
     }
 
+    public async Task NotifyDeathSaveUpdatedAsync(Guid campaignId, DeathSavePayload payload, CancellationToken ct = default)
+    {
+        _logger.LogInformation(
+            "Broadcasting DeathSaveUpdated to campaign {CampaignId}: {CharacterName} - Successes: {Successes}, Failures: {Failures}, Stable: {IsStable}, Dead: {IsDead}",
+            campaignId, payload.CharacterName, payload.DeathSaveSuccesses, payload.DeathSaveFailures, payload.IsStable, payload.IsDead);
+
+        // Notify all participants of death save state changes
+        await _hubContext.Clients
+            .Group(AllGroup(campaignId))
+            .SendAsync(GameHubEvents.DeathSaveUpdated, payload, ct);
+    }
+
     // === Atmospheric Events (Players Only) ===
 
     public async Task NotifyAtmospherePulseAsync(Guid campaignId, AtmospherePulsePayload payload, CancellationToken ct = default)
