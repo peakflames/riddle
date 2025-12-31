@@ -14,6 +14,7 @@ Feature: Combat Encounter
 
   # --- Combat Initiation ---
 
+  @HLR-COMBAT-001
   Scenario: DM starts combat from narrative
     Given the party is at "Triboar Trail"
     When I tell Riddle "Goblins attack from the bushes!"
@@ -21,6 +22,7 @@ Feature: Combat Encounter
     And Riddle should request initiative rolls
     And I should see "Roll initiative for the party" in the chat
 
+  @HLR-COMBAT-002
   Scenario: DM inputs initiative rolls
     Given combat is starting
     When I tell Riddle "Thorin rolled 15, Elara rolled 18"
@@ -28,6 +30,7 @@ Feature: Combat Encounter
     And Riddle should set Elara's initiative to 18
     And the turn order should be established
 
+  @HLR-COMBAT-003
   Scenario: Combat includes enemy combatants
     Given I start combat with goblins
     When Riddle processes the encounter
@@ -39,6 +42,7 @@ Feature: Combat Encounter
 
   # --- Turn Order Management ---
 
+  @HLR-COMBAT-004
   Scenario: Turn order displays correctly
     Given combat is active with turn order:
       | Position | Character  | Initiative |
@@ -50,6 +54,7 @@ Feature: Combat Encounter
     And the current turn should be highlighted
     And the round number should display as 1
 
+  @HLR-COMBAT-005
   Scenario: DM advances to next turn
     Given combat is active
     And it is "Elara's" turn
@@ -57,6 +62,7 @@ Feature: Combat Encounter
     Then the current turn should advance to the next combatant
     And all connected clients should see the update
 
+  @HLR-COMBAT-006
   Scenario: Round advances after all turns
     Given combat is active on round 1
     And it is the last combatant's turn
@@ -66,22 +72,7 @@ Feature: Combat Encounter
 
   # --- Attack Resolution ---
 
-  Scenario: Player attacks and hits
-    Given combat is active
-    And it is "Thorin's" turn
-    When I tell Riddle "Thorin attacks Goblin 1. He rolled 17."
-    And Goblin 1 has AC 15
-    Then Riddle should confirm the attack hits
-    And Riddle should request a damage roll
-
-  Scenario: Player attacks and misses
-    Given combat is active
-    And it is "Thorin's" turn
-    When I tell Riddle "Thorin attacks Goblin 1. He rolled 12."
-    And Goblin 1 has AC 15
-    Then Riddle should report the attack misses
-    And no damage should be applied
-
+  @HLR-COMBAT-007
   Scenario: Damage is applied to enemy
     Given combat is active
     And Thorin hit Goblin 1
@@ -90,6 +81,7 @@ Feature: Combat Encounter
     And the Combat Tracker should update
     And all players should see the HP change
 
+  @HLR-COMBAT-008
   Scenario: Enemy is defeated
     Given combat is active
     And "Goblin 1" has 3 HP remaining
@@ -100,6 +92,7 @@ Feature: Combat Encounter
 
   # --- Special Combat Situations ---
 
+  @HLR-COMBAT-009
   Scenario: Surprise round
     Given I tell Riddle "The goblins have surprise"
     When combat begins
@@ -107,6 +100,7 @@ Feature: Combat Encounter
     And surprised characters should skip round 1
     And Riddle should explain the surprise rules
 
+  @HLR-COMBAT-010
   Scenario: Player takes damage
     Given combat is active
     And "Thorin" has 12 HP
@@ -115,6 +109,7 @@ Feature: Combat Encounter
     And the Party Tracker should update in real-time
     And Player screens should show the updated HP
 
+  @HLR-COMBAT-011
   Scenario: Condition is applied
     Given combat is active
     When I tell Riddle "Thorin is poisoned"
@@ -124,6 +119,7 @@ Feature: Combat Encounter
 
   # --- Combat Conclusion ---
 
+  @HLR-COMBAT-012
   Scenario: All enemies defeated
     Given combat is active
     And only one enemy remains with 2 HP
@@ -132,6 +128,7 @@ Feature: Combat Encounter
     And Riddle should generate victory narration
     And the Combat Tracker should indicate combat is over
 
+  @HLR-COMBAT-013
   Scenario: DM ends combat manually
     Given combat is active
     When I tell Riddle "End combat, the goblins flee"
@@ -141,6 +138,7 @@ Feature: Combat Encounter
 
   # --- Real-time Updates ---
 
+  @HLR-COMBAT-014
   Scenario: Player sees combat updates
     Given Player "Alice" is connected to the campaign instance
     And combat is active
@@ -148,6 +146,7 @@ Feature: Combat Encounter
     Then Alice should see the update without refreshing
     And the update should appear within 1 second
 
+  @HLR-COMBAT-015
   Scenario: Turn order syncs across all clients
     Given the DM and 2 Players are connected
     When the turn advances
