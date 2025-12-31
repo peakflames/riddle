@@ -118,7 +118,9 @@ Feature: Combat Encounter
     When I tell Riddle "The goblin hits Thorin for 5 damage"
     Then Thorin's HP should decrease to 7
     And the Party Tracker should update in real-time
+    And the Combat Tracker should show Thorin at 7 HP
     And Player screens should show the updated HP
+    And DM dashboard should show the updated HP in both trackers
 
   @HLR-COMBAT-011
   Scenario: Condition is applied

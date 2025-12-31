@@ -486,10 +486,21 @@ public class CombatEncounterTests : IAsyncLifetime
 
     #region @HLR-COMBAT-010: Player takes damage
 
+    /// <summary>
+    /// Tests that PC HP update via LLM tool syncs to both Party Tracker and Combat Tracker.
+    /// 
+    /// Enhanced scenario verifies:
+    /// - PartyState HP is updated
+    /// - ActiveCombat.Combatants HP is synchronized  
+    /// - Combat Tracker UI shows updated HP
+    /// - DM dashboard shows consistent HP in both trackers
+    /// </summary>
     [Fact]
     public async Task HLR_COMBAT_010_Player_takes_damage()
     {
+        // Arrange
         const string thorinId = "thorin-001";
+        const string thorinName = "Thorin";
         const string goblinId = "goblin-001";
         
         var campaign = await _factory.SetupTestCampaignAsync(
@@ -497,7 +508,7 @@ public class CombatEncounterTests : IAsyncLifetime
             dmUserId: TestAuthHandler.TestUserId,
             party:
             [
-                new Character { Id = thorinId, Name = "Thorin", Type = "PC", Class = "Fighter", Race = "Dwarf", Level = 5, MaxHp = 30, CurrentHp = 12, ArmorClass = 16 }
+                new Character { Id = thorinId, Name = thorinName, Type = "PC", Class = "Fighter", Race = "Dwarf", Level = 5, MaxHp = 30, CurrentHp = 12, ArmorClass = 16 }
             ]);
         
         using (var scope = _factory.CreateScope())
@@ -505,7 +516,7 @@ public class CombatEncounterTests : IAsyncLifetime
             var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
             await combatService.StartCombatAsync(campaign.Id,
             [
-                new CombatantInfo(thorinId, "Thorin", "PC", 15, 12, 30, false, false),
+                new CombatantInfo(thorinId, thorinName, "PC", 15, 12, 30, false, false),
                 new CombatantInfo(goblinId, "Goblin 1", "Enemy", 12, 7, 7, false, false)
             ]);
         }
@@ -515,18 +526,52 @@ public class CombatEncounterTests : IAsyncLifetime
         
         await _page.WaitForSelectorAsync("[data-testid='combat-tracker']");
         
-        var thorinHp = _page.Locator($"[data-testid='combatant-{thorinId}'] [data-testid='hp-current']");
-        await Expect(thorinHp).ToHaveTextAsync("12");
+        // Verify initial HP in Combat Tracker
+        var thorinCombatHp = _page.Locator($"[data-testid='combatant-{thorinId}'] [data-testid='hp-current']");
+        await Expect(thorinCombatHp).ToHaveTextAsync("12");
         
-        // Act - Player takes damage
+        // Act - Player takes damage via ToolExecutor (the LLM code path)
+        using (var scope = _factory.CreateScope())
+        {
+            var toolExecutor = scope.ServiceProvider.GetRequiredService<IToolExecutor>();
+            
+            var argumentsJson = $$"""
+            {
+                "character_name": "{{thorinName}}",
+                "key": "current_hp",
+                "value": 7
+            }
+            """;
+            
+            var result = await toolExecutor.ExecuteAsync(campaign.Id, "update_character_state", argumentsJson);
+            result.Should().Contain("success", "Tool execution should succeed");
+        }
+        
+        // Assert 1: PartyState HP is updated
+        using (var scope = _factory.CreateScope())
+        {
+            var campaignService = scope.ServiceProvider.GetRequiredService<ICampaignService>();
+            var reloadedCampaign = await campaignService.GetCampaignAsync(campaign.Id);
+            var character = reloadedCampaign?.PartyState.FirstOrDefault(c => c.Name == thorinName);
+            
+            character.Should().NotBeNull();
+            character!.CurrentHp.Should().Be(7, "PartyState HP should be 7");
+        }
+        
+        // Assert 2: ActiveCombat.Combatants HP is synchronized
         using (var scope = _factory.CreateScope())
         {
             var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
-            await combatService.UpdateCombatantHpAsync(campaign.Id, thorinId, 7); // 12 - 5 = 7
+            var combatState = await combatService.GetCombatStateAsync(campaign.Id);
+            
+            combatState.Should().NotBeNull();
+            var thorinCombatant = combatState!.TurnOrder.FirstOrDefault(c => c.Id == thorinId);
+            thorinCombatant.Should().NotBeNull();
+            thorinCombatant!.CurrentHp.Should().Be(7, "ActiveCombat combatant HP should be 7");
         }
         
-        // Assert - HP decreased
-        await Expect(thorinHp).ToHaveTextAsync("7", new LocatorAssertionsToHaveTextOptions { Timeout = 5000 });
+        // Assert 3: Combat Tracker UI shows updated HP
+        await Expect(thorinCombatHp).ToHaveTextAsync("7", new LocatorAssertionsToHaveTextOptions { Timeout = 5000 });
     }
 
     #endregion

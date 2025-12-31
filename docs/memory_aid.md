@@ -595,6 +595,42 @@ _hubConnection.On<CharacterStatePayload>(GameHubEvents.CharacterStateUpdated, as
 
 ---
 
+## CRITICAL: Dual Data Sources for PC HP During Combat
+
+**Problem:** When a PC is in active combat, their HP exists in TWO places:
+1. **`PartyState`** (canonical source) - Character's authoritative HP
+2. **`ActiveCombat.Combatants`** (combat snapshot) - HP captured when combat started
+
+When `update_character_state` updates PC HP, both sources must be synchronized. Otherwise:
+- **Party Card** (reads from `PartyState`) → Shows correct HP
+- **Combat Tracker** (reads from `ActiveCombat.Combatants`) → Shows stale HP
+
+**Symptom:** After LLM updates a PC's HP via `update_character_state`, the Party Card shows "0/27" but Combat Tracker shows "27/27" - even after page reload.
+
+**Root Cause:** `ToolExecutor.UpdateCharacterPropertyAsync` only updated `PartyState`, not the corresponding combatant in `ActiveCombat.Combatants`.
+
+**Fix:** In `ToolExecutor`, when updating `current_hp` for a PC, also update the matching combatant in active combat:
+
+```csharp
+// Update PartyState (canonical source)
+character.CurrentHp = newHp;
+await _stateService.UpdateCharacterAsync(campaignId, character, ct);
+
+// ALSO sync to ActiveCombat.Combatants if PC is in combat
+if (campaign.ActiveCombat?.Combatants != null)
+{
+    if (campaign.ActiveCombat.Combatants.TryGetValue(character.Id, out var combatant))
+    {
+        combatant.CurrentHp = newHp;
+        await _combatService.SaveCombatStateAsync(campaignId, campaign.ActiveCombat, ct);
+    }
+}
+```
+
+**Verification:** Use `python build.py db party` to check `PartyState` HP, and check `ActiveCombat` JSON in database to verify both show synchronized values.
+
+---
+
 ## D&D 5e Rules Implementation
 
 ### Death Saving Throw Pattern

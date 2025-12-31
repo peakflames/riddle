@@ -400,6 +400,12 @@ def run_dotnet_command(dotnet_path: str, command: str) -> None:
             start_background(dotnet_path)
         
         elif command == "test":
+            # Auto-stop any running application to prevent port conflicts
+            pid = get_running_pid()
+            if pid:
+                print("Stopping running application before tests...")
+                stop_background()
+            
             # Kill any stale test processes from previous runs
             killed = kill_test_processes()
             if killed > 0:
@@ -1261,7 +1267,7 @@ def print_usage() -> None:
     print("  start        - Start the project in background")
     print("  stop         - Stop the background project")
     print("  status       - Check if project is running")
-    print("  test         - Run integration tests")
+    print("  test [filter]- Run integration tests (filter by test name)")
     print("")
     print("Log Commands:")
     print("  log                      - Show last 50 lines of log")
@@ -1282,6 +1288,9 @@ def print_usage() -> None:
     print("  python build.py log --level error --tail 20")
     print("  python build.py db \"SELECT * FROM CampaignInstances\"")
     print("  python build.py db characters 019B654D-3B7C-7973-A3EE-BBD5C335F9C1")
+    print("  python build.py test                              # Run all tests")
+    print("  python build.py test HLR_COMBAT_010               # Filter by test name")
+    print("  python build.py test CombatEncounterTests         # Filter by class name")
 
 
 def main() -> None:

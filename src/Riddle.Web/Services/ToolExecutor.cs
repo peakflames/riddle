@@ -261,6 +261,8 @@ public class ToolExecutor : IToolExecutor
                 
                 // Apply death save auto-rules
                 await ApplyDeathSaveRulesOnHpChangeAsync(campaignId, character, previousHp, ct);
+                // Note: PC HP is NOT synced to ActiveCombat.Combatants here.
+                // CombatService.BuildCombatStatePayload reads PC HP from PartyState (single source of truth).
                 break;
             
             case "death_save_success":
