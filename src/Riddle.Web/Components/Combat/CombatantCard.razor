@@ -1,6 +1,6 @@
 @using Riddle.Web.Hubs
 
-<div class="flex items-center justify-between p-3 rounded-lg border @(IsCurrentTurn ? "border-primary-500 bg-primary-50 dark:bg-primary-900/20" : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800")">
+<div data-testid="combatant-@Combatant.Id" class="flex items-center justify-between p-3 rounded-lg border @(IsCurrentTurn ? "border-primary-500 bg-primary-50 dark:bg-primary-900/20" : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800")">
     <div class="flex items-center gap-3">
         @* Turn indicator *@
         @if (IsCurrentTurn)
@@ -61,9 +61,9 @@
     @* HP display *@
     <div class="flex flex-col items-end">
         <div class="flex items-center gap-1 text-sm font-medium">
-            <span class="@GetHpColorClass()">@Combatant.CurrentHp</span>
+            <span data-testid="hp-current" class="@GetHpColorClass()">@Combatant.CurrentHp</span>
             <span class="text-gray-400">/</span>
-            <span class="text-gray-600 dark:text-gray-400">@Combatant.MaxHp</span>
+            <span data-testid="hp-max" class="text-gray-600 dark:text-gray-400">@Combatant.MaxHp</span>
         </div>
         <div class="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
             <div class="h-full @GetHpBarColorClass() transition-all duration-300"
