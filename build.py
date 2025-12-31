@@ -184,6 +184,21 @@ def install_dotnet() -> str:
         sys.exit(1)
 
 
+def kill_test_processes() -> int:
+    """Kill any lingering test host processes from previous test runs"""
+    killed = 0
+    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+        try:
+            cmdline = ' '.join(proc.info['cmdline'] or [])
+            if 'testhost' in cmdline.lower() or 'Riddle.Web.IntegrationTests' in cmdline:
+                print(f"  Killing stale test process {proc.pid}: {proc.info['name']}")
+                proc.kill()
+                killed += 1
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+    return killed
+
+
 def is_process_running(pid: int) -> bool:
     """Check if a process with given PID is running"""
     try:
@@ -382,6 +397,27 @@ def run_dotnet_command(dotnet_path: str, command: str) -> None:
                 check=True
             )
             start_background(dotnet_path)
+        
+        elif command == "test":
+            # Kill any stale test processes from previous runs
+            killed = kill_test_processes()
+            if killed > 0:
+                print(f"Cleaned up {killed} stale test process(es)")
+            
+            # Run integration tests with optional filter
+            test_filter = sys.argv[2] if len(sys.argv) > 2 else None
+            
+            test_cmd = [dotnet_path, "test", "tests/Riddle.Web.IntegrationTests/Riddle.Web.IntegrationTests.csproj", "--verbosity", "normal"]
+            
+            if test_filter:
+                # Support filtering by test name, class name, or fully qualified name
+                test_cmd.extend(["--filter", test_filter])
+                print(f"Running tests matching: {test_filter}")
+            else:
+                print("Running all integration tests...")
+            
+            subprocess.run(test_cmd, check=True)
+            print("Tests completed")
         
         elif command == "stop":
             stop_background()
@@ -1224,6 +1260,7 @@ def print_usage() -> None:
     print("  start        - Start the project in background")
     print("  stop         - Stop the background project")
     print("  status       - Check if project is running")
+    print("  test         - Run integration tests")
     print("")
     print("Log Commands:")
     print("  log                      - Show last 50 lines of log")
@@ -1365,7 +1402,7 @@ def main() -> None:
             query_db(subcommand)
         return
     
-    if command not in ["build", "publish", "watch", "run", "start"]:
+    if command not in ["build", "publish", "watch", "run", "start", "test"]:
         print(f"Unknown command: {command}")
         print_usage()
         sys.exit(1)

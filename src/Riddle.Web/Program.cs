@@ -122,7 +122,11 @@ builder.Services.AddScoped<INotificationService, NotificationService>();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (!app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
+{
+    app.UseDeveloperExceptionPage();
+}
+else
 {
     app.UseExceptionHandler("/Error");
     app.UseHsts();
@@ -139,16 +143,24 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 // Map additional identity endpoints (external login callback, etc.)
-app.MapGroup("/Account").MapAdditionalIdentityEndpoints();
+// Skip in Testing environment where Identity is replaced with test auth
+if (!app.Environment.IsEnvironment("Testing"))
+{
+    app.MapGroup("/Account").MapAdditionalIdentityEndpoints();
+}
 
 // Map SignalR hub for real-time game events
 app.MapHub<GameHub>("/gamehub");
 
-// Ensure database is created
-using (var scope = app.Services.CreateScope())
+// Ensure database is created (skip during integration testing to avoid provider conflicts)
+if (!app.Environment.IsEnvironment("Testing"))
 {
+    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<RiddleDbContext>();
     db.Database.EnsureCreated();
 }
 
 app.Run();
+
+// Marker class for WebApplicationFactory<Program> in integration tests
+public partial class Program { }

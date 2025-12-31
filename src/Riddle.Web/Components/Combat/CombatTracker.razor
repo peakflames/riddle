@@ -158,8 +158,8 @@
         if (Combat?.IsActive != true || Combat.TurnOrder == null)
             return;
         
-        // Check if this is an HP update
-        if (!string.Equals(payload.Key, "CurrentHp", StringComparison.OrdinalIgnoreCase))
+        // Check if this is an HP update (ToolExecutor sends "current_hp" in snake_case)
+        if (!string.Equals(payload.Key, "current_hp", StringComparison.OrdinalIgnoreCase))
             return;
         
         // Find the combatant in the turn order by character ID

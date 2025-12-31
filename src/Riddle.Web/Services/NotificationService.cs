@@ -194,28 +194,28 @@ public class NotificationService : INotificationService
             .SendAsync(GameHubEvents.CombatEnded, cancellationToken: ct);
     }
 
-    public async Task NotifyTurnAdvancedAsync(Guid campaignId, int newTurnIndex, string currentCombatantId, int roundNumber, CancellationToken ct = default)
+    public async Task NotifyTurnAdvancedAsync(Guid campaignId, TurnAdvancedPayload payload, CancellationToken ct = default)
     {
         _logger.LogDebug(
             "Broadcasting TurnAdvanced to campaign {CampaignId}: Round {RoundNumber}, Turn {TurnIndex}, Combatant {CombatantId}",
-            campaignId, roundNumber, newTurnIndex, currentCombatantId);
+            campaignId, payload.RoundNumber, payload.NewTurnIndex, payload.CurrentCombatantId);
 
-        // Notify all participants of turn advancement (include roundNumber for UI update)
+        // Notify all participants of turn advancement
         await _hubContext.Clients
             .Group(AllGroup(campaignId))
-            .SendAsync(GameHubEvents.TurnAdvanced, newTurnIndex, currentCombatantId, roundNumber, ct);
+            .SendAsync(GameHubEvents.TurnAdvanced, payload, ct);
     }
 
-    public async Task NotifyInitiativeSetAsync(Guid campaignId, string characterId, int initiative, CancellationToken ct = default)
+    public async Task NotifyInitiativeSetAsync(Guid campaignId, InitiativeSetPayload payload, CancellationToken ct = default)
     {
         _logger.LogDebug(
             "Broadcasting InitiativeSet to campaign {CampaignId}: Character {CharacterId} = {Initiative}",
-            campaignId, characterId, initiative);
+            campaignId, payload.CharacterId, payload.Initiative);
 
         // Notify all participants of initiative changes
         await _hubContext.Clients
             .Group(AllGroup(campaignId))
-            .SendAsync(GameHubEvents.InitiativeSet, characterId, initiative, ct);
+            .SendAsync(GameHubEvents.InitiativeSet, payload, ct);
     }
 
     // === Atmospheric Events (Players Only) ===

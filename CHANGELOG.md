@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] - 2025-12-31
+
+### Fixed
+- **Combat Tracker HP not updating when LLM calls `update_character_state` tool**
+  - Root cause: `CombatTracker.razor` expected PascalCase `"CurrentHp"` but `ToolExecutor.cs` sends snake_case `"current_hp"` (matching LLM JSON convention)
+  - Changed `CombatTracker.razor` to check for `"current_hp"` instead of `"CurrentHp"`
+  - This was a sender/receiver contract mismatch that passed all transport-layer tests
+
+### Added
+- **Playwright E2E Test Infrastructure**
+  - `UpdateCharacterStateToolTests` - E2E test for `update_character_state` LLM tool
+  - Verifies full flow: Tool execution → SignalR → Blazor UI → DOM update
+  - Catches sender/receiver contract mismatches that transport tests cannot detect
+  - `CustomWebApplicationFactory` with Donbavand/Costello dual-host pattern for Playwright + WebApplicationFactory
+  - `PlaywrightFixture` for browser lifecycle management
+  - Test authentication: `TestAuthHandler` + `TestAuthenticationStateProvider`
+  - In-memory database isolation for test campaigns
+
+### Changed
+- **E2E Testing Philosophy Documentation** (`docs/e2e_testing_philosophy.md`)
+  - Rewritten to focus on "Test Tools, Not Transport" philosophy
+  - Documents `{ToolName}ToolTests` naming convention
+  - Includes canonical test structure and real code examples
+  - Captures 9 hard-won lessons from debugging test infrastructure
+
+### Removed
+- Transport-layer SignalR tests (`HubTests/`, `Services/`) - replaced by E2E tests that verify actual behavior
+
+### Technical
+- E2E tests use `data-testid` attributes for reliable DOM selectors
+- `Expect()` polling pattern for async SignalR propagation
+- `WaitUntil.NetworkIdle` for Blazor Server async rendering
+- Kestrel binds to dynamic port via `IPAddress.Loopback`
+
 ## [0.15.0] - 2025-12-30
 
 ### Added
@@ -568,7 +602,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flowbite Blazor component library reference documentation
 - Incremental phase implementation workflow for development
 
-[Unreleased]: https://github.com/peakflames/riddle/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/peakflames/riddle/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/peakflames/riddle/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/peakflames/riddle/compare/v0.14.3...v0.15.0
 [0.14.3]: https://github.com/peakflames/riddle/compare/v0.14.2...v0.14.3
 [0.14.2]: https://github.com/peakflames/riddle/compare/v0.14.1...v0.14.2

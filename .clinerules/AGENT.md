@@ -17,7 +17,26 @@ Project Riddle is a LLM-driven Dungeon Master assistant for D&D 5th Edition buil
 
 ## Project Reference Documentation
 - **Flowbite Blazor Component Reference**: `docs/flowbite_blazor_docs.md` - API reference for Flowbite Blazor components (enums, sizes, colors, common patterns)
+- **SignalR documentation**: `docs/signalr` - Architecture, groups, event references, flow sequences
 
+## CRITICAL: SignalR Payload Contract Rule
+
+**ALL SignalR events MUST use a single payload record argument.** Never send multiple arguments - client handlers silently fail if argument count doesn't match.
+
+```csharp
+// ❌ WRONG - Multi-argument events cause silent client-side failures
+await Clients.Group(group).SendAsync("TurnAdvanced", turnIndex, combatantId, roundNumber);
+
+// ✅ CORRECT - Single payload record (defined in GameHubEvents.cs)
+await Clients.Group(group).SendAsync(GameHubEvents.TurnAdvanced, new TurnAdvancedPayload(turnIndex, combatantId, roundNumber));
+```
+
+**Why:** SignalR client handlers register for a specific argument count. A handler expecting 1 argument will NEVER fire if the server sends 3 arguments - no error, just silent failure.
+
+**Implementation:**
+1. Define payload records in `src/Riddle.Web/Hubs/GameHubEvents.cs`
+2. Use payload records in `INotificationService` and `NotificationService` method signatures
+3. For events with no data, use no-arg `SendAsync` (e.g., `CombatEnded`)
 
 ## Build, Test, and Development Commands
 Use the Python automation:
@@ -74,8 +93,10 @@ PREFER to leverage components and pages already create over at `- **Flowbite Bla
 
 ## Development Rules and Memory Aid
 
-- Prefer to load and read prior to editing any file, Cline MUST read `docs\developer_rules_and_memory_aid.md` and adhere to rules, guideance, and lessons learned
-- You MUST EDIT the `docs\developer_rules_and_memory_aid.md` after learning a new pattern or rule.
+- **Developer Rules**: Read `docs/developer_rules.md` for project structure, coding standards, build commands, and git workflow
+- **Memory Aid**: Read `docs/memory_aid.md` for lessons learned, gotchas, and patterns discovered through development
+- Prefer to load and read both files prior to editing any source file
+- You MUST EDIT `docs/memory_aid.md` after learning a new pattern or gotcha
 
 
 ## SYSTEM ROLE & BEHAVIORAL PROTOCOLS
@@ -123,6 +144,7 @@ PREFER to leverage components and pages already create over at `- **Flowbite Bla
 
 ## Development Rules and Memory Aid Reminder
 
-- Prefer to load and read prior to editing any file, Cline MUST read `docs\developer_rules_and_memory_aid.md` and adhere to rules, guideance, and lessons learned
-- You MUST EDIT the `docs\developer_rules_and_memory_aid.md` after learning a new pattern or rule.
-
+- **Developer Rules**: `docs/developer_rules.md` — prescriptive guidelines
+- **Memory Aid**: `docs/memory_aid.md` — lessons learned & gotchas
+- Prefer to load and read both files prior to editing any source file
+- You MUST EDIT `docs/memory_aid.md` after learning a new pattern or gotcha

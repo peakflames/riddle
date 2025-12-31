@@ -140,3 +140,20 @@ public record RollResultPayload(
     string Outcome,
     DateTime Timestamp
 );
+
+/// <summary>
+/// Payload for turn advanced events
+/// </summary>
+public record TurnAdvancedPayload(
+    int NewTurnIndex,
+    string CurrentCombatantId,
+    int RoundNumber
+);
+
+/// <summary>
+/// Payload for initiative set events
+/// </summary>
+public record InitiativeSetPayload(
+    string CharacterId,
+    int Initiative
+);
