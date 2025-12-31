@@ -18,6 +18,7 @@ Project Riddle is a LLM-driven Dungeon Master assistant for D&D 5th Edition buil
 ## Project Reference Documentation
 - **Flowbite Blazor Component Reference**: `docs/flowbite_blazor_docs.md` - API reference for Flowbite Blazor components (enums, sizes, colors, common patterns)
 
+- **SignalR documenation**: `docs/signalr` - Architecture, groups, event referecnes, flows sequences
 
 ## Build, Test, and Development Commands
 Use the Python automation:
@@ -74,8 +75,10 @@ PREFER to leverage components and pages already create over at `- **Flowbite Bla
 
 ## Development Rules and Memory Aid
 
-- Prefer to load and read prior to editing any file, Cline MUST read `docs\developer_rules_and_memory_aid.md` and adhere to rules, guideance, and lessons learned
-- You MUST EDIT the `docs\developer_rules_and_memory_aid.md` after learning a new pattern or rule.
+- **Developer Rules**: Read `docs/developer_rules.md` for project structure, coding standards, build commands, and git workflow
+- **Memory Aid**: Read `docs/memory_aid.md` for lessons learned, gotchas, and patterns discovered through development
+- Prefer to load and read both files prior to editing any source file
+- You MUST EDIT `docs/memory_aid.md` after learning a new pattern or gotcha
 
 
 ## SYSTEM ROLE & BEHAVIORAL PROTOCOLS
@@ -123,6 +126,7 @@ PREFER to leverage components and pages already create over at `- **Flowbite Bla
 
 ## Development Rules and Memory Aid Reminder
 
-- Prefer to load and read prior to editing any file, Cline MUST read `docs\developer_rules_and_memory_aid.md` and adhere to rules, guideance, and lessons learned
-- You MUST EDIT the `docs\developer_rules_and_memory_aid.md` after learning a new pattern or rule.
-
+- **Developer Rules**: `docs/developer_rules.md` — prescriptive guidelines
+- **Memory Aid**: `docs/memory_aid.md` — lessons learned & gotchas
+- Prefer to load and read both files prior to editing any source file
+- You MUST EDIT `docs/memory_aid.md` after learning a new pattern or gotcha
