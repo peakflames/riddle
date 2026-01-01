@@ -27,6 +27,7 @@ PROJECT_PATH = "src/Riddle.Web/Riddle.Web.csproj"
 PID_FILE = Path(".riddle.pid")
 LOG_FILE = Path("riddle.log")
 DB_PATH = Path("src/Riddle.Web/riddle.db")
+BACKUP_DIR = Path("backups")
 
 
 def get_os_info() -> Dict[str, str]:
@@ -1107,6 +1108,183 @@ def import_templates() -> None:
         print(f"Database error: {e}")
 
 
+def backup_database(backup_name: Optional[str] = None) -> None:
+    """Backup the SQLite database and WAL files
+    
+    Args:
+        backup_name: Optional name for the backup. If None, uses timestamp.
+    """
+    import shutil
+    
+    if not DB_PATH.exists():
+        print(f"Database not found: {DB_PATH}")
+        print("Nothing to backup.")
+        return
+    
+    # Stop the app if running to ensure clean backup
+    pid = get_running_pid()
+    if pid:
+        print("Stopping application for clean backup...")
+        stop_background()
+        time.sleep(1)  # Give it a moment to release file handles
+    
+    # Create backup directory
+    BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    
+    # Generate backup name
+    if not backup_name:
+        backup_name = time.strftime('%Y%m%d_%H%M%S')
+    
+    backup_subdir = BACKUP_DIR / backup_name
+    backup_subdir.mkdir(parents=True, exist_ok=True)
+    
+    # Copy database files
+    files_backed_up = []
+    db_files = [DB_PATH]
+    db_files.extend(Path("src/Riddle.Web").glob("riddle.db-*"))  # WAL and SHM files
+    
+    for db_file in db_files:
+        if db_file.exists():
+            dest = backup_subdir / db_file.name
+            shutil.copy2(db_file, dest)
+            files_backed_up.append(db_file.name)
+    
+    if files_backed_up:
+        print(f"✓ Database backed up to: {backup_subdir}")
+        print(f"  Files: {', '.join(files_backed_up)}")
+        
+        # Show total size
+        total_size = sum((backup_subdir / f).stat().st_size for f in files_backed_up)
+        if total_size > 1024 * 1024:
+            print(f"  Size: {total_size / 1024 / 1024:.2f} MB")
+        elif total_size > 1024:
+            print(f"  Size: {total_size / 1024:.2f} KB")
+        else:
+            print(f"  Size: {total_size} bytes")
+    else:
+        print("No database files found to backup")
+
+
+def restore_database(backup_name: str) -> None:
+    """Restore the SQLite database from a backup
+    
+    Args:
+        backup_name: Name of the backup to restore from.
+    """
+    import shutil
+    
+    backup_subdir = BACKUP_DIR / backup_name
+    
+    if not backup_subdir.exists():
+        print(f"Backup not found: {backup_subdir}")
+        print("Use 'python build.py db backups' to list available backups")
+        return
+    
+    # Check for riddle.db in backup
+    backup_db = backup_subdir / "riddle.db"
+    if not backup_db.exists():
+        print(f"No riddle.db found in backup: {backup_subdir}")
+        return
+    
+    # Stop the app if running
+    pid = get_running_pid()
+    if pid:
+        print("Stopping application for restore...")
+        stop_background()
+        time.sleep(1)
+    
+    # Delete current database files
+    db_files_to_delete = [DB_PATH]
+    db_files_to_delete.extend(Path("src/Riddle.Web").glob("riddle.db-*"))
+    
+    for db_file in db_files_to_delete:
+        if db_file.exists():
+            db_file.unlink()
+            print(f"  Removed: {db_file.name}")
+    
+    # Copy backup files
+    files_restored = []
+    for backup_file in backup_subdir.iterdir():
+        if backup_file.name.startswith("riddle.db"):
+            dest = Path("src/Riddle.Web") / backup_file.name
+            shutil.copy2(backup_file, dest)
+            files_restored.append(backup_file.name)
+    
+    if files_restored:
+        print(f"✓ Database restored from: {backup_subdir}")
+        print(f"  Files: {', '.join(files_restored)}")
+    else:
+        print("No database files found in backup")
+
+
+def list_backups() -> None:
+    """List all available database backups"""
+    if not BACKUP_DIR.exists():
+        print("No backups directory found")
+        print("Use 'python build.py db backup' to create a backup")
+        return
+    
+    backups = sorted(BACKUP_DIR.iterdir(), reverse=True)
+    
+    if not backups:
+        print("No backups found")
+        return
+    
+    print(f"{'Backup Name':<25} {'Date':<20} {'Size':<15} {'Files':<30}")
+    print("-" * 90)
+    
+    for backup_dir in backups:
+        if not backup_dir.is_dir():
+            continue
+        
+        # Get modification time
+        mtime = backup_dir.stat().st_mtime
+        date_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(mtime))
+        
+        # Get files and size
+        files = list(backup_dir.iterdir())
+        file_names = [f.name for f in files]
+        total_size = sum(f.stat().st_size for f in files)
+        
+        if total_size > 1024 * 1024:
+            size_str = f"{total_size / 1024 / 1024:.2f} MB"
+        elif total_size > 1024:
+            size_str = f"{total_size / 1024:.2f} KB"
+        else:
+            size_str = f"{total_size} bytes"
+        
+        print(f"{backup_dir.name:<25} {date_str:<20} {size_str:<15} {', '.join(file_names):<30}")
+    
+    print(f"\n--- {len(backups)} backup(s) ---")
+    print(f"Backup location: {BACKUP_DIR.absolute()}")
+
+
+def delete_backup(backup_name: str) -> None:
+    """Delete a database backup
+    
+    Args:
+        backup_name: Name of the backup to delete.
+    """
+    import shutil
+    
+    backup_subdir = BACKUP_DIR / backup_name
+    
+    if not backup_subdir.exists():
+        print(f"Backup not found: {backup_subdir}")
+        return
+    
+    # Get info before deleting
+    files = list(backup_subdir.iterdir())
+    total_size = sum(f.stat().st_size for f in files)
+    
+    shutil.rmtree(backup_subdir)
+    
+    print(f"✓ Deleted backup: {backup_name}")
+    print(f"  Files removed: {len(files)}")
+    if total_size > 1024:
+        print(f"  Space freed: {total_size / 1024:.2f} KB")
+
+
 def show_character_template() -> None:
     """Print a JSON template for creating characters"""
     import json
@@ -1279,18 +1457,22 @@ def print_usage() -> None:
     print("Database Commands:")
     print("  db tables                - List all database tables")
     print("  db campaigns             - Show campaign instances")
-    print("  db characters            - Show characters from most recent campaign")
-    print("  db characters <id>       - Show characters from specific campaign")
+    print("  db characters [id]       - Show characters from campaign")
+    print("  db party [id]            - Show full PartyStateJson (pretty-printed)")
+    print("  db backup [name]         - Backup database (auto-names if not specified)")
+    print("  db restore <name>        - Restore database from backup")
+    print("  db backups               - List all available backups")
+    print("  db delete-backup <name>  - Delete a backup")
     print("  db \"<sql>\"               - Execute custom SQL query")
     print("")
     print("Examples:")
     print("  python build.py log character")
     print("  python build.py log --level error --tail 20")
+    print("  python build.py db backup my_test_data")
+    print("  python build.py db backups")
+    print("  python build.py db restore 20260101_120000")
     print("  python build.py db \"SELECT * FROM CampaignInstances\"")
-    print("  python build.py db characters 019B654D-3B7C-7973-A3EE-BBD5C335F9C1")
-    print("  python build.py test                              # Run all tests")
     print("  python build.py test HLR_COMBAT_010               # Filter by test name")
-    print("  python build.py test CombatEncounterTests         # Filter by class name")
 
 
 def main() -> None:
@@ -1407,6 +1589,28 @@ def main() -> None:
         elif subcommand == "import-templates":
             # Import JSON files from SampleCharacters into CharacterTemplates
             import_templates()
+        elif subcommand == "backup":
+            # Backup database: db backup [name]
+            backup_name = sys.argv[3] if len(sys.argv) > 3 else None
+            backup_database(backup_name)
+        elif subcommand == "restore":
+            # Restore database: db restore <name>
+            if len(sys.argv) < 4:
+                print("Usage: python build.py db restore <backup_name>")
+                print("Use 'python build.py db backups' to list available backups")
+                sys.exit(1)
+            backup_name = sys.argv[3]
+            restore_database(backup_name)
+        elif subcommand == "backups":
+            # List all backups
+            list_backups()
+        elif subcommand == "delete-backup":
+            # Delete a backup: db delete-backup <name>
+            if len(sys.argv) < 4:
+                print("Usage: python build.py db delete-backup <backup_name>")
+                sys.exit(1)
+            backup_name = sys.argv[3]
+            delete_backup(backup_name)
         else:
             # Treat as SQL query
             query_db(subcommand)
