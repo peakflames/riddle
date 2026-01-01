@@ -20,7 +20,7 @@
                 Browse, create, and manage character templates.
             </Paragraph>
         </div>
-        <div class="flex gap-2">
+        <div class="flex gap-2 flex-wrap">
             <Button Color="ButtonColor.Light" OnClick="@(() => _showSchemaModal = true)">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
@@ -40,6 +40,38 @@
                 Create Template
             </Button>
         </div>
+    </div>
+
+    @* Search Bar *@
+    <div class="mb-4">
+        <div class="relative">
+            <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                <svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+            </div>
+            <input type="text" 
+                   @bind="_searchQuery" 
+                   @bind:event="oninput"
+                   @bind:after="OnSearchChanged"
+                   placeholder="Search templates... (try &quot;wizard&quot;, &quot;elf fighter&quot;, or &quot;fireball&quot;)"
+                   class="block w-full p-3 pl-10 pr-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500" />
+            @if (!string.IsNullOrEmpty(_searchQuery))
+            {
+                <button @onclick="ClearSearch" 
+                        class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            }
+        </div>
+        @if (!string.IsNullOrEmpty(_searchQuery) && _filteredTemplates.Count > 0)
+        {
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Found @_filteredTemplates.Count template@(_filteredTemplates.Count == 1 ? "" : "s") matching "@_searchQuery"
+            </p>
+        }
     </div>
 
     @* Filter Tabs *@
@@ -189,6 +221,8 @@
     private List<CharacterTemplate> _filteredTemplates = new();
     private bool _loading = true;
     private TemplateFilter _currentFilter = TemplateFilter.All;
+    private string _searchQuery = string.Empty;
+    private System.Timers.Timer? _debounceTimer;
     
     // Current user info
     private string? _currentUserId;
@@ -247,12 +281,94 @@
 
     private void ApplyFilter()
     {
-        _filteredTemplates = _currentFilter switch
+        // First apply tab filter
+        var tabFiltered = _currentFilter switch
         {
-            TemplateFilter.Mine => _allTemplates.Where(t => t.OwnerId == _currentUserId).ToList(),
-            TemplateFilter.System => _allTemplates.Where(t => t.IsSystemTemplate).ToList(),
-            _ => _allTemplates
+            TemplateFilter.Mine => _allTemplates.Where(t => t.OwnerId == _currentUserId),
+            TemplateFilter.System => _allTemplates.Where(t => t.IsSystemTemplate),
+            _ => _allTemplates.AsEnumerable()
         };
+        
+        // Then apply search filter
+        if (string.IsNullOrWhiteSpace(_searchQuery))
+        {
+            _filteredTemplates = tabFiltered.ToList();
+        }
+        else
+        {
+            var searchTerms = _searchQuery.ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            _filteredTemplates = tabFiltered.Where(t => MatchesAllSearchTerms(t, searchTerms)).ToList();
+        }
+    }
+    
+    private static bool MatchesAllSearchTerms(CharacterTemplate template, string[] searchTerms)
+    {
+        // All search terms must match at least one field (AND logic)
+        return searchTerms.All(term => MatchesAnyField(template, term));
+    }
+    
+    private static bool MatchesAnyField(CharacterTemplate template, string term)
+    {
+        var c = template.Character;
+        
+        // Basic fields
+        if (ContainsIgnoreCase(template.Name, term)) return true;
+        if (ContainsIgnoreCase(c.Race, term)) return true;
+        if (ContainsIgnoreCase(c.Class, term)) return true;
+        if (ContainsIgnoreCase(c.Background, term)) return true;
+        if (ContainsIgnoreCase(c.Alignment, term)) return true;
+        
+        // Roleplay fields
+        if (ContainsIgnoreCase(c.PersonalityTraits, term)) return true;
+        if (ContainsIgnoreCase(c.Ideals, term)) return true;
+        if (ContainsIgnoreCase(c.Bonds, term)) return true;
+        if (ContainsIgnoreCase(c.Flaws, term)) return true;
+        if (ContainsIgnoreCase(c.Backstory, term)) return true;
+        
+        // Array fields - check if any item contains the term
+        if (c.Equipment?.Any(e => ContainsIgnoreCase(e, term)) == true) return true;
+        if (c.Weapons?.Any(w => ContainsIgnoreCase(w, term)) == true) return true;
+        if (c.SpellsKnown?.Any(s => ContainsIgnoreCase(s, term)) == true) return true;
+        if (c.Cantrips?.Any(s => ContainsIgnoreCase(s, term)) == true) return true;
+        if (c.Languages?.Any(l => ContainsIgnoreCase(l, term)) == true) return true;
+        if (c.SkillProficiencies?.Any(s => ContainsIgnoreCase(s, term)) == true) return true;
+        
+        // Special search terms
+        if (term == "spellcaster" && c.IsSpellcaster) return true;
+        if (term == "magic" && c.IsSpellcaster) return true;
+        
+        return false;
+    }
+    
+    private static bool ContainsIgnoreCase(string? text, string term)
+    {
+        if (string.IsNullOrEmpty(text)) return false;
+        return text.Contains(term, StringComparison.OrdinalIgnoreCase);
+    }
+    
+    private void OnSearchChanged()
+    {
+        // Debounce search to avoid excessive filtering on every keystroke
+        _debounceTimer?.Stop();
+        _debounceTimer?.Dispose();
+        _debounceTimer = new System.Timers.Timer(200);
+        _debounceTimer.Elapsed += (_, _) =>
+        {
+            InvokeAsync(() =>
+            {
+                ApplyFilter();
+                StateHasChanged();
+            });
+            _debounceTimer?.Dispose();
+        };
+        _debounceTimer.AutoReset = false;
+        _debounceTimer.Start();
+    }
+    
+    private void ClearSearch()
+    {
+        _searchQuery = string.Empty;
+        ApplyFilter();
     }
 
     private string GetEmptyMessage() => _currentFilter switch
