@@ -12,23 +12,26 @@ public class AllowedUserService : IAllowedUserService
 {
     private readonly RiddleDbContext _db;
     private readonly IAdminService _adminService;
-    private readonly WhitelistSettings _settings;
+    private readonly IOptionsMonitor<WhitelistSettings> _settingsMonitor;
     private readonly ILogger<AllowedUserService> _logger;
 
     public AllowedUserService(
         RiddleDbContext db,
         IAdminService adminService,
-        IOptions<WhitelistSettings> settings,
+        IOptionsMonitor<WhitelistSettings> settingsMonitor,
         ILogger<AllowedUserService> logger)
     {
         _db = db;
         _adminService = adminService;
-        _settings = settings.Value;
+        _settingsMonitor = settingsMonitor;
         _logger = logger;
     }
 
+    // Access .CurrentValue each time for hot-reload support
+    private WhitelistSettings Settings => _settingsMonitor.CurrentValue;
+
     /// <inheritdoc />
-    public bool IsWhitelistEnabled => _settings.IsEnabled;
+    public bool IsWhitelistEnabled => Settings.IsEnabled;
 
     /// <inheritdoc />
     public async Task<bool> IsEmailAllowedAsync(string email, CancellationToken ct = default)
@@ -37,7 +40,7 @@ public class AllowedUserService : IAllowedUserService
             return false;
 
         // If whitelist is disabled, everyone is allowed
-        if (!_settings.IsEnabled)
+        if (!Settings.IsEnabled)
         {
             _logger.LogDebug("Whitelist disabled, allowing {Email}", email);
             return true;

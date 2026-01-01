@@ -23,7 +23,7 @@ else
         
         <!-- Whitelist Section -->
         <Card Class="mb-6">
-            <div class="p-4 md:p-6">
+            <div class="flex flex-col space-y-4 p-4 md:p-6">
                 <div class="mb-4 flex items-center gap-3">
                     <Heading Tag="HeadingTag.H2" Class="text-lg">User Whitelist</Heading>
                     @if (AllowedUserService.IsWhitelistEnabled)
@@ -42,16 +42,18 @@ else
                 
                 @if (!string.IsNullOrEmpty(_errorMessage))
                 {
-                    <Alert Color="AlertColor.Failure" Class="mb-4">
-                        @_errorMessage
-                    </Alert>
+                    <Alert Color="AlertColor.Failure" 
+                           TextEmphasis="Error!" 
+                           Text="@_errorMessage" 
+                           Class="mb-4" />
                 }
                 
                 @if (!string.IsNullOrEmpty(_successMessage))
                 {
-                    <Alert Color="AlertColor.Success" Class="mb-4">
-                        @_successMessage
-                    </Alert>
+                    <Alert Color="AlertColor.Success" 
+                           TextEmphasis="Success!" 
+                           Text="@_successMessage" 
+                           Class="mb-4" />
                 }
                 
                 <!-- Add User Form -->

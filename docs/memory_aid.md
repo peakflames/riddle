@@ -86,7 +86,15 @@ builder.Services.AddHttpClient<IMyApiClient, MyApiClient>();
 - **ButtonColor**: Use `ButtonColor.Green` for success-style buttons, NOT `ButtonColor.Success` (which doesn't exist)
 - **ButtonSize**: Use `ButtonSize.Small`, `ButtonSize.ExtraSmall` - NOT `ButtonSize.Sm`, `ButtonSize.Xs`
 - **CardSize**: Use `CardSize.ExtraLarge`, not `CardSize.XLarge`
-- **Alert Component**: Use `<Alert Color="AlertColor.Failure" Text="..." TextEmphasis="..." />` - NOT AlertColor.Red with AlertIcon/AlertContent children. Color values: `AlertColor.Failure` (red), `AlertColor.Success` (green), `AlertColor.Info` (blue), `AlertColor.Warning` (yellow)
+- **Alert Component**: Use **`TextEmphasis`** and **`Text`** parameters, NOT ChildContent:
+  ```razor
+  @* ✅ CORRECT - Use TextEmphasis and Text parameters *@
+  <Alert Color="AlertColor.Failure" TextEmphasis="Error!" Text="@_errorMessage" />
+  
+  @* ❌ WRONG - ChildContent renders empty green box *@
+  <Alert Color="AlertColor.Success">@_successMessage</Alert>
+  ```
+  Color values: `AlertColor.Failure` (red), `AlertColor.Success` (green), `AlertColor.Info` (blue), `AlertColor.Warning` (yellow)
 - **EditForm Context Conflicts**: When EditForm is inside AuthorizeView, add `Context="editContext"` parameter to EditForm to avoid context name collision
 - **Icon Components**: Use Flowbite icon components (e.g., `<BookOpenIcon Class="w-5 h-5" />`) from Flowbite.Blazor.Icons namespace
 - **TableRow onclick**: Flowbite `TableRow` component does NOT support `@onclick` event handlers - use click handlers on inner elements (e.g., checkbox, button) instead
