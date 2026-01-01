@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.1] - 2026-01-01
+
+### Fixed
+- **Player Dashboard `TurnAdvanced` SignalR handler silent failure**
+  - Handler used wrong signature `On<int, string, int>` expecting 3 positional args
+  - Server sends `TurnAdvancedPayload` record (single arg)
+  - SignalR handlers silently ignore events when arg count doesn't match
+  - Players never saw turn advancement updates during combat
+  - Fixed to use `On<TurnAdvancedPayload>` matching CombatTracker.razor pattern
+
 ## [0.20.0] - 2025-12-31
 
 ### Fixed
@@ -733,5 +743,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SignalR integration for real-time updates (prepared for Phase 2)
 - Flowbite Blazor component library reference documentation
 - Incremental phase implementation workflow for development
-
-
