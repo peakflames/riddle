@@ -1,18 +1,93 @@
 @page "/dm/templates"
 @rendermode InteractiveServer
+@attribute [Authorize]
 @using Riddle.Web.Models
 @using Riddle.Web.Services
 @using Riddle.Web.Components.Characters
+@using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
 @inject ICharacterTemplateService TemplateService
+@inject IAdminService AdminService
+@inject AuthenticationStateProvider AuthStateProvider
 
 <PageTitle>Character Templates - Riddle</PageTitle>
 
 <div class="p-4 sm:p-6">
-    <div class="mb-6">
-        <Heading Tag="HeadingTag.H1" Size="TextSize.XXXL">Character Templates</Heading>
-        <Paragraph CustomColor="text-gray-500 dark:text-gray-400">
-            Browse pre-made character templates to use in your campaigns.
-        </Paragraph>
+    <div class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <Heading Tag="HeadingTag.H1" Size="TextSize.XXXL">Character Templates</Heading>
+            <Paragraph CustomColor="text-gray-500 dark:text-gray-400">
+                Browse, create, and manage character templates.
+            </Paragraph>
+        </div>
+        <div class="flex gap-2 flex-wrap">
+            <Button Color="ButtonColor.Light" OnClick="@(() => _showSchemaModal = true)">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                Schema
+            </Button>
+            <Button Color="ButtonColor.Light" OnClick="@(() => _showJsonImportModal = true)">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                </svg>
+                Import JSON
+            </Button>
+            <Button Color="ButtonColor.Primary" OnClick="@OpenCreateModal">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                </svg>
+                Create Template
+            </Button>
+        </div>
+    </div>
+
+    @* Search Bar - Using Flowbite TextInput Component *@
+    <div class="mb-4">
+        <div class="relative">
+            <TextInput @bind-Value="_searchQuery" 
+                       @bind-Value:after="OnSearchChanged"
+                       Placeholder="Search templates... (try wizard, elf fighter, or fireball)"
+                       Icon="@(new SearchIcon())"
+                       class="w-full" />
+            @if (!string.IsNullOrEmpty(_searchQuery))
+            {
+                <button @onclick="ClearSearch" 
+                        class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 z-10">
+                    <CloseIcon class="w-5 h-5" />
+                </button>
+            }
+        </div>
+        @if (!string.IsNullOrEmpty(_searchQuery) && _filteredTemplates.Count > 0)
+        {
+            <Paragraph Size="TextSize.SM" CustomColor="text-gray-500 dark:text-gray-400" class="mt-1">
+                Found @_filteredTemplates.Count template@(_filteredTemplates.Count == 1 ? "" : "s") matching "@_searchQuery"
+            </Paragraph>
+        }
+    </div>
+
+    @* Filter Tabs *@
+    <div class="mb-4 border-b border-gray-200 dark:border-gray-700">
+        <ul class="flex flex-wrap -mb-px text-sm font-medium text-center">
+            <li class="mr-2">
+                <button @onclick="@(() => SetFilter(TemplateFilter.All))"
+                        class="inline-block p-4 rounded-t-lg border-b-2 @(_currentFilter == TemplateFilter.All ? "text-primary-600 border-primary-600 dark:text-primary-500 dark:border-primary-500" : "border-transparent hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300")">
+                    All Templates
+                </button>
+            </li>
+            <li class="mr-2">
+                <button @onclick="@(() => SetFilter(TemplateFilter.Mine))"
+                        class="inline-block p-4 rounded-t-lg border-b-2 @(_currentFilter == TemplateFilter.Mine ? "text-primary-600 border-primary-600 dark:text-primary-500 dark:border-primary-500" : "border-transparent hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300")">
+                    My Templates
+                </button>
+            </li>
+            <li class="mr-2">
+                <button @onclick="@(() => SetFilter(TemplateFilter.System))"
+                        class="inline-block p-4 rounded-t-lg border-b-2 @(_currentFilter == TemplateFilter.System ? "text-primary-600 border-primary-600 dark:text-primary-500 dark:border-primary-500" : "border-transparent hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300")">
+                    System Templates
+                </button>
+            </li>
+        </ul>
     </div>
 
     @if (_loading)
@@ -21,10 +96,10 @@
             <Spinner Size="SpinnerSize.Xl" />
         </div>
     }
-    else if (_templates.Count == 0)
+    else if (_filteredTemplates.Count == 0)
     {
         <Alert Color="AlertColor.Info" TextEmphasis="No templates found." 
-               Text="Character templates will appear here once they are added to the system." />
+               Text="@GetEmptyMessage()" />
     }
     else
     {
@@ -35,6 +110,7 @@
                     <TableHeadCell>Race</TableHeadCell>
                     <TableHeadCell>Class</TableHeadCell>
                     <TableHeadCell>Level</TableHeadCell>
+                    <TableHeadCell>Visibility</TableHeadCell>
                     <TableHeadCell>Owner</TableHeadCell>
                     <TableHeadCell>
                         <span class="sr-only">Actions</span>
@@ -42,7 +118,7 @@
                 </TableRow>
             </TableHead>
             <TableBody class="divide-y">
-                @foreach (var template in _templates)
+                @foreach (var template in _filteredTemplates)
                 {
                     <TableRow class="bg-white dark:border-gray-700 dark:bg-gray-800">
                         <TableCell class="whitespace-nowrap font-medium text-gray-900 dark:text-white">
@@ -51,6 +127,16 @@
                         <TableCell>@(template.Race ?? "—")</TableCell>
                         <TableCell>@(template.Class ?? "—")</TableCell>
                         <TableCell>@template.Level</TableCell>
+                        <TableCell>
+                            @if (template.IsPublic)
+                            {
+                                <Badge Color="BadgeColor.Success">Public</Badge>
+                            }
+                            else
+                            {
+                                <Badge Color="BadgeColor.Gray">Private</Badge>
+                            }
+                        </TableCell>
                         <TableCell>
                             @if (template.IsSystemTemplate)
                             {
@@ -62,10 +148,23 @@
                             }
                         </TableCell>
                         <TableCell>
-                            <button @onclick="@(() => ViewTemplate(template))" 
-                                    class="font-medium text-primary-600 hover:underline dark:text-primary-500">
-                                View
-                            </button>
+                            <div class="flex items-center gap-2">
+                                <button @onclick="@(() => ViewTemplate(template))" 
+                                        class="font-medium text-primary-600 hover:underline dark:text-primary-500">
+                                    View
+                                </button>
+                                @if (CanEdit(template))
+                                {
+                                    <button @onclick="@(() => OpenEditModal(template))" 
+                                            class="font-medium text-yellow-600 hover:underline dark:text-yellow-500">
+                                        Edit
+                                    </button>
+                                    <button @onclick="@(() => ConfirmDelete(template))" 
+                                            class="font-medium text-red-600 hover:underline dark:text-red-500">
+                                        Delete
+                                    </button>
+                                }
+                            </div>
                         </TableCell>
                     </TableRow>
                 }
@@ -74,23 +173,281 @@
     }
 </div>
 
-<CharacterViewModal @bind-Show="_showModal" Character="@_selectedCharacter" />
+@* View Character Modal *@
+<CharacterViewModal @bind-Show="_showViewModal" Character="@_selectedCharacter" />
+
+@* Create/Edit Template Modal *@
+<CharacterTemplateFormModal @bind-Show="_showFormModal" 
+                            EditingTemplate="@_editingTemplate"
+                            OnSave="@HandleSaveTemplate" />
+
+@* JSON Import Modal *@
+<JsonImportModal @bind-Show="_showJsonImportModal" 
+                 @ref="_jsonImportModalRef"
+                 OnImport="@HandleJsonImport"
+                 OnViewSchema="@(() => _showSchemaModal = true)" />
+
+@* Schema Viewer Modal *@
+<SchemaViewerModal @bind-Show="_showSchemaModal" />
+
+@* Delete Confirmation Modal *@
+<Modal Show="@_showDeleteModal" ShowChanged="@((v) => _showDeleteModal = v)" Size="ModalSize.Medium">
+    <ModalHeader>
+        <h3>Delete Template</h3>
+    </ModalHeader>
+    <ModalBody>
+        <p class="text-gray-500 dark:text-gray-400">
+            Are you sure you want to delete the template "<strong>@_templateToDelete?.Name</strong>"? This action cannot be undone.
+        </p>
+    </ModalBody>
+    <ModalFooter>
+        <div class="flex justify-end w-full gap-2">
+            <Button Color="ButtonColor.Gray" OnClick="@(() => _showDeleteModal = false)">Cancel</Button>
+            <Button Color="ButtonColor.Red" OnClick="@HandleDelete">Delete</Button>
+        </div>
+    </ModalFooter>
+</Modal>
 
 @code {
-    private List<CharacterTemplate> _templates = new();
+    private List<CharacterTemplate> _allTemplates = new();
+    private List<CharacterTemplate> _filteredTemplates = new();
     private bool _loading = true;
-    private bool _showModal;
+    private TemplateFilter _currentFilter = TemplateFilter.All;
+    private string _searchQuery = string.Empty;
+    private System.Timers.Timer? _debounceTimer;
+    
+    // Current user info
+    private string? _currentUserId;
+    private string? _currentUserEmail;
+    private bool _isAdmin;
+    
+    // View modal
+    private bool _showViewModal;
     private Character? _selectedCharacter;
+    
+    // Create/Edit modal
+    private bool _showFormModal;
+    private CharacterTemplate? _editingTemplate;
+    
+    // JSON Import modal
+    private bool _showJsonImportModal;
+    private JsonImportModal? _jsonImportModalRef;
+    
+    // Schema viewer modal
+    private bool _showSchemaModal;
+    
+    // Delete confirmation
+    private bool _showDeleteModal;
+    private CharacterTemplate? _templateToDelete;
+
+    private enum TemplateFilter { All, Mine, System }
 
     protected override async Task OnInitializedAsync()
     {
-        _templates = await TemplateService.GetSystemTemplatesAsync();
+        // Get current user info
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        _currentUserId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+        _currentUserEmail = user.FindFirstValue(ClaimTypes.Email);
+        _isAdmin = _currentUserEmail != null && AdminService.IsAdmin(_currentUserEmail);
+        
+        await LoadTemplatesAsync();
+    }
+
+    private async Task LoadTemplatesAsync()
+    {
+        _loading = true;
+        StateHasChanged();
+        
+        _allTemplates = await TemplateService.GetAllAvailableTemplatesAsync(_currentUserId ?? string.Empty);
+        ApplyFilter();
+        
         _loading = false;
+    }
+
+    private void SetFilter(TemplateFilter filter)
+    {
+        _currentFilter = filter;
+        ApplyFilter();
+    }
+
+    private void ApplyFilter()
+    {
+        // First apply tab filter
+        var tabFiltered = _currentFilter switch
+        {
+            TemplateFilter.Mine => _allTemplates.Where(t => t.OwnerId == _currentUserId),
+            TemplateFilter.System => _allTemplates.Where(t => t.IsSystemTemplate),
+            _ => _allTemplates.AsEnumerable()
+        };
+        
+        // Then apply search filter
+        if (string.IsNullOrWhiteSpace(_searchQuery))
+        {
+            _filteredTemplates = tabFiltered.ToList();
+        }
+        else
+        {
+            var searchTerms = _searchQuery.ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            _filteredTemplates = tabFiltered.Where(t => MatchesAllSearchTerms(t, searchTerms)).ToList();
+        }
+    }
+    
+    private static bool MatchesAllSearchTerms(CharacterTemplate template, string[] searchTerms)
+    {
+        // All search terms must match at least one field (AND logic)
+        return searchTerms.All(term => MatchesAnyField(template, term));
+    }
+    
+    private static bool MatchesAnyField(CharacterTemplate template, string term)
+    {
+        var c = template.Character;
+        
+        // Basic fields
+        if (ContainsIgnoreCase(template.Name, term)) return true;
+        if (ContainsIgnoreCase(c.Race, term)) return true;
+        if (ContainsIgnoreCase(c.Class, term)) return true;
+        if (ContainsIgnoreCase(c.Background, term)) return true;
+        if (ContainsIgnoreCase(c.Alignment, term)) return true;
+        
+        // Roleplay fields
+        if (ContainsIgnoreCase(c.PersonalityTraits, term)) return true;
+        if (ContainsIgnoreCase(c.Ideals, term)) return true;
+        if (ContainsIgnoreCase(c.Bonds, term)) return true;
+        if (ContainsIgnoreCase(c.Flaws, term)) return true;
+        if (ContainsIgnoreCase(c.Backstory, term)) return true;
+        
+        // Array fields - check if any item contains the term
+        if (c.Equipment?.Any(e => ContainsIgnoreCase(e, term)) == true) return true;
+        if (c.Weapons?.Any(w => ContainsIgnoreCase(w, term)) == true) return true;
+        if (c.SpellsKnown?.Any(s => ContainsIgnoreCase(s, term)) == true) return true;
+        if (c.Cantrips?.Any(s => ContainsIgnoreCase(s, term)) == true) return true;
+        if (c.Languages?.Any(l => ContainsIgnoreCase(l, term)) == true) return true;
+        if (c.SkillProficiencies?.Any(s => ContainsIgnoreCase(s, term)) == true) return true;
+        
+        // Special search terms
+        if (term == "spellcaster" && c.IsSpellcaster) return true;
+        if (term == "magic" && c.IsSpellcaster) return true;
+        
+        return false;
+    }
+    
+    private static bool ContainsIgnoreCase(string? text, string term)
+    {
+        if (string.IsNullOrEmpty(text)) return false;
+        return text.Contains(term, StringComparison.OrdinalIgnoreCase);
+    }
+    
+    private void OnSearchChanged()
+    {
+        // Debounce search to avoid excessive filtering on every keystroke
+        _debounceTimer?.Stop();
+        _debounceTimer?.Dispose();
+        _debounceTimer = new System.Timers.Timer(200);
+        _debounceTimer.Elapsed += (_, _) =>
+        {
+            InvokeAsync(() =>
+            {
+                ApplyFilter();
+                StateHasChanged();
+            });
+            _debounceTimer?.Dispose();
+        };
+        _debounceTimer.AutoReset = false;
+        _debounceTimer.Start();
+    }
+    
+    private void ClearSearch()
+    {
+        _searchQuery = string.Empty;
+        ApplyFilter();
+    }
+
+    private string GetEmptyMessage() => _currentFilter switch
+    {
+        TemplateFilter.Mine => "You haven't created any templates yet. Click 'Create Template' to get started!",
+        TemplateFilter.System => "No system templates are available.",
+        _ => "No templates found. Create your first template or import from JSON."
+    };
+
+    private bool CanEdit(CharacterTemplate template)
+    {
+        // Admins can edit any template
+        if (_isAdmin) return true;
+        // Owners can edit their own templates
+        return template.OwnerId == _currentUserId;
     }
 
     private void ViewTemplate(CharacterTemplate template)
     {
         _selectedCharacter = template.Character;
-        _showModal = true;
+        _showViewModal = true;
+    }
+
+    private void OpenCreateModal()
+    {
+        _editingTemplate = null;
+        _showFormModal = true;
+    }
+
+    private void OpenEditModal(CharacterTemplate template)
+    {
+        _editingTemplate = template;
+        _showFormModal = true;
+    }
+
+    private async Task HandleSaveTemplate((Character Character, bool IsPublic) data)
+    {
+        if (_currentUserId == null) return;
+        
+        if (_editingTemplate != null)
+        {
+            // Update existing template
+            await TemplateService.UpdateTemplateAsync(
+                _editingTemplate.Id, 
+                data.Character, 
+                data.IsPublic);
+        }
+        else
+        {
+            // Create new template
+            await TemplateService.CreateTemplateAsync(data.Character, _currentUserId, data.IsPublic);
+        }
+        
+        await LoadTemplatesAsync();
+    }
+
+    private async Task HandleJsonImport((string Json, bool IsPublic) data)
+    {
+        if (_currentUserId == null) return;
+        
+        var result = await TemplateService.ImportFromJsonStringAsync(data.Json, _currentUserId, data.IsPublic);
+        
+        if (result.Success)
+        {
+            _showJsonImportModal = false;
+            await LoadTemplatesAsync();
+        }
+        else
+        {
+            _jsonImportModalRef?.ShowError(result.ErrorMessage ?? "Import failed.");
+        }
+    }
+
+    private void ConfirmDelete(CharacterTemplate template)
+    {
+        _templateToDelete = template;
+        _showDeleteModal = true;
+    }
+
+    private async Task HandleDelete()
+    {
+        if (_templateToDelete == null || _currentUserId == null) return;
+        
+        await TemplateService.DeleteTemplateAsync(_templateToDelete.Id);
+        _showDeleteModal = false;
+        _templateToDelete = null;
+        
+        await LoadTemplatesAsync();
     }
 }

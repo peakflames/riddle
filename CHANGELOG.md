@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-01-01
+
+### Added
+- **Character Template Management (Phase 5 Feature)**
+  - User-owned templates with `OwnerId` foreign key to AspNetUsers
+  - Public/Private visibility toggle (`IsPublic` boolean, default: true)
+  - Template filtering tabs: All Templates, My Templates, System Templates
+  - Create Template form modal with all D&D 5e character fields
+  - Edit Template functionality (owner or admin only)
+  - Delete Template with confirmation (owner or admin only)
+  - JSON Import modal with visibility selection (Public/Private toggle)
+  - Schema Viewer modal for character JSON documentation
+  - Admin role system via `AdminSettings:AdminEmails` in appsettings.json
+  - `IAdminService`/`AdminService` for permission checks by email list
+
+- **Debounced Search Bar**
+  - Search templates by name, race, class, or spell names
+  - 300ms debounce for responsive filtering
+  - Clear button to reset search
+  - Result count display ("Found X templates matching...")
+
+### Changed
+- Character Templates page UI refactored to use Flowbite Blazor components
+- Search bar uses `<TextInput>` with `SearchIcon` instead of raw HTML input
+- Template table shows Owner column ("System" badge vs user email)
+- Template table shows Visibility column ("Public"/"Private" badges)
+
+### Technical
+- EF Core migration `AddIsPublicToCharacterTemplates` for visibility column
+- `CharacterTemplateService` extended with ownership and visibility logic
+- Import rules: users can import Public templates OR their own Private templates
+- Edit/Delete permissions: creator OR admin can modify templates
+
 ## [0.20.1] - 2026-01-01
 
 ### Fixed

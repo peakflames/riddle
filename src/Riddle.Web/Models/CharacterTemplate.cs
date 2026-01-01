@@ -49,6 +49,13 @@ public class CharacterTemplate
     /// </summary>
     public bool IsSystemTemplate => OwnerId == null;
     
+    /// <summary>
+    /// Whether this template is publicly available for import by other users.
+    /// If false, only the owner (and admins) can import it into their campaigns.
+    /// Default: true (public). System templates are always public.
+    /// </summary>
+    public bool IsPublic { get; set; } = true;
+    
     // ========================================
     // Source Tracking
     // ========================================

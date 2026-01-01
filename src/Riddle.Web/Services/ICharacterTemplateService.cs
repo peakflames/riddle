@@ -3,6 +3,15 @@ using Riddle.Web.Models;
 namespace Riddle.Web.Services;
 
 /// <summary>
+/// Result of attempting to import a template from JSON.
+/// </summary>
+public record TemplateImportResult(
+    bool Success,
+    string? ErrorMessage,
+    CharacterTemplate? Template
+);
+
+/// <summary>
 /// Service interface for managing character templates.
 /// Templates are reusable character definitions that DMs can import into campaigns.
 /// </summary>
@@ -29,6 +38,13 @@ public interface ICharacterTemplateService
     Task<List<CharacterTemplate>> GetAllAvailableTemplatesAsync(string userId, CancellationToken ct = default);
     
     /// <summary>
+    /// Get templates that a user can import into their campaigns.
+    /// Returns: all public templates + user's own templates (regardless of public flag).
+    /// </summary>
+    /// <param name="userId">The user ID to check ownership against</param>
+    Task<List<CharacterTemplate>> GetImportableTemplatesAsync(string userId, CancellationToken ct = default);
+    
+    /// <summary>
     /// Get a template by its ID.
     /// </summary>
     Task<CharacterTemplate?> GetTemplateByIdAsync(string id, CancellationToken ct = default);
@@ -53,6 +69,16 @@ public interface ICharacterTemplateService
     Task<CharacterTemplate> ImportFromJsonAsync(string json, string? ownerId = null, string? sourceFile = null, CancellationToken ct = default);
     
     /// <summary>
+    /// Import a character from JSON string with validation.
+    /// Returns a result object with success/failure status and detailed error messages.
+    /// </summary>
+    /// <param name="json">Character JSON data</param>
+    /// <param name="ownerId">User ID of owner (required for user templates)</param>
+    /// <param name="isPublic">Whether the template should be publicly visible</param>
+    /// <returns>Result containing success status, error message, and created template</returns>
+    Task<TemplateImportResult> ImportFromJsonStringAsync(string json, string ownerId, bool isPublic = true, CancellationToken ct = default);
+    
+    /// <summary>
     /// Import all JSON files from the SampleCharacters directory as system templates.
     /// Uses upsert logic - existing templates with same name will be replaced.
     /// </summary>
@@ -69,9 +95,40 @@ public interface ICharacterTemplateService
     Task<CharacterTemplate> UpsertTemplateAsync(CharacterTemplate template, CancellationToken ct = default);
     
     /// <summary>
+    /// Create a new template from a Character object.
+    /// </summary>
+    /// <param name="character">The character data</param>
+    /// <param name="ownerId">User ID of the template owner</param>
+    /// <param name="isPublic">Whether the template is publicly visible (default: true)</param>
+    /// <returns>The created template</returns>
+    Task<CharacterTemplate> CreateTemplateAsync(Character character, string ownerId, bool isPublic = true, CancellationToken ct = default);
+    
+    /// <summary>
+    /// Update an existing template with new character data.
+    /// </summary>
+    /// <param name="templateId">ID of the template to update</param>
+    /// <param name="character">Updated character data</param>
+    /// <param name="isPublic">Optional: update the public visibility flag</param>
+    /// <returns>The updated template, or null if not found</returns>
+    Task<CharacterTemplate?> UpdateTemplateAsync(string templateId, Character character, bool? isPublic = null, CancellationToken ct = default);
+    
+    /// <summary>
     /// Delete a template by ID.
     /// </summary>
     Task<bool> DeleteTemplateAsync(string id, CancellationToken ct = default);
+    
+    // ========================================
+    // Permission Helpers
+    // ========================================
+    
+    /// <summary>
+    /// Check if a user can edit/delete a template.
+    /// Returns true if: user is the owner OR user is an admin.
+    /// </summary>
+    /// <param name="template">The template to check</param>
+    /// <param name="userId">The user's ID</param>
+    /// <param name="isAdmin">Whether the user has admin privileges</param>
+    bool CanUserEditTemplate(CharacterTemplate template, string userId, bool isAdmin);
     
     // ========================================
     // Campaign Integration

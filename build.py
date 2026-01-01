@@ -1014,8 +1014,12 @@ def show_templates() -> None:
     """)
 
 
-def import_templates() -> None:
-    """Import all JSON files from SampleCharacters directory into CharacterTemplates table"""
+def import_templates(owner_email: Optional[str] = None) -> None:
+    """Import all JSON files from SampleCharacters directory into CharacterTemplates table
+    
+    Args:
+        owner_email: Optional email of owner. If provided, templates become user-owned.
+    """
     import json
     from pathlib import Path
     
@@ -1588,7 +1592,19 @@ def main() -> None:
             show_templates()
         elif subcommand == "import-templates":
             # Import JSON files from SampleCharacters into CharacterTemplates
-            import_templates()
+            # Optional: --owner-email <email> to import as user-owned templates
+            owner_email = None
+            args = sys.argv[3:]
+            i = 0
+            while i < len(args):
+                if args[i] == "--owner-email" and i + 1 < len(args):
+                    owner_email = args[i + 1]
+                    i += 2
+                else:
+                    print(f"Unknown option: {args[i]}")
+                    print("Usage: python build.py db import-templates [--owner-email <email>]")
+                    sys.exit(1)
+            import_templates(owner_email)
         elif subcommand == "backup":
             # Backup database: db backup [name]
             backup_name = sys.argv[3] if len(sys.argv) > 3 else None
