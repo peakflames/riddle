@@ -279,3 +279,55 @@ Feature: Combat Encounter
     And Elara's DeathSaveSuccesses should reset to 0
     And Elara's DeathSaveFailures should reset to 0
     And Riddle should narrate Elara regaining consciousness
+
+  # --- PC vs Enemy Display Behavior at 0 HP ---
+
+  @HLR-COMBAT-027
+  Scenario: PC at 0 HP shows Unconscious badge instead of Defeated
+    Given combat is active
+    And "Elara" is a PC at 0 HP
+    Then the Combat Tracker should show "Unconscious" badge for Elara
+    And the Combat Tracker should NOT show "Defeated" badge for Elara
+    And Elara's card should NOT have strikethrough styling
+    And Death Save circles should be visible for Elara
+
+  @HLR-COMBAT-028
+  Scenario: Enemy at 0 HP shows Defeated badge
+    Given combat is active
+    And "Goblin 1" is an Enemy at 0 HP
+    Then the Combat Tracker should show "Defeated" badge for Goblin 1
+    And the Combat Tracker should NOT show "Unconscious" badge for Goblin 1
+    And Goblin 1's card should have strikethrough styling
+    And Death Save circles should NOT be visible for Goblin 1
+
+  @HLR-COMBAT-029
+  Scenario: Death save circles display correctly for PC
+    Given combat is active
+    And "Elara" is at 0 HP with 2 DeathSaveSuccesses and 1 DeathSaveFailure
+    Then Elara's Death Save tracker should show 2 filled success circles
+    And Elara's Death Save tracker should show 1 filled failure circle
+
+  @HLR-COMBAT-030
+  Scenario: PC with 3 failures shows Dead badge with strikethrough
+    Given combat is active
+    And "Elara" is a PC with IsDead = true
+    Then the Combat Tracker should show "Dead" badge for Elara
+    And Elara's card should have strikethrough styling
+    And Death Save circles should show 3 filled failure circles
+
+  @HLR-COMBAT-031
+  Scenario: PC with 3 successes shows Stable badge
+    Given combat is active
+    And "Elara" is a PC with IsStable = true and 0 HP
+    Then the Combat Tracker should show "Stable" badge for Elara
+    And the Combat Tracker should show "Unconscious" badge for Elara
+    And Death Save circles should show 3 filled success circles
+
+  @HLR-COMBAT-032
+  Scenario: Player Dashboard Combat Tracker receives death save updates via SignalR
+    Given combat is active
+    And "Elara" is at 0 HP with 0 DeathSaveSuccesses and 0 DeathSaveFailures
+    And a Player "Alice" is viewing the Player Dashboard with the Combat Tracker visible
+    When the DM tells Riddle "Elara rolls a 15 on her death save"
+    Then Alice's Player Dashboard Combat Tracker should show 1 death save success for Elara
+    And the update should appear without Alice refreshing the page

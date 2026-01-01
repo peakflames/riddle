@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0] - 2025-12-31
+
+### Fixed
+- **Player Dashboard Combat Tracker not receiving death save updates via SignalR**
+  - Root cause: `DeathSaveUpdated` handler violated JSON-backed property pattern
+  - Each access to `campaign.PartyState` deserialized fresh from JSON, so modifications were lost
+  - Fix: Get `PartyState` once, modify character, set back to trigger re-serialization
+  - Added E2E test `HLR_COMBAT_032` to catch this class of bug
+
+- **PC Death Save UI issues in Combat Tracker**
+  - CombatantCard showed "Defeated" badge for ALL combatants at 0 HP (including PCs)
+  - Fixed to show "Unconscious" for PCs making death saves, "Defeated" only for enemies/NPCs
+  - `update_character_state` tool enum was missing `death_save_success`, `death_save_failure`, `stabilize` keys
+
+### Added
+- E2E test `HLR_COMBAT_032_Player_Dashboard_Combat_Tracker_receives_death_save_updates_via_SignalR`
+- Additional death save display tests (HLR_COMBAT_027 through HLR_COMBAT_031)
+
+### Technical
+- Documented JSON-backed property pattern for SignalR handlers in memory_aid.md
+- Pattern: `var list = campaign.Property; modify(list); campaign.Property = list;`
+
 ## [0.19.0] - 2025-12-31
 
 ### Added
@@ -712,30 +734,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flowbite Blazor component library reference documentation
 - Incremental phase implementation workflow for development
 
-[Unreleased]: https://github.com/peakflames/riddle/compare/v0.19.0...HEAD
-[0.19.0]: https://github.com/peakflames/riddle/compare/v0.18.0...v0.19.0
-[0.18.0]: https://github.com/peakflames/riddle/compare/v0.17.0...v0.18.0
-[0.17.0]: https://github.com/peakflames/riddle/compare/v0.16.0...v0.17.0
-[0.16.0]: https://github.com/peakflames/riddle/compare/v0.15.0...v0.16.0
-[0.15.0]: https://github.com/peakflames/riddle/compare/v0.14.3...v0.15.0
-[0.14.3]: https://github.com/peakflames/riddle/compare/v0.14.2...v0.14.3
-[0.14.2]: https://github.com/peakflames/riddle/compare/v0.14.1...v0.14.2
-[0.14.1]: https://github.com/peakflames/riddle/compare/v0.14.0...v0.14.1
-[0.14.0]: https://github.com/peakflames/riddle/compare/v0.13.0...v0.14.0
-[0.13.0]: https://github.com/peakflames/riddle/compare/v0.12.0...v0.13.0
-[0.12.0]: https://github.com/peakflames/riddle/compare/v0.11.0...v0.12.0
-[0.11.0]: https://github.com/peakflames/riddle/compare/v0.10.0...v0.11.0
-[0.10.0]: https://github.com/peakflames/riddle/compare/v0.9.0...v0.10.0
-[0.9.0]: https://github.com/peakflames/riddle/compare/v0.8.0...v0.9.0
-[0.8.0]: https://github.com/peakflames/riddle/compare/v0.7.0...v0.8.0
-[0.7.0]: https://github.com/peakflames/riddle/compare/v0.6.0...v0.7.0
-[0.6.0]: https://github.com/peakflames/riddle/compare/v0.5.1...v0.6.0
-[0.5.1]: https://github.com/peakflames/riddle/compare/v0.5.0...v0.5.1
-[0.5.0]: https://github.com/peakflames/riddle/compare/v0.4.1...v0.5.0
-[0.4.1]: https://github.com/peakflames/riddle/compare/v0.4.0...v0.4.1
-[0.4.0]: https://github.com/peakflames/riddle/compare/v0.3.2...v0.4.0
-[0.3.2]: https://github.com/peakflames/riddle/compare/v0.3.1...v0.3.2
-[0.3.1]: https://github.com/peakflames/riddle/compare/v0.3.0...v0.3.1
-[0.3.0]: https://github.com/peakflames/riddle/compare/v0.2.0...v0.3.0
-[0.2.0]: https://github.com/peakflames/riddle/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/peakflames/riddle/releases/tag/v0.1.0
+

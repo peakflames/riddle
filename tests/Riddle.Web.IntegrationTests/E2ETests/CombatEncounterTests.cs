@@ -845,6 +845,7 @@ public class CombatEncounterTests : IAsyncLifetime
 
     /// <summary>
     /// Tests recording a successful death saving throw (e.g., rolled 11).
+    /// Enhanced to verify UI updates in Combat Tracker via SignalR.
     /// </summary>
     [Fact]
     public async Task HLR_COMBAT_017_DM_records_Death_Saving_Throw_success()
@@ -852,6 +853,7 @@ public class CombatEncounterTests : IAsyncLifetime
         // Arrange
         const string elaraId = "elara-017";
         const string elaraName = "Elara";
+        const string goblinId = "goblin-017";
         
         var campaign = await _factory.SetupTestCampaignAsync(
             name: "Death Save Test - Success",
@@ -875,7 +877,35 @@ public class CombatEncounterTests : IAsyncLifetime
                 }
             ]);
         
-        // Act - Record death save success (Elara rolled 11)
+        // Start combat so Combat Tracker is visible
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.StartCombatAsync(campaign.Id,
+            [
+                new CombatantInfo(elaraId, elaraName, "PC", 10, 0, 22, false, false),
+                new CombatantInfo(goblinId, "Goblin 1", "Enemy", 15, 7, 7, false, false)
+            ]);
+        }
+        
+        // Navigate to DM dashboard
+        await _page.GotoAsync($"{_factory.ServerAddress}/dm/{campaign.Id}",
+            new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 15000 });
+        
+        await _page.WaitForSelectorAsync("[data-testid='combat-tracker']",
+            new PageWaitForSelectorOptions { Timeout = 10000 });
+        
+        // Verify Elara is in combat tracker and starts with 0 success circles filled
+        var elaraCard = _page.Locator($"[data-testid='combatant-{elaraId}']");
+        await Expect(elaraCard).ToBeVisibleAsync();
+        
+        // Verify initial state: 0 filled success circles (green bg)
+        // Death save circles use bg-green-500 when filled
+        var initialSuccessCircles = elaraCard.Locator(".bg-green-500");
+        await Expect(initialSuccessCircles).ToHaveCountAsync(0, 
+            new LocatorAssertionsToHaveCountOptions { Timeout = 5000 });
+        
+        // Act - Record death save success (Elara rolled 11) via ToolExecutor
         using (var scope = _factory.CreateScope())
         {
             var toolExecutor = scope.ServiceProvider.GetRequiredService<IToolExecutor>();
@@ -892,7 +922,7 @@ public class CombatEncounterTests : IAsyncLifetime
             result.Should().Contain("success", "Tool execution should succeed");
         }
         
-        // Assert - Verify death save success was recorded
+        // Assert 1 - Verify death save success was recorded in database
         using (var scope = _factory.CreateScope())
         {
             var campaignService = scope.ServiceProvider.GetRequiredService<ICampaignService>();
@@ -904,6 +934,11 @@ public class CombatEncounterTests : IAsyncLifetime
             character.DeathSaveFailures.Should().Be(1);
             character.CurrentHp.Should().Be(0);
         }
+        
+        // Assert 2 - Verify UI updated via SignalR: 1 filled success circle
+        var updatedSuccessCircles = elaraCard.Locator(".bg-green-500");
+        await Expect(updatedSuccessCircles).ToHaveCountAsync(1, 
+            new LocatorAssertionsToHaveCountOptions { Timeout = 5000 });
     }
 
     #endregion
@@ -1537,6 +1572,471 @@ public class CombatEncounterTests : IAsyncLifetime
             character.DeathSaveSuccesses.Should().Be(0, "Death saves should reset on healing");
             character.DeathSaveFailures.Should().Be(0, "Death saves should reset on healing");
         }
+    }
+
+    #endregion
+
+    // ========================================================================
+    // PC VS ENEMY DISPLAY BEHAVIOR (HLR-COMBAT-027 through HLR-COMBAT-031)
+    // ========================================================================
+
+    #region @HLR-COMBAT-027: PC at 0 HP shows Unconscious badge instead of Defeated
+
+    /// <summary>
+    /// Tests that PCs at 0 HP show "Unconscious" badge (not "Defeated") and no strikethrough.
+    /// This is critical for D&D 5e death save mechanics - PCs aren't defeated at 0 HP.
+    /// </summary>
+    [Fact]
+    public async Task HLR_COMBAT_027_PC_at_0_HP_shows_Unconscious_badge_instead_of_Defeated()
+    {
+        // Arrange
+        const string elaraId = "elara-027";
+        const string elaraName = "Elara";
+        const string goblinId = "goblin-027";
+        
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "PC Unconscious Display Test",
+            dmUserId: TestAuthHandler.TestUserId,
+            party:
+            [
+                new Character
+                {
+                    Id = elaraId,
+                    Name = elaraName,
+                    Type = "PC",
+                    Class = "Rogue",
+                    Race = "Elf",
+                    Level = 5,
+                    MaxHp = 22,
+                    CurrentHp = 0,  // Already at 0 HP
+                    ArmorClass = 14,
+                    DeathSaveSuccesses = 0,
+                    DeathSaveFailures = 0,
+                    Conditions = ["Unconscious"]
+                }
+            ]);
+        
+        // Start combat with PC at 0 HP
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.StartCombatAsync(campaign.Id,
+            [
+                new CombatantInfo(elaraId, elaraName, "PC", 10, 0, 22, false, false),
+                new CombatantInfo(goblinId, "Goblin 1", "Enemy", 15, 7, 7, false, false)
+            ]);
+        }
+        
+        // Navigate to DM dashboard
+        await _page.GotoAsync($"{_factory.ServerAddress}/dm/{campaign.Id}",
+            new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 15000 });
+        
+        await _page.WaitForSelectorAsync("[data-testid='combat-tracker']",
+            new PageWaitForSelectorOptions { Timeout = 10000 });
+        
+        var elaraCard = _page.Locator($"[data-testid='combatant-{elaraId}']");
+        await Expect(elaraCard).ToBeVisibleAsync();
+        
+        // Assert - PC shows "Unconscious" badge
+        var unconsciousBadge = elaraCard.Locator("[data-testid='unconscious-badge']");
+        await Expect(unconsciousBadge).ToBeVisibleAsync(
+            new LocatorAssertionsToBeVisibleOptions { Timeout = 5000 });
+        
+        // Assert - PC does NOT show "Defeated" badge
+        var defeatedBadge = elaraCard.Locator("[data-testid='defeated-badge']");
+        await Expect(defeatedBadge).Not.ToBeVisibleAsync();
+        
+        // Assert - PC card does NOT have strikethrough styling (no line-through class)
+        var nameElement = elaraCard.Locator("[data-testid='combatant-name']");
+        var nameClasses = await nameElement.GetAttributeAsync("class") ?? "";
+        nameClasses.Should().NotContain("line-through", "Unconscious PC should not have strikethrough");
+        
+        // Assert - Death save circles are visible (the success/failure tracker section)
+        var deathSaveSection = elaraCard.Locator("[data-testid='death-saves']");
+        await Expect(deathSaveSection).ToBeVisibleAsync();
+    }
+
+    #endregion
+
+    #region @HLR-COMBAT-028: Enemy at 0 HP shows Defeated badge
+
+    /// <summary>
+    /// Tests that enemies at 0 HP show "Defeated" badge with strikethrough (not death saves).
+    /// </summary>
+    [Fact]
+    public async Task HLR_COMBAT_028_Enemy_at_0_HP_shows_Defeated_badge()
+    {
+        // Arrange
+        const string thorinId = "thorin-028";
+        const string goblin1Id = "goblin-028-1";
+        const string goblin2Id = "goblin-028-2";
+        
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "Enemy Defeated Display Test",
+            dmUserId: TestAuthHandler.TestUserId,
+            party:
+            [
+                new Character
+                {
+                    Id = thorinId,
+                    Name = "Thorin",
+                    Type = "PC",
+                    Class = "Fighter",
+                    Race = "Dwarf",
+                    Level = 5,
+                    MaxHp = 30,
+                    CurrentHp = 30,
+                    ArmorClass = 16
+                }
+            ]);
+        
+        // Start combat with one enemy at 0 HP (defeated)
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.StartCombatAsync(campaign.Id,
+            [
+                new CombatantInfo(thorinId, "Thorin", "PC", 15, 30, 30, false, false),
+                new CombatantInfo(goblin1Id, "Goblin 1", "Enemy", 12, 0, 7, true, false),  // Defeated
+                new CombatantInfo(goblin2Id, "Goblin 2", "Enemy", 10, 7, 7, false, false)  // Still alive
+            ]);
+        }
+        
+        // Navigate to DM dashboard
+        await _page.GotoAsync($"{_factory.ServerAddress}/dm/{campaign.Id}",
+            new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 15000 });
+        
+        await _page.WaitForSelectorAsync("[data-testid='combat-tracker']",
+            new PageWaitForSelectorOptions { Timeout = 10000 });
+        
+        var goblin1Card = _page.Locator($"[data-testid='combatant-{goblin1Id}']");
+        await Expect(goblin1Card).ToBeVisibleAsync();
+        
+        // Assert - Enemy shows "Defeated" badge
+        var defeatedBadge = goblin1Card.Locator("[data-testid='defeated-badge']");
+        await Expect(defeatedBadge).ToBeVisibleAsync(
+            new LocatorAssertionsToBeVisibleOptions { Timeout = 5000 });
+        
+        // Assert - Enemy does NOT show "Unconscious" badge
+        var unconsciousBadge = goblin1Card.Locator("[data-testid='unconscious-badge']");
+        await Expect(unconsciousBadge).Not.ToBeVisibleAsync();
+        
+        // Assert - Enemy card DOES have strikethrough styling (has line-through class)
+        var nameElement = goblin1Card.Locator("[data-testid='combatant-name']");
+        var nameClasses = await nameElement.GetAttributeAsync("class") ?? "";
+        nameClasses.Should().Contain("line-through", "Defeated enemy should have strikethrough");
+        
+        // Assert - Death save circles are NOT visible for enemy
+        var deathSaveSection = goblin1Card.Locator("[data-testid='death-saves']");
+        await Expect(deathSaveSection).Not.ToBeVisibleAsync();
+    }
+
+    #endregion
+
+    #region @HLR-COMBAT-029: Death save circles display correctly for PC
+
+    /// <summary>
+    /// Tests that death save circles display correctly based on DeathSaveSuccesses/Failures.
+    /// </summary>
+    [Fact]
+    public async Task HLR_COMBAT_029_Death_save_circles_display_correctly_for_PC()
+    {
+        // Arrange
+        const string elaraId = "elara-029";
+        const string elaraName = "Elara";
+        const string goblinId = "goblin-029";
+        
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "Death Save Circles Display Test",
+            dmUserId: TestAuthHandler.TestUserId,
+            party:
+            [
+                new Character
+                {
+                    Id = elaraId,
+                    Name = elaraName,
+                    Type = "PC",
+                    Class = "Rogue",
+                    Race = "Elf",
+                    Level = 5,
+                    MaxHp = 22,
+                    CurrentHp = 0,
+                    ArmorClass = 14,
+                    DeathSaveSuccesses = 2,  // 2 successes
+                    DeathSaveFailures = 1,    // 1 failure
+                    Conditions = ["Unconscious"]
+                }
+            ]);
+        
+        // Start combat
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.StartCombatAsync(campaign.Id,
+            [
+                new CombatantInfo(elaraId, elaraName, "PC", 10, 0, 22, false, false),
+                new CombatantInfo(goblinId, "Goblin 1", "Enemy", 15, 7, 7, false, false)
+            ]);
+        }
+        
+        // Navigate to DM dashboard
+        await _page.GotoAsync($"{_factory.ServerAddress}/dm/{campaign.Id}",
+            new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 15000 });
+        
+        await _page.WaitForSelectorAsync("[data-testid='combat-tracker']",
+            new PageWaitForSelectorOptions { Timeout = 10000 });
+        
+        var elaraCard = _page.Locator($"[data-testid='combatant-{elaraId}']");
+        await Expect(elaraCard).ToBeVisibleAsync();
+        
+        // Assert - 2 filled success circles (green bg)
+        // Death save circles use bg-green-500 when success is filled
+        var successCirclesFilled = elaraCard.Locator("[data-testid='death-saves'] .bg-green-500");
+        await Expect(successCirclesFilled).ToHaveCountAsync(2, 
+            new LocatorAssertionsToHaveCountOptions { Timeout = 5000 });
+        
+        // Assert - 1 filled failure circle (red bg)
+        // Death save circles use bg-red-500 when failure is filled
+        var failureCirclesFilled = elaraCard.Locator("[data-testid='death-saves'] .bg-red-500");
+        await Expect(failureCirclesFilled).ToHaveCountAsync(1,
+            new LocatorAssertionsToHaveCountOptions { Timeout = 5000 });
+    }
+
+    #endregion
+
+    #region @HLR-COMBAT-030: PC with 3 failures shows Dead badge with strikethrough
+
+    /// <summary>
+    /// Tests that a PC with IsDead = true (3 failures) shows Dead badge with strikethrough.
+    /// </summary>
+    [Fact]
+    public async Task HLR_COMBAT_030_PC_with_3_failures_shows_Dead_badge_with_strikethrough()
+    {
+        // Arrange
+        const string elaraId = "elara-030";
+        const string elaraName = "Elara";
+        const string goblinId = "goblin-030";
+        
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "PC Dead Display Test",
+            dmUserId: TestAuthHandler.TestUserId,
+            party:
+            [
+                new Character
+                {
+                    Id = elaraId,
+                    Name = elaraName,
+                    Type = "PC",
+                    Class = "Rogue",
+                    Race = "Elf",
+                    Level = 5,
+                    MaxHp = 22,
+                    CurrentHp = 0,
+                    ArmorClass = 14,
+                    DeathSaveSuccesses = 1,
+                    DeathSaveFailures = 3,  // DEAD - 3 failures
+                    Conditions = ["Unconscious", "Dead"]
+                }
+            ]);
+        
+        // Start combat
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.StartCombatAsync(campaign.Id,
+            [
+                new CombatantInfo(elaraId, elaraName, "PC", 10, 0, 22, false, false),
+                new CombatantInfo(goblinId, "Goblin 1", "Enemy", 15, 7, 7, false, false)
+            ]);
+        }
+        
+        // Navigate to DM dashboard
+        await _page.GotoAsync($"{_factory.ServerAddress}/dm/{campaign.Id}",
+            new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 15000 });
+        
+        await _page.WaitForSelectorAsync("[data-testid='combat-tracker']",
+            new PageWaitForSelectorOptions { Timeout = 10000 });
+        
+        var elaraCard = _page.Locator($"[data-testid='combatant-{elaraId}']");
+        await Expect(elaraCard).ToBeVisibleAsync();
+        
+        // Assert - PC shows "Dead" badge
+        var deadBadge = elaraCard.Locator("[data-testid='dead-badge']");
+        await Expect(deadBadge).ToBeVisibleAsync(
+            new LocatorAssertionsToBeVisibleOptions { Timeout = 5000 });
+        
+        // Assert - PC card DOES have strikethrough styling when dead (has line-through class)
+        var nameElement = elaraCard.Locator("[data-testid='combatant-name']");
+        var nameClasses = await nameElement.GetAttributeAsync("class") ?? "";
+        nameClasses.Should().Contain("line-through", "Dead PC should have strikethrough");
+        
+        // Assert - 3 filled failure circles (all red)
+        var failureCirclesFilled = elaraCard.Locator("[data-testid='death-saves'] .bg-red-500");
+        await Expect(failureCirclesFilled).ToHaveCountAsync(3,
+            new LocatorAssertionsToHaveCountOptions { Timeout = 5000 });
+    }
+
+    #endregion
+
+    #region @HLR-COMBAT-031: PC with 3 successes shows Stable badge
+
+    /// <summary>
+    /// Tests that a PC with IsStable = true (3 successes) shows Stable badge.
+    /// </summary>
+    [Fact]
+    public async Task HLR_COMBAT_031_PC_with_3_successes_shows_Stable_badge()
+    {
+        // Arrange
+        const string elaraId = "elara-031";
+        const string elaraName = "Elara";
+        const string goblinId = "goblin-031";
+        
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "PC Stable Display Test",
+            dmUserId: TestAuthHandler.TestUserId,
+            party:
+            [
+                new Character
+                {
+                    Id = elaraId,
+                    Name = elaraName,
+                    Type = "PC",
+                    Class = "Rogue",
+                    Race = "Elf",
+                    Level = 5,
+                    MaxHp = 22,
+                    CurrentHp = 0,  // Still at 0 HP
+                    ArmorClass = 14,
+                    DeathSaveSuccesses = 3,  // STABLE - 3 successes
+                    DeathSaveFailures = 1,
+                    Conditions = ["Unconscious", "Stable"]
+                }
+            ]);
+        
+        // Start combat
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.StartCombatAsync(campaign.Id,
+            [
+                new CombatantInfo(elaraId, elaraName, "PC", 10, 0, 22, false, false),
+                new CombatantInfo(goblinId, "Goblin 1", "Enemy", 15, 7, 7, false, false)
+            ]);
+        }
+        
+        // Navigate to DM dashboard
+        await _page.GotoAsync($"{_factory.ServerAddress}/dm/{campaign.Id}",
+            new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 15000 });
+        
+        await _page.WaitForSelectorAsync("[data-testid='combat-tracker']",
+            new PageWaitForSelectorOptions { Timeout = 10000 });
+        
+        var elaraCard = _page.Locator($"[data-testid='combatant-{elaraId}']");
+        await Expect(elaraCard).ToBeVisibleAsync();
+        
+        // Assert - PC shows "Stable" badge
+        var stableBadge = elaraCard.Locator("[data-testid='stable-badge']");
+        await Expect(stableBadge).ToBeVisibleAsync(
+            new LocatorAssertionsToBeVisibleOptions { Timeout = 5000 });
+        
+        // Assert - PC does NOT show "Unconscious" badge when stable (Stable replaces Unconscious)
+        var unconsciousBadge = elaraCard.Locator("[data-testid='unconscious-badge']");
+        await Expect(unconsciousBadge).Not.ToBeVisibleAsync();
+        
+        // Assert - 3 filled success circles (all green)
+        var successCirclesFilled = elaraCard.Locator("[data-testid='death-saves'] .bg-green-500");
+        await Expect(successCirclesFilled).ToHaveCountAsync(3,
+            new LocatorAssertionsToHaveCountOptions { Timeout = 5000 });
+    }
+
+    #endregion
+
+    #region @HLR-COMBAT-032: Player Dashboard Combat Tracker receives death save updates via SignalR
+
+    /// <summary>
+    /// Tests that the Player Dashboard Combat Tracker receives death save updates via SignalR
+    /// without requiring a page refresh. This catches bugs where DM Dashboard updates correctly
+    /// but Player Dashboard does not receive the DeathSaveUpdated event.
+    /// </summary>
+    [Fact]
+    public async Task HLR_COMBAT_032_Player_Dashboard_Combat_Tracker_receives_death_save_updates_via_SignalR()
+    {
+        // Arrange - Create campaign with PC assigned to test player
+        const string elaraId = "elara-032";
+        const string elaraName = "Elara";
+        const string goblinId = "goblin-032";
+        
+        var campaign = await _factory.SetupTestCampaignAsync(
+            name: "Player Death Save SignalR Test",
+            dmUserId: "dm-user-id",  // DM is NOT test user, so test user views as player
+            party:
+            [
+                new Character
+                {
+                    Id = elaraId,
+                    Name = elaraName,
+                    Type = "PC",
+                    Class = "Rogue",
+                    Race = "Elf",
+                    Level = 5,
+                    MaxHp = 22,
+                    CurrentHp = 0,  // At 0 HP
+                    ArmorClass = 14,
+                    DeathSaveSuccesses = 0,
+                    DeathSaveFailures = 0,
+                    Conditions = ["Unconscious"],
+                    PlayerId = TestAuthHandler.TestUserId  // Assigned to test player
+                }
+            ]);
+        
+        // Start combat
+        using (var scope = _factory.CreateScope())
+        {
+            var combatService = scope.ServiceProvider.GetRequiredService<ICombatService>();
+            await combatService.StartCombatAsync(campaign.Id,
+            [
+                new CombatantInfo(elaraId, elaraName, "PC", 10, 0, 22, false, false),
+                new CombatantInfo(goblinId, "Goblin 1", "Enemy", 15, 7, 7, false, false)
+            ]);
+        }
+        
+        // Navigate to Player Dashboard (test user is player, not DM)
+        await _page.GotoAsync($"{_factory.ServerAddress}/play/{campaign.Id}",
+            new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 15000 });
+        
+        // Wait for Combat Tracker to render
+        await _page.WaitForSelectorAsync("[data-testid='combat-tracker']",
+            new PageWaitForSelectorOptions { Timeout = 10000 });
+        
+        var elaraCard = _page.Locator($"[data-testid='combatant-{elaraId}']");
+        await Expect(elaraCard).ToBeVisibleAsync();
+        
+        // Verify initial state: 0 filled success circles
+        var initialSuccessCircles = elaraCard.Locator("[data-testid='death-saves'] .bg-green-500");
+        await Expect(initialSuccessCircles).ToHaveCountAsync(0,
+            new LocatorAssertionsToHaveCountOptions { Timeout = 5000 });
+        
+        // Act - DM processes death save success via ToolExecutor (simulates LLM tool call)
+        using (var scope = _factory.CreateScope())
+        {
+            var toolExecutor = scope.ServiceProvider.GetRequiredService<IToolExecutor>();
+            
+            var argumentsJson = $$"""
+            {
+                "character_name": "{{elaraName}}",
+                "key": "death_save_success",
+                "value": 1
+            }
+            """;
+            
+            var result = await toolExecutor.ExecuteAsync(campaign.Id, "update_character_state", argumentsJson);
+            result.Should().Contain("success", "Tool execution should succeed");
+        }
+        
+        // Assert - Player Dashboard Combat Tracker shows 1 filled success circle WITHOUT refresh
+        var updatedSuccessCircles = elaraCard.Locator("[data-testid='death-saves'] .bg-green-500");
+        await Expect(updatedSuccessCircles).ToHaveCountAsync(1,
+            new LocatorAssertionsToHaveCountOptions { Timeout = 5000 });
     }
 
     #endregion

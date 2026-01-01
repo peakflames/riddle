@@ -279,6 +279,7 @@
                                 CampaignId="CampaignId"
                                 Combat="_combatState"
                                 IsDm="false"
+                                PartyCharacters="@(campaign?.PartyState ?? [])"
                                 CombatChanged="OnCombatStateChanged" />
                         }
                         
@@ -565,6 +566,33 @@
             
             // Auto-dismiss after duration
             _ = DismissGroupInsightAfterDelayAsync(_groupInsightCts.Token);
+        });
+        
+        // Death save updates - CRITICAL: Must update PartyState BEFORE child components render
+        // IMPORTANT: PartyState is a JSON-backed property - get list once, modify, set back
+        _hubConnection.On<DeathSavePayload>(GameHubEvents.DeathSaveUpdated, async payload =>
+        {
+            if (campaign == null) return;
+            
+            // Get PartyState ONCE (each access deserializes fresh from JSON)
+            var partyState = campaign.PartyState;
+            var character = partyState.FirstOrDefault(c => c.Id == payload.CharacterId);
+            if (character != null)
+            {
+                character.DeathSaveSuccesses = payload.DeathSaveSuccesses;
+                character.DeathSaveFailures = payload.DeathSaveFailures;
+                
+                // Set back to trigger re-serialization (critical for JSON-backed properties)
+                campaign.PartyState = partyState;
+                
+                // Update selectedCharacter reference if it's the same character
+                if (selectedCharacter?.Id == payload.CharacterId)
+                {
+                    selectedCharacter = character;
+                }
+            }
+            
+            await InvokeAsync(StateHasChanged);
         });
         
         // Player roll logged - update dice rolls in real-time (SignalR broadcast from ToolExecutor)

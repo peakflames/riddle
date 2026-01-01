@@ -680,3 +680,114 @@ public bool IsDead => DeathSaveFailures >= 3;
 ```
 
 **SignalR broadcast:** Use `DeathSaveUpdated` event with `DeathSavePayload` to update all clients when death save state changes.
+
+### CRITICAL: Parent Must Handle DeathSaveUpdated Before Child Calls StateHasChanged
+
+**Problem:** When ToolExecutor sends both `DeathSaveUpdated` AND `CharacterStateUpdated` events, there's a race condition if the child component (CombatTracker) receives and processes events before the parent (Campaign.razor).
+
+**Symptom:** Death save circles don't fill in the UI even though the database has correct values. LLM acknowledges "1 success" but the circles stay empty.
+
+**Root cause:** CombatTracker receives `DeathSaveUpdated`, calls `StateHasChanged()`, but at that moment `PartyCharacters` (passed from parent) hasn't been updated yet because Campaign.razor hasn't processed its events.
+
+**Fix:** Campaign.razor must ALSO subscribe to `DeathSaveUpdated` and update `PartyState` directly:
+
+```csharp
+// Parent component (Campaign.razor) - handle BEFORE CombatTracker calls StateHasChanged
+_hubConnection.On<DeathSavePayload>(GameHubEvents.DeathSaveUpdated, async payload =>
+{
+    var character = campaign.PartyState.FirstOrDefault(c => c.Id == payload.CharacterId);
+    if (character != null)
+    {
+        character.DeathSaveSuccesses = payload.DeathSaveSuccesses;
+        character.DeathSaveFailures = payload.DeathSaveFailures;
+        campaign.PartyState = partyState;  // Trigger re-serialization
+        await InvokeAsync(StateHasChanged);
+    }
+});
+```
+
+**Key insight:** When child component's `StateHasChanged()` is called, it re-reads `[Parameter]` values from parent. If parent hasn't updated those values yet, child renders stale data.
+
+---
+
+## PC vs Enemy Display at 0 HP (Combat Tracker)
+
+**D&D 5e Rule:** PCs at 0 HP are NOT defeated - they make death saving throws. Enemies at 0 HP ARE defeated immediately.
+
+**UI Behavior:**
+| Combatant Type | HP State | Badge | Strikethrough | Death Save Circles |
+|---------------|----------|-------|---------------|-------------------|
+| PC | 0 HP, not stable/dead | "😵 Unconscious" | NO | YES (visible) |
+| PC | 0 HP, 3 successes | "💚 Stable" | NO | YES (3 green filled) |
+| PC | 0 HP, 3 failures | "💀 Dead" | YES | YES (3 red filled) |
+| Enemy/NPC | 0 HP | "Defeated" | YES | NO |
+
+**Implementation in CombatantCard.razor:**
+```razor
+@* Defeated badge - only for non-PCs *@
+@if (Combatant.IsDefeated && Combatant.Type != "PC")
+{
+    <span data-testid="defeated-badge">Defeated</span>
+}
+
+@* PC unconscious badge - 0 HP but not yet dead/stable *@
+@if (Combatant.Type == "PC" && Combatant.CurrentHp <= 0 && !IsPcDead && !IsPcStable)
+{
+    <span data-testid="unconscious-badge">😵 Unconscious</span>
+}
+
+@* Strikethrough logic *@
+@{
+    bool shouldStrikethrough = (Combatant.Type == "PC") ? IsPcDead : Combatant.IsDefeated;
+}
+```
+
+**LLM Tool Enum Fix:** The `update_character_state` tool definition must include ALL death save keys:
+```csharp
+"enum": ["current_hp", "conditions", "add_condition", "remove_condition", 
+         "status_notes", "initiative", "death_save_success", "death_save_failure", "stabilize"]
+```
+
+**Bug Pattern:** If LLM writes death saves to `StatusNotes` instead of incrementing `DeathSaveSuccesses`, the tool definition enum is probably missing the death save keys.
+
+---
+
+## CRITICAL: Player Dashboard Also Needs DeathSaveUpdated Handler
+
+**Problem:** When DM Dashboard (`Campaign.razor`) receives `DeathSaveUpdated` SignalR events and updates correctly, the Player Dashboard (`/play/{id}`) may NOT update - showing stale death save data in its Combat Tracker.
+
+**Root cause:** Player Dashboard is a SEPARATE page from DM Dashboard. It has its own SignalR connection and must subscribe to ALL the same events, including `DeathSaveUpdated`.
+
+**Symptom:**
+- DM Dashboard shows "😵 Unconscious" badge, death save circles (S:⚫⚫⚫ F:⚫⚫⚫) ✅
+- Player's Character Card shows updated death saves ✅
+- Player's Combat Tracker shows STALE death save state ❌
+
+**Fix:** Player Dashboard must:
+1. Subscribe to `DeathSaveUpdated` event
+2. Update local `_partyState` directly from payload (same pattern as Campaign.razor)
+3. Pass `PartyCharacters` parameter to CombatTracker component
+
+```razor
+@* Player Dashboard.razor must pass PartyCharacters to CombatTracker *@
+<CombatTracker 
+    Combat="_combatState" 
+    CombatChanged="OnCombatChanged"
+    PartyCharacters="_partyState" />  @* Critical for death save lookups *@
+```
+
+```csharp
+// Player Dashboard SignalR handler
+_hubConnection.On<DeathSavePayload>(GameHubEvents.DeathSaveUpdated, async payload =>
+{
+    var character = _partyState.FirstOrDefault(c => c.Id == payload.CharacterId);
+    if (character != null)
+    {
+        character.DeathSaveSuccesses = payload.DeathSaveSuccesses;
+        character.DeathSaveFailures = payload.DeathSaveFailures;
+        await InvokeAsync(StateHasChanged);
+    }
+});
+```
+
+**Key insight:** Any page or component that displays character state from `PartyState` must handle ALL relevant SignalR events that modify that state. There is NO automatic propagation - each SignalR subscriber must handle events independently.

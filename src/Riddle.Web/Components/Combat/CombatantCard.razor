@@ -33,7 +33,7 @@
                     <span class="text-lg">👹</span>
                 }
                 
-                <span class="font-medium text-gray-900 dark:text-white @(Combatant.IsDefeated ? "line-through opacity-50" : "")">
+                <span data-testid="combatant-name" class="font-medium text-gray-900 dark:text-white @(ShouldShowStrikethrough() ? "line-through opacity-50" : "")">
                     @Combatant.Name
                 </span>
                 
@@ -44,10 +44,19 @@
                     </span>
                 }
                 
-                @if (Combatant.IsDefeated)
+                @* Defeated badge - only for non-PCs (monsters/NPCs die at 0 HP, PCs make death saves) *@
+                @if (Combatant.IsDefeated && Combatant.Type != "PC")
                 {
                     <span data-testid="defeated-badge" class="px-1.5 py-0.5 text-xs rounded bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
                         ☠️ Defeated
+                    </span>
+                }
+                
+                @* PC at 0 HP but not yet dead/stable - show Unconscious badge *@
+                @if (Combatant.Type == "PC" && Combatant.CurrentHp <= 0 && !IsPcDead && !IsPcStable)
+                {
+                    <span data-testid="unconscious-badge" class="px-1.5 py-0.5 text-xs rounded bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300">
+                        😵 Unconscious
                     </span>
                 }
                 
@@ -72,7 +81,7 @@
                 @* Death save circles for PCs at 0 HP (or with any saves recorded) *@
                 @if (Combatant.Type == "PC" && (Combatant.CurrentHp <= 0 || PcDeathSaveSuccesses > 0 || PcDeathSaveFailures > 0))
                 {
-                    <div class="flex items-center gap-2 ml-2">
+                    <div data-testid="death-saves" class="flex items-center gap-2 ml-2">
                         <div class="flex items-center gap-0.5">
                             <span class="text-xs text-gray-400">S:</span>
                             @for (int i = 0; i < 3; i++)
@@ -236,5 +245,22 @@
             > 0 => 25,
             _ => 0
         };
+    }
+    
+    /// <summary>
+    /// Determines if the combatant's name should be struck through.
+    /// PCs only get strikethrough when actually dead (3 failures).
+    /// Non-PCs get strikethrough when defeated (0 HP).
+    /// </summary>
+    private bool ShouldShowStrikethrough()
+    {
+        if (Combatant.Type == "PC")
+        {
+            // PCs only struck through when actually dead
+            return IsPcDead;
+        }
+        
+        // Non-PCs struck through when defeated
+        return Combatant.IsDefeated;
     }
 }
