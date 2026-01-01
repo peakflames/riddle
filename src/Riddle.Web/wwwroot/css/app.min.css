@@ -566,10 +566,6 @@ video {
   border-width: 0;
 }
 
-.pointer-events-none {
-  pointer-events: none;
-}
-
 .visible {
   visibility: visible;
 }
@@ -1807,20 +1803,12 @@ video {
   padding-left: 2.5rem;
 }
 
-.pl-3 {
-  padding-left: 0.75rem;
-}
-
 .pl-5 {
   padding-left: 1.25rem;
 }
 
 .pl-6 {
   padding-left: 1.5rem;
-}
-
-.pr-10 {
-  padding-right: 2.5rem;
 }
 
 .pr-3 {
