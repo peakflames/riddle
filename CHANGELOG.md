@@ -20,6 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `/admin/settings` page for admins to manage whitelist (add/remove/toggle users)
   - "Admin Settings" link in sidebar (visible only to admins)
   - Admins bypass whitelist (always allowed to sign in)
+  - Admin emails displayed at top of whitelist table with purple "Admin" badge
+  - `GetAdminEmails()` method on `IAdminService` for retrieving configured admins
+
+### Changed
+- `AdminService` now uses `IOptionsMonitor<AdminSettings>` for hot-reload support
+- Admin email changes in appsettings.json take effect on page refresh (no app restart needed)
+- AGENT.md updated with "Verification Before Commit" rule (build ≠ verified)
 
 ### Technical
 - EF Core migration `AddAllowedUsers` for AllowedUsers table
