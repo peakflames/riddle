@@ -22,7 +22,7 @@
                 <UserCircleIcon Class="mx-auto h-12 w-12 text-gray-400" />
                 <p class="mt-3 text-gray-500 dark:text-gray-400">No character templates available.</p>
                 <p class="text-sm text-gray-400 dark:text-gray-500 mt-1">
-                    Create templates from the Character Templates page.
+                    Create templates from the Character Templates page, or ask an admin to make templates public.
                 </p>
             </div>
         }
@@ -31,7 +31,7 @@
             <div class="mb-4">
                 <p class="text-sm text-gray-500 dark:text-gray-400">
                     Select one or more character templates to import into your campaign. 
-                    Each template will be copied as a new character.
+                    You can import public templates and your own private templates.
                 </p>
             </div>
             
@@ -64,6 +64,7 @@
                             <TableHeadCell>Race</TableHeadCell>
                             <TableHeadCell>Class</TableHeadCell>
                             <TableHeadCell class="text-center">Level</TableHeadCell>
+                            <TableHeadCell>Visibility</TableHeadCell>
                             <TableHeadCell>Owner</TableHeadCell>
                         </TableRow>
                     </TableHead>
@@ -86,13 +87,27 @@
                                     <Badge Color="BadgeColor.Primary" Size="BadgeSize.Small">@template.Level</Badge>
                                 </TableCell>
                                 <TableCell>
-                                    @if (template.IsSystemTemplate)
+                                    @if (template.IsPublic)
                                     {
-                                        <Badge Color="BadgeColor.Gray" Size="BadgeSize.Small">System</Badge>
+                                        <Badge Color="BadgeColor.Success" Size="BadgeSize.Small">Public</Badge>
                                     }
                                     else
                                     {
-                                        <Badge Color="BadgeColor.Info" Size="BadgeSize.Small">You</Badge>
+                                        <Badge Color="BadgeColor.Gray" Size="BadgeSize.Small">Private</Badge>
+                                    }
+                                </TableCell>
+                                <TableCell>
+                                    @if (template.IsSystemTemplate)
+                                    {
+                                        <Badge Color="BadgeColor.Info" Size="BadgeSize.Small">System</Badge>
+                                    }
+                                    else if (template.OwnerId == UserId)
+                                    {
+                                        <Badge Color="BadgeColor.Primary" Size="BadgeSize.Small">You</Badge>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-gray-500 text-sm">@(template.Owner?.Email ?? "Unknown")</span>
                                     }
                                 </TableCell>
                             </TableRow>
@@ -168,7 +183,8 @@
         
         try
         {
-            _templates = await TemplateService.GetAllAvailableTemplatesAsync(UserId ?? string.Empty);
+            // Get templates the user can import: public templates + their own templates
+            _templates = await TemplateService.GetImportableTemplatesAsync(UserId ?? string.Empty);
         }
         finally
         {

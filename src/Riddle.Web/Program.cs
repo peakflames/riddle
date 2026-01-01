@@ -27,6 +27,9 @@ if (!builder.Environment.IsDevelopment())
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+// Configuration bindings
+builder.Services.Configure<AdminSettings>(builder.Configuration.GetSection("AdminSettings"));
+
 // Database
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
     ?? "Data Source=riddle.db";
@@ -111,6 +114,7 @@ builder.Services.AddScoped<IAppEventService, AppEventService>();
 builder.Services.AddScoped<ICampaignService, CampaignService>();
 builder.Services.AddScoped<ICharacterService, CharacterService>();
 builder.Services.AddScoped<ICharacterTemplateService, CharacterTemplateService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IGameStateService, GameStateService>();
 builder.Services.AddScoped<IToolExecutor, ToolExecutor>();
 builder.Services.AddScoped<IRiddleLlmService, RiddleLlmService>();

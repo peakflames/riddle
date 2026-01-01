@@ -49,10 +49,12 @@ This document captures gotchas, patterns, and hard-won knowledge discovered thro
 ## Flowbite Blazor Patterns
 
 ### Component API Quick Reference
-- **SpinnerSize**: Use `SpinnerSize.Xl`, not `SpinnerSize.ExtraLarge`
+- **SpinnerSize**: Use `SpinnerSize.Sm`, `SpinnerSize.Lg`, `SpinnerSize.Xl` - NOT `SpinnerSize.Small`, `SpinnerSize.Large`, etc.
 - **BadgeColor**: Requires explicit `@using Flowbite.Blazor.Enums` in some contexts. Note: `BadgeColor.Dark` does NOT exist - use `BadgeColor.Gray` for dark tones
 - **ButtonColor**: Use `ButtonColor.Green` for success-style buttons, NOT `ButtonColor.Success` (which doesn't exist)
+- **ButtonSize**: Use `ButtonSize.Small`, `ButtonSize.ExtraSmall` - NOT `ButtonSize.Sm`, `ButtonSize.Xs`
 - **CardSize**: Use `CardSize.ExtraLarge`, not `CardSize.XLarge`
+- **Alert Component**: Use `<Alert Color="AlertColor.Failure" Text="..." TextEmphasis="..." />` - NOT AlertColor.Red with AlertIcon/AlertContent children. Color values: `AlertColor.Failure` (red), `AlertColor.Success` (green), `AlertColor.Info` (blue), `AlertColor.Warning` (yellow)
 - **EditForm Context Conflicts**: When EditForm is inside AuthorizeView, add `Context="editContext"` parameter to EditForm to avoid context name collision
 - **Icon Components**: Use Flowbite icon components (e.g., `<BookOpenIcon Class="w-5 h-5" />`) from Flowbite.Blazor.Icons namespace
 - **TableRow onclick**: Flowbite `TableRow` component does NOT support `@onclick` event handlers - use click handlers on inner elements (e.g., checkbox, button) instead
@@ -90,6 +92,30 @@ Note: Flowbite Textarea works fine in non-TabPanel contexts (like simple modals 
 ### Database Issues
 - If migrations fail due to existing tables not matching, delete `riddle.db` and re-run `dotnet ef database update`
 - Always use `dotnet ef` commands from the repo root with `--project src/Riddle.Web`
+
+### CRITICAL: EF Core Migration Default Values on Existing Data
+
+When adding a new column with a default value to a table that already has data, **existing rows imported BEFORE the migration may have NULL values** instead of the default. This happens because:
+
+1. The migration creates the column with `defaultValue: X`
+2. But if data was imported via build.py commands that bypass EF Core tracking (or via raw SQL), the default constraint only applies to new INSERTs
+
+**Symptom:** After migration, query shows `NULL` for the new column on existing rows, even though the migration specified a default.
+
+**Fix:** Run SQL to update existing rows after migration:
+```bash
+python build.py db "UPDATE CharacterTemplates SET IsPublic = 1 WHERE IsPublic IS NULL"
+```
+
+**Prevention:** In service code that creates records, always explicitly set the property value rather than relying on database defaults:
+```csharp
+// ✅ CORRECT - Explicitly set IsPublic
+var template = new CharacterTemplate
+{
+    Name = character.Name,
+    IsPublic = true  // Don't rely on DB default
+};
+```
 
 ### CRITICAL: JSON-Backed [NotMapped] Property Pattern
 
