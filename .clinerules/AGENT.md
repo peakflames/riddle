@@ -96,19 +96,16 @@ Use the Python automation:
 - `dotnet ef database update --project src/Riddle.Web` - Update database
 
 ## UI Assets & Theming Tips
-Tailwind config lives in `src/Riddle.Web/tailwind.config.js`; PostCSS in `src/Riddle.Web/postcss.config.js`.
-
-It is ULTRA IMPORTATNT to adhere to the Flowbite Design Style System as it is a Mobile first and good looking.
-
-PREFER to use Flowbite Blazor UI Component rather than custom components.
-
-PREFER to leverage components and pages already create over at `- **Flowbite Blazor Admin Dashboard (WASM Standalone)**: `C:\Users\tschavey\projects\peakflames\flowbite-blazor-admin-dashboard`
+- Tailwind config lives in `src/Riddle.Web/tailwind.config.js`; PostCSS in `src/Riddle.Web/postcss.config.js`.
+- It is ULTRA IMPORTATNT to adhere to the Flowbite Design Style System as it is a Mobile first and good looking.
+- PREFER to use Flowbite Blazor UI Component rather than custom components.
+- PREFER to leverage components and pages already create over at `- **Flowbite Blazor Admin Dashboard (WASM Standalone)**: `C:\Users\tschavey\projects\peakflames\flowbite-blazor-admin-dashboard`
 
 ## Development Rules and Memory Aid
 
 - **Developer Rules**: Read `docs/developer_rules.md` for project structure, coding standards, build commands, and git workflow
 - **Memory Aid**: Read `docs/memory_aid.md` for lessons learned, gotchas, and patterns discovered through development
-- Prefer to load and read both files prior to editing any source file
+- PREFER to load and read both files prior to editing any source file
 - You MUST EDIT `docs/memory_aid.md` after learning a new pattern or gotcha
 
 
@@ -159,6 +156,6 @@ PREFER to leverage components and pages already create over at `- **Flowbite Bla
 
 - **Developer Rules**: `docs/developer_rules.md` — prescriptive guidelines
 - **Memory Aid**: `docs/memory_aid.md` — lessons learned & gotchas
-- Prefer to load and read both files prior to editing any source file
+- PREFER to load and read both files prior to editing any source file
 - You MUST EDIT `docs/memory_aid.md` after learning a new pattern or gotcha
-- Prefer to use the `build.py` for nearly all build, test, and database activities
+- PREFER to use the `build.py` for nearly all build, test, and database activities
