@@ -1,0 +1,228 @@
+@page "/admin/settings"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
+@inject IAdminService AdminService
+@inject IAllowedUserService AllowedUserService
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Settings - Riddle</PageTitle>
+
+@if (!_isAdmin)
+{
+    <div class="p-4">
+        <Alert Color="AlertColor.Failure">
+            <span class="font-medium">Access Denied.</span> You must be an admin to view this page.
+        </Alert>
+    </div>
+}
+else
+{
+    <div class="p-4 md:p-6">
+        <Heading Tag="HeadingTag.H1" Class="mb-6">Settings</Heading>
+        
+        <!-- Whitelist Section -->
+        <Card Class="mb-6">
+            <div class="p-4 md:p-6">
+                <div class="mb-4 flex items-center gap-3">
+                    <Heading Tag="HeadingTag.H2" Class="text-lg">User Whitelist</Heading>
+                    @if (AllowedUserService.IsWhitelistEnabled)
+                    {
+                        <Badge Color="BadgeColor.Success">Enabled</Badge>
+                    }
+                    else
+                    {
+                        <Badge Color="BadgeColor.Gray">Disabled</Badge>
+                    }
+                </div>
+                
+                <p class="mb-4 text-gray-600 dark:text-gray-400">
+                    When enabled, only users in this list (and admins) can sign into the application.
+                </p>
+                
+                @if (!string.IsNullOrEmpty(_errorMessage))
+                {
+                    <Alert Color="AlertColor.Failure" Class="mb-4">
+                        @_errorMessage
+                    </Alert>
+                }
+                
+                @if (!string.IsNullOrEmpty(_successMessage))
+                {
+                    <Alert Color="AlertColor.Success" Class="mb-4">
+                        @_successMessage
+                    </Alert>
+                }
+                
+                <!-- Add User Form -->
+                <div class="mb-6 flex flex-col gap-4 sm:flex-row">
+                    <TextInput @bind-Value="_newEmail" Placeholder="email@example.com" Class="flex-1" />
+                    <TextInput @bind-Value="_newDisplayName" Placeholder="Display Name (optional)" Class="sm:w-48" />
+                    <Button Color="ButtonColor.Primary" OnClick="AddUser" Disabled="@_isLoading">
+                        @if (_isLoading)
+                        {
+                            <Spinner Size="SpinnerSize.Sm" Class="mr-2" />
+                        }
+                        Add User
+                    </Button>
+                </div>
+                
+                <!-- Users Table -->
+                @if (_allowedUsers.Count == 0)
+                {
+                    <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                        <p class="text-lg mb-2">No users in whitelist</p>
+                        <p class="text-sm">Admins can always sign in regardless of whitelist status.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="overflow-x-auto">
+                        <Table>
+                            <TableHead>
+                                <TableHeadCell>Email</TableHeadCell>
+                                <TableHeadCell>Display Name</TableHeadCell>
+                                <TableHeadCell>Added</TableHeadCell>
+                                <TableHeadCell>Status</TableHeadCell>
+                                <TableHeadCell>Actions</TableHeadCell>
+                            </TableHead>
+                            <TableBody>
+                                @foreach (var user in _allowedUsers)
+                                {
+                                    <TableRow>
+                                        <TableCell>@user.Email</TableCell>
+                                        <TableCell>@(user.DisplayName ?? "-")</TableCell>
+                                        <TableCell>@user.CreatedAt.ToString("MMM dd, yyyy")</TableCell>
+                                        <TableCell>
+                                            <Badge Color="@(user.IsActive ? BadgeColor.Success : BadgeColor.Gray)">
+                                                @(user.IsActive ? "Active" : "Inactive")
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell>
+                                            <div class="flex gap-2">
+                                                <Button Size="ButtonSize.Small" Color="ButtonColor.Gray" 
+                                                        OnClick="() => ToggleStatus(user)">
+                                                    @(user.IsActive ? "Disable" : "Enable")
+                                                </Button>
+                                                <Button Size="ButtonSize.Small" Color="ButtonColor.Red" 
+                                                        OnClick="() => RemoveUser(user)">
+                                                    Remove
+                                                </Button>
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                }
+                            </TableBody>
+                        </Table>
+                    </div>
+                }
+            </div>
+        </Card>
+    </div>
+}
+
+@code {
+    private bool _isAdmin;
+    private string _currentUserId = string.Empty;
+    private List<AllowedUser> _allowedUsers = new();
+    private string _newEmail = string.Empty;
+    private string _newDisplayName = string.Empty;
+    private string? _errorMessage;
+    private string? _successMessage;
+    private bool _isLoading;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        
+        _isAdmin = AdminService.IsAdmin(user);
+        _currentUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        
+        if (_isAdmin)
+        {
+            await LoadAllowedUsers();
+        }
+    }
+
+    private async Task LoadAllowedUsers()
+    {
+        _allowedUsers = await AllowedUserService.GetAllowedUsersAsync();
+    }
+
+    private async Task AddUser()
+    {
+        _errorMessage = null;
+        _successMessage = null;
+        
+        if (string.IsNullOrWhiteSpace(_newEmail))
+        {
+            _errorMessage = "Email is required.";
+            return;
+        }
+        
+        // Basic email validation
+        if (!_newEmail.Contains('@') || !_newEmail.Contains('.'))
+        {
+            _errorMessage = "Please enter a valid email address.";
+            return;
+        }
+        
+        _isLoading = true;
+        
+        try
+        {
+            await AllowedUserService.AddAllowedUserAsync(_newEmail, _newDisplayName, _currentUserId);
+            _successMessage = $"Added {_newEmail} to whitelist.";
+            _newEmail = string.Empty;
+            _newDisplayName = string.Empty;
+            await LoadAllowedUsers();
+        }
+        catch (InvalidOperationException ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to add user: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task ToggleStatus(AllowedUser user)
+    {
+        _errorMessage = null;
+        _successMessage = null;
+        
+        try
+        {
+            await AllowedUserService.SetActiveStatusAsync(user.Id, !user.IsActive);
+            _successMessage = $"{user.Email} is now {(!user.IsActive ? "active" : "inactive")}.";
+            await LoadAllowedUsers();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to update status: {ex.Message}";
+        }
+    }
+
+    private async Task RemoveUser(AllowedUser user)
+    {
+        _errorMessage = null;
+        _successMessage = null;
+        
+        try
+        {
+            await AllowedUserService.RemoveAllowedUserAsync(user.Id);
+            _successMessage = $"Removed {user.Email} from whitelist.";
+            await LoadAllowedUsers();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to remove user: {ex.Message}";
+        }
+    }
+}
