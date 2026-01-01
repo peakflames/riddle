@@ -1,0 +1,53 @@
+@* 
+    RulesHelpDropdown - A help icon button with dropdown menu for accessing rules reference pages.
+    Use this in layouts where the sidebar is not available (e.g., player/DM dashboards during gameplay).
+*@
+
+<div class="relative">
+    <button type="button" 
+            @onclick="ToggleDropdown"
+            @onclick:stopPropagation="true"
+            class="p-2 text-gray-500 rounded-lg hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-700 focus:ring-4 focus:ring-gray-300 dark:focus:ring-gray-600"
+            aria-label="Rules Reference Help">
+        <QuestionCircleIcon class="w-5 h-5" />
+    </button>
+    
+    @if (_isOpen)
+    {
+        <div class="absolute right-0 z-50 mt-2 w-48 rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-700">
+            <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-600">
+                <span class="block text-sm font-medium text-gray-900 dark:text-white">Rules Reference</span>
+            </div>
+            <ul class="py-1">
+                <li>
+                    <a href="/rules/playing-the-game" @onclick="CloseDropdown"
+                       class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-600">
+                        <BookOpenIcon class="mr-2 h-4 w-4" />
+                        Playing the Game
+                    </a>
+                </li>
+                <li>
+                    <a href="/rules/glossary" @onclick="CloseDropdown"
+                       class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-600">
+                        <ClipboardIcon class="mr-2 h-4 w-4" />
+                        Rules Glossary
+                    </a>
+                </li>
+            </ul>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _isOpen = false;
+
+    private void ToggleDropdown()
+    {
+        _isOpen = !_isOpen;
+    }
+
+    private void CloseDropdown()
+    {
+        _isOpen = false;
+    }
+}

@@ -15,6 +15,7 @@ The glossary uses the following conventions:
 **Abbreviations.** The abbreviations listed below appear in this glossary and elsewhere in the rules.
 
 | AC | Armor Class |
+|-----|-------------|
 | C | Concentration |
 | CE | Chaotic Evil |
 | CG | Chaotic Good |
@@ -167,6 +168,7 @@ Objects can be harmed by attacks and by some spells, using the rules below. If a
 **Armor Class.** The Object Armor Class table suggests ACs for various substances.
 
 | AC | Substance |
+|-----|-----------|
 | 11 | Cloth, paper, rope |
 | 13 | Crystal, glass, ice |
 | 15 | Wood |
@@ -178,6 +180,7 @@ Objects can be harmed by attacks and by some spells, using the rules below. If a
 **Hit Points.** An object is destroyed when it has 0 Hit Points. The Object Hit Points table suggests Hit Points for fragile and resilient objects that are Large or smaller. To track Hit Points for a Huge or Gargantuan object, divide it into Large or smaller sections, and track each section's Hit Points separately. The DM determines whether destroying part of an object causes the whole thing to collapse.
 
 | Size | Fragile | Resilient |
+|------|---------|-----------|
 | Tiny (bottle, lock) | 2 (1d4) | 5 (2d4) |
 | Small (chest, lute) | 3 (1d6) | 10 (3d6) |
 | Medium (barrel, chandelier) | 4 (1d8) | 18 (4d8) |
@@ -216,6 +219,7 @@ Your size and Strength score determine the maximum weight in pounds that you can
 While dragging, lifting, or pushing weight in excess of the maximum weight you can carry, your Speed can be no more than 5 feet.
 
 | Creature Size | Carry | Drag/Lift/Push |
+|---------------|-------|----------------|
 | Tiny | Str. × 7.5 lb. | Str. × 15 lb. |
 | Small/Medium | Str. × 15 lb. | Str. × 30 lb. |
 | Large | Str. × 30 lb. | Str. × 60 lb. |
@@ -360,6 +364,7 @@ A creature or an object that has a damage threshold has Immunity to all damage u
 Attacks and other harmful effects deal different types of damage. Damage types have no rules of their own, but other rules, such as Resistance, rely on the types. The Damage Types table offers examples to help a DM assign a type to a new effect.
 
 | Type | Examples |
+|------|----------|
 | Acid | Corrosive liquids, digestive enzymes |
 | Bludgeoning | Blunt objects, constriction, falling |
 | Cold | Freezing water, icy blasts |
@@ -409,6 +414,7 @@ A player character must make a Death Saving Throw (also called a Death Save) if 
 A creature requires an amount of water per day based on its size, as shown in the Water Needs per Day table. A creature that drinks less than half the required water for a day gains 1 Exhaustion level at the day's end. Exhaustion caused by dehydration can't be removed until the creature drinks the full amount of water required for a day. *See also* "[Exhaustion](#exhaustioncondition)."
 
 | Size | Water |
+|------|-------|
 | Tiny | 1/4 gallon |
 | Small | 1 gallon |
 | Medium | 1 gallon |
@@ -642,6 +648,7 @@ With the Influence action, you urge a monster to do something. Describe or rolep
 **Hesitant.** If you urge the monster to do something that it is hesitant to do, you must make an ability check, which is affected by the monster's attitude: Indifferent, Friendly, or Hostile, each of which is defined in this glossary. The Influence Checks table suggests which ability check to make based on how you're interacting with the monster. The DM chooses the check, which has a default DC equal to 15 or the monster's Intelligence score, whichever is higher. On a successful check, the monster does as urged. On a failed check, you must wait 24 hours (or a duration set by the DM) before urging it in the same way again.
 
 | Ability Check | Interaction |
+|----------------|-------------|
 | Charisma (Deception) | Deceiving a monster that understands you |
 | Charisma (Intimidation) | Intimidating a monster |
 | Charisma (Performance) | Amusing a monster |
@@ -736,6 +743,7 @@ A creature needs an amount of food per day based on its size, as shown in the Fo
 Exhaustion caused by malnutrition can't be removed until the creature eats the full amount of food required for a day. *See also* "[Exhaustion](#exhaustioncondition)."
 
 | Size | Food |
+|------|------|
 | Tiny | 1/4 pound |
 | Small | 1 pound |
 | Medium | 1 pound |
@@ -884,6 +892,7 @@ A saving throw—also called a save—represents an attempt to avoid or resist a
 When you take the Search action, you make a Wisdom check to discern something that isn't obvious. The Search table suggests which skills are applicable when you take this action, depending on what you're trying to detect.
 
 | Skill | Thing to Detect |
+|-------|-----------------|
 | Insight | Creature's state of mind |
 | Medicine | Creature's ailment or cause of death |
 | Perception | Concealed creature or object |
@@ -1004,6 +1013,7 @@ When you take the Study action, you make an Intelligence check to study your mem
 The Areas of Knowledge table suggests which skills are applicable to various areas of knowledge.
 
 | Skill | Areas |
+|-------|-------|
 | Arcana | Spells, magic items, eldritch symbols, magical traditions, planes of existence, and certain creatures (Aberrations, Constructs, Elementals, Fey, and Monstrosities) |
 | History | Historic events and people, ancient civilizations, wars, and certain creatures (Giants and Humanoids) |
 | Investigation | Traps, ciphers, riddles, and gadgetry |

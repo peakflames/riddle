@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-01-01
+
+### Added
+- **D&D 5e Rules Reference Pages**
+  - `/rules/playing-the-game` - Core game mechanics from D&D 5e SRD
+  - `/rules/glossary` - Rules glossary with terminology definitions
+  - Markdown content loaded from `wwwroot/docs/` and rendered with Markdig
+  - Sidebar navigation under "Game Reference" section with book and clipboard icons
+  - Header dropdown (`RulesHelpDropdown.razor`) for quick access from any page
+    - Custom dropdown with `right-0` positioning to prevent viewport overflow
+    - Available in navbar next to dark mode toggle
+
+### Changed
+- Sidebar reorganized with new "Game Reference" collapsible section
+- Rules pages use prose styling with `max-w-none` for full-width content
+
 ## [0.21.0] - 2026-01-01
 
 ### Added

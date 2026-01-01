@@ -41,11 +41,16 @@
                 Campaigns
             </SidebarItem>
 
-            <SidebarItem
-                Href="/rules"
+            <SidebarCollapse 
+                Label="Rules Reference"
                 Icon="@(new ClipboardIcon())">
-                Rules Reference
-            </SidebarItem>
+                <SidebarItem Href="/rules/playing-the-game">
+                    Playing the Game
+                </SidebarItem>
+                <SidebarItem Href="/rules/glossary">
+                    Rules Glossary
+                </SidebarItem>
+            </SidebarCollapse>
         </SidebarItemGroup>
 
         <AuthorizeView>
