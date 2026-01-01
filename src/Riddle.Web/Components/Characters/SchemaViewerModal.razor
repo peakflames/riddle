@@ -1,4 +1,4 @@
-@inject HttpClient Http
+@inject IWebHostEnvironment WebHostEnvironment
 
 <Modal Show="@Show" ShowChanged="@ShowChanged" Size="ModalSize.FourExtraLarge">
     <ModalHeader>
@@ -57,8 +57,9 @@
         
         try
         {
-            // Fetch the markdown file from wwwroot
-            var markdown = await Http.GetStringAsync("docs/character-schema.md");
+            // Read the markdown file directly from wwwroot (Blazor Server approach)
+            var filePath = Path.Combine(WebHostEnvironment.WebRootPath, "docs", "character-schema.md");
+            var markdown = await File.ReadAllTextAsync(filePath);
             _renderedHtml = RenderMarkdown(markdown);
             _hasLoaded = true;
         }
