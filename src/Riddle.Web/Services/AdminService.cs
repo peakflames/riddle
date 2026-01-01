@@ -6,19 +6,19 @@ namespace Riddle.Web.Services;
 
 /// <summary>
 /// Service for checking admin permissions based on email list in appsettings.json.
+/// Uses IOptionsMonitor for hot-reload support when appsettings.json changes.
 /// </summary>
 public class AdminService : IAdminService
 {
-    private readonly HashSet<string> _adminEmails;
+    private readonly IOptionsMonitor<AdminSettings> _optionsMonitor;
 
-    public AdminService(IOptions<AdminSettings> options)
+    public AdminService(IOptionsMonitor<AdminSettings> optionsMonitor)
     {
-        // Store admin emails in lowercase for case-insensitive comparison
-        _adminEmails = new HashSet<string>(
-            options.Value.AdminEmails.Select(e => e.ToLowerInvariant()),
-            StringComparer.OrdinalIgnoreCase
-        );
+        _optionsMonitor = optionsMonitor;
     }
+
+    // Access .CurrentValue each time for hot-reload support
+    private IEnumerable<string> AdminEmails => _optionsMonitor.CurrentValue.AdminEmails;
 
     /// <inheritdoc />
     public bool IsAdmin(string? email)
@@ -26,7 +26,8 @@ public class AdminService : IAdminService
         if (string.IsNullOrWhiteSpace(email))
             return false;
         
-        return _adminEmails.Contains(email.ToLowerInvariant());
+        var normalizedEmail = email.ToLowerInvariant();
+        return AdminEmails.Any(e => e.Equals(normalizedEmail, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <inheritdoc />
@@ -40,5 +41,6 @@ public class AdminService : IAdminService
     }
 
     /// <inheritdoc />
-    public IReadOnlyCollection<string> GetAdminEmails() => _adminEmails;
+    public IReadOnlyCollection<string> GetAdminEmails() => 
+        AdminEmails.ToList().AsReadOnly();
 }
