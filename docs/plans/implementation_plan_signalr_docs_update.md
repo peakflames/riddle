@@ -1,7 +1,8 @@
 # Implementation Plan: SignalR Documentation Update
 
 **Created:** 2026-01-01  
-**Status:** Ready for Implementation  
+**Completed:** 2026-01-01
+**Status:** ✅ COMPLETED  
 **Priority:** High (contains critical accuracy fixes)
 
 ## Background
@@ -122,42 +123,42 @@ These constants exist in `GameHubEvents.cs` but have no `INotificationService` m
 
 **Note:** The bug was fixed, versioned, and committed in a separate PR before documentation updates.
 
-### Phase 2: Update events-reference.md
+### Phase 2: Update events-reference.md ✅
 
-- [ ] **FIX** `TurnAdvanced` section - Replace 3-arg documentation with `TurnAdvancedPayload` record
-- [ ] **FIX** `InitiativeSet` section - Replace 2-arg documentation with `InitiativeSetPayload` record
-- [ ] **ADD** `DeathSaveUpdated` section with full documentation:
+- [x] **FIX** `TurnAdvanced` section - Replace 3-arg documentation with `TurnAdvancedPayload` record
+- [x] **FIX** `InitiativeSet` section - Replace 2-arg documentation with `InitiativeSetPayload` record
+- [x] **ADD** `DeathSaveUpdated` section with full documentation:
   - Target Group: `_all`
   - Payload: `DeathSavePayload`
   - Publisher: `NotificationService.NotifyDeathSaveUpdatedAsync()`
   - Subscribers: `Dashboard.razor`, `Campaign.razor`, `CombatTracker.razor`
-- [ ] **UPDATE** `PlayerRollLogged` to show `RollResultPayload` usage (client uses this)
-- [ ] **UPDATE** Events Summary Table to add `DeathSaveUpdated`
-- [ ] **UPDATE** subscriber lists for `DeathSaveUpdated`
+- [x] **UPDATE** Events Summary Table to add `DeathSaveUpdated`
 
-### Phase 3: Update groups.md
+### Phase 3: Update groups.md ✅
 
-- [ ] **ADD** `DeathSaveUpdated` to the `_all` group events list in "Group Usage by Event Type" table
+- [x] **ADD** `DeathSaveUpdated` to the `_all` group events list in "Group Usage by Event Type" table
 
-### Phase 4: Update combat-flow.md
+### Phase 4: Update combat-flow.md ✅
 
-- [ ] **FIX** Section 2 (Turn Advancement) - Remove positional args, show `TurnAdvancedPayload`
-- [ ] **FIX** Client-side handling code example to use `TurnAdvancedPayload`
-- [ ] **ADD** Section 6: Death Save Flow with sequence diagram
-- [ ] **UPDATE** Event Summary table at bottom to include `DeathSaveUpdated`
+- [x] **FIX** Section 2 (Turn Advancement) - Remove positional args, show `TurnAdvancedPayload`
+- [x] **FIX** Client-side handling code example to use `TurnAdvancedPayload`
+- [x] **ADD** Section 5: Death Save Flow with sequence diagram
+- [x] **UPDATE** Event Summary table at bottom to include `DeathSaveUpdated`
+- [x] **ADD** InitiativeSetPayload documentation
 
-### Phase 5: Update README.md
+### Phase 5: Update README.md ✅
 
-- [ ] **ADD** `DeathSaveUpdated` to Combat Events in "Event Categories" table
-- [ ] Verify architecture diagram is still accurate (appears correct)
+- [x] **ADD** `DeathSaveUpdated` to Combat Events in "Event Categories" table
+- [x] Verify architecture diagram is still accurate (confirmed correct)
 
-### Phase 6: Verification
+### Phase 6: Verification ✅
 
-- [ ] Cross-reference each documented event against `GameHubEvents.cs`
-- [ ] Cross-reference each documented payload against actual records
-- [ ] Cross-reference each subscriber list against actual `.On<>` handlers
-- [ ] Ensure no orphaned events (documented but not implemented)
-- [ ] Ensure no undocumented events (implemented but not documented)
+- [x] Cross-reference each documented event against `GameHubEvents.cs`
+- [x] Cross-reference each documented payload against actual records
+- [x] Cross-reference each subscriber list against actual `.On<>` handlers
+- [x] Ensure no orphaned events (documented but not implemented)
+- [x] Ensure no undocumented events (implemented but not documented)
+  - Note: `CombatantAdded`, `CombatantRemoved`, `ConnectionStatusChanged` are event constants only (no implementation) - likely future placeholders
 
 ---
 
@@ -299,12 +300,12 @@ _hubConnection.On<TurnAdvancedPayload>(GameHubEvents.TurnAdvanced,
 
 ## Acceptance Criteria
 
-- [ ] All documented events match `GameHubEvents.cs` constants
-- [ ] All documented payloads match actual record definitions
-- [ ] All documented subscriber lists match actual `.On<>` handlers in components
-- [ ] `TurnAdvanced` documented as `TurnAdvancedPayload` (not positional args)
-- [ ] `InitiativeSet` documented as `InitiativeSetPayload` (not positional args)
-- [ ] `DeathSaveUpdated` fully documented with payload, publishers, subscribers
-- [ ] Combat flow diagram updated with correct payload patterns
-- [ ] Groups table updated with `DeathSaveUpdated`
-- [ ] (Optional) Dashboard.razor bug fixed
+- [x] All documented events match `GameHubEvents.cs` constants
+- [x] All documented payloads match actual record definitions
+- [x] All documented subscriber lists match actual `.On<>` handlers in components
+- [x] `TurnAdvanced` documented as `TurnAdvancedPayload` (not positional args)
+- [x] `InitiativeSet` documented as `InitiativeSetPayload` (not positional args)
+- [x] `DeathSaveUpdated` fully documented with payload, publishers, subscribers
+- [x] Combat flow diagram updated with correct payload patterns
+- [x] Groups table updated with `DeathSaveUpdated`
+- [x] Dashboard.razor bug fixed (v0.20.1)

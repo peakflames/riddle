@@ -63,7 +63,7 @@ public async Task JoinCampaign(Guid campaignId, string userId, string? character
 |--------------|----------|--------|
 | `_dm` | DM-only notifications | `CharacterClaimed`, `CharacterReleased`, `PlayerConnected`, `PlayerDisconnected`, `PlayerChoiceSubmitted`, `ReadAloudTextReceived` |
 | `_players` | Player-only broadcasts | `PlayerChoicesReceived`, `AtmospherePulseReceived`, `NarrativeAnchorUpdated`, `GroupInsightTriggered` |
-| `_all` | Universal broadcasts | `CharacterStateUpdated`, `SceneImageUpdated`, `PlayerRollLogged`, `CombatStarted`, `CombatEnded`, `TurnAdvanced`, `InitiativeSet` |
+| `_all` | Universal broadcasts | `CharacterStateUpdated`, `SceneImageUpdated`, `PlayerRollLogged`, `CombatStarted`, `CombatEnded`, `TurnAdvanced`, `InitiativeSet`, `DeathSaveUpdated` |
 
 ## Visual Representation
 

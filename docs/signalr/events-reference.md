@@ -35,6 +35,7 @@ public static class GameHubEvents
 | `CombatEnded` | `_all` | S→C | `NotificationService` | `Dashboard.razor`, `CombatTracker.razor` |
 | `TurnAdvanced` | `_all` | S→C | `NotificationService` | `Dashboard.razor`, `CombatTracker.razor` |
 | `InitiativeSet` | `_all` | S→C | `NotificationService` | (Future use) |
+| `DeathSaveUpdated` | `_all` | S→C | `NotificationService` | `Dashboard.razor`, `CombatTracker.razor` |
 
 ---
 
@@ -423,14 +424,15 @@ Fired when the turn advances to the next combatant.
 | Property | Value |
 |----------|-------|
 | Target Group | `_all` |
-| Payload | Three parameters (not a record) |
+| Payload | `TurnAdvancedPayload` |
 
-**Parameters:**
+**Payload:**
 ```csharp
-// SendAsync(GameHubEvents.TurnAdvanced, newTurnIndex, currentCombatantId, roundNumber)
-int newTurnIndex        // Index in turn order (0-based)
-string currentCombatantId // ID of combatant whose turn it now is
-int roundNumber         // Current round number
+public record TurnAdvancedPayload(
+    int NewTurnIndex,           // Index in turn order (0-based)
+    string CurrentCombatantId,  // ID of combatant whose turn it now is
+    int RoundNumber             // Current round number
+);
 ```
 
 **Publisher:** `NotificationService.NotifyTurnAdvancedAsync()`
@@ -439,8 +441,10 @@ int roundNumber         // Current round number
 
 **Client-side subscription:**
 ```csharp
-_hubConnection.On<int, string, int>(GameHubEvents.TurnAdvanced, 
-    async (newIndex, currentId, roundNumber) => { ... });
+_hubConnection.On<TurnAdvancedPayload>(GameHubEvents.TurnAdvanced, 
+    async (payload) => { 
+        // Use payload.NewTurnIndex, payload.CurrentCombatantId, payload.RoundNumber
+    });
 ```
 
 ---
@@ -452,18 +456,62 @@ Fired when a combatant's initiative is set or changed.
 | Property | Value |
 |----------|-------|
 | Target Group | `_all` |
-| Payload | Two parameters |
+| Payload | `InitiativeSetPayload` |
 
-**Parameters:**
+**Payload:**
 ```csharp
-// SendAsync(GameHubEvents.InitiativeSet, characterId, initiative)
-string characterId
-int initiative
+public record InitiativeSetPayload(
+    string CharacterId,
+    int Initiative
+);
 ```
 
 **Publisher:** `NotificationService.NotifyInitiativeSetAsync()`
 
 **Subscribers:** (Reserved for future use)
+
+**Client-side subscription:**
+```csharp
+_hubConnection.On<InitiativeSetPayload>(GameHubEvents.InitiativeSet, 
+    async (payload) => { 
+        // Use payload.CharacterId, payload.Initiative
+    });
+```
+
+---
+
+### `DeathSaveUpdated`
+
+Fired when a character's death save state changes (success, failure, stabilized, or dead).
+
+| Property | Value |
+|----------|-------|
+| Target Group | `_all` |
+| Payload | `DeathSavePayload` |
+
+**Payload:**
+```csharp
+public record DeathSavePayload(
+    string CharacterId,
+    string CharacterName,
+    int DeathSaveSuccesses,    // 0-3
+    int DeathSaveFailures,     // 0-3
+    bool IsStable,             // True if 3 successes reached
+    bool IsDead                // True if 3 failures reached
+);
+```
+
+**Publisher:** `NotificationService.NotifyDeathSaveUpdatedAsync()`
+
+**Subscribers:** `Dashboard.razor`, `CombatTracker.razor`
+
+**Client-side subscription:**
+```csharp
+_hubConnection.On<DeathSavePayload>(GameHubEvents.DeathSaveUpdated, 
+    async (payload) => { 
+        // Update death save UI for payload.CharacterId
+    });
+```
 
 ---
 
