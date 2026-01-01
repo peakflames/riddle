@@ -1,0 +1,84 @@
+@page "/rules/playing-the-game"
+@inject IWebHostEnvironment Environment
+
+<PageTitle>Playing the Game - Rules Reference - Riddle</PageTitle>
+
+<div class="max-w-4xl mx-auto">
+    <nav class="mb-6">
+        <a href="/rules" class="inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Rules Reference
+        </a>
+    </nav>
+
+    @if (_isLoading)
+    {
+        <div class="flex items-center justify-center py-12">
+            <Spinner Size="SpinnerSize.Lg" />
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+            <p class="text-red-700 dark:text-red-300">@_errorMessage</p>
+        </div>
+    }
+    else
+    {
+        <article class="prose prose-slate dark:prose-invert max-w-none
+                        prose-headings:scroll-mt-20
+                        prose-h1:text-3xl prose-h1:font-bold prose-h1:mb-6
+                        prose-h2:text-2xl prose-h2:font-semibold prose-h2:mt-10 prose-h2:mb-4 prose-h2:pb-2 prose-h2:border-b prose-h2:border-gray-200 dark:prose-h2:border-gray-700
+                        prose-h3:text-xl prose-h3:font-semibold prose-h3:mt-8 prose-h3:mb-3
+                        prose-h4:text-lg prose-h4:font-semibold prose-h4:mt-6 prose-h4:mb-2
+                        prose-p:mb-4 prose-p:leading-relaxed
+                        prose-ul:my-4 prose-ul:pl-6
+                        prose-ol:my-4 prose-ol:pl-6
+                        prose-li:mb-2
+                        prose-table:my-6 prose-table:w-full
+                        prose-th:bg-gray-100 dark:prose-th:bg-gray-800 prose-th:px-4 prose-th:py-2 prose-th:text-left prose-th:font-semibold
+                        prose-td:px-4 prose-td:py-2 prose-td:border-t prose-td:border-gray-200 dark:prose-td:border-gray-700
+                        prose-strong:text-gray-900 dark:prose-strong:text-white
+                        prose-code:bg-gray-100 dark:prose-code:bg-gray-800 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm">
+            @((MarkupString)_htmlContent)
+        </article>
+    }
+</div>
+
+@code {
+    private string _htmlContent = "";
+    private string _errorMessage = "";
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadContent();
+    }
+
+    private async Task LoadContent()
+    {
+        try
+        {
+            var markdownPath = Path.Combine(Environment.WebRootPath, "docs", "playing_the_game.md");
+            if (File.Exists(markdownPath))
+            {
+                var markdown = await File.ReadAllTextAsync(markdownPath);
+                _htmlContent = Markdig.Markdown.ToHtml(markdown);
+            }
+            else
+            {
+                _errorMessage = "The rules document could not be found.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Error loading rules: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}
