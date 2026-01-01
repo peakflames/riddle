@@ -18,6 +18,9 @@ Project Riddle is a LLM-driven Dungeon Master assistant for D&D 5th Edition buil
 ## Project Reference Documentation
 - **Flowbite Blazor Component Reference**: `docs/flowbite_blazor_docs.md` - API reference for Flowbite Blazor components (enums, sizes, colors, common patterns)
 - **SignalR documentation**: `docs/signalr` - Architecture, groups, event references, flow sequences
+- **Implementation Plans**: `docs/plans/` - Active implementation plans and planning documentation for current/upcoming work
+- **Verification Checklists**: `docs/plans/verification/` - Objective verification checklists for in-progress implementation work
+- **Plan Archive**: `docs/plans/archive/` - Completed implementation plans and verification checklists from finished phases
 
 ## CRITICAL: SignalR Payload Contract Rule
 
