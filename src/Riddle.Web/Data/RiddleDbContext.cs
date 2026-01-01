@@ -29,6 +29,11 @@ public class RiddleDbContext : IdentityDbContext<ApplicationUser>
     /// </summary>
     public DbSet<CharacterTemplate> CharacterTemplates => Set<CharacterTemplate>();
 
+    /// <summary>
+    /// Allowed users (whitelist for beta access control)
+    /// </summary>
+    public DbSet<AllowedUser> AllowedUsers => Set<AllowedUser>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -118,6 +123,22 @@ public class RiddleDbContext : IdentityDbContext<ApplicationUser>
             entity.Ignore(e => e.IsSystemTemplate);
             entity.Ignore(e => e.DisplayRaceClass);
             entity.Ignore(e => e.DisplayLevel);
+        });
+
+        // Configure AllowedUser (whitelist)
+        builder.Entity<AllowedUser>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            
+            // Unique constraint on Email (case-insensitive via storing lowercase)
+            entity.HasIndex(e => e.Email).IsUnique();
+            
+            // Index for active users query
+            entity.HasIndex(e => e.IsActive);
+            
+            entity.Property(e => e.Email).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.DisplayName).HasMaxLength(200);
+            entity.Property(e => e.AddedByUserId).HasMaxLength(450);
         });
 
         // Configure PlaySession

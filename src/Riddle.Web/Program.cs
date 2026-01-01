@@ -29,6 +29,7 @@ builder.Services.AddRazorComponents()
 
 // Configuration bindings
 builder.Services.Configure<AdminSettings>(builder.Configuration.GetSection("AdminSettings"));
+builder.Services.Configure<WhitelistSettings>(builder.Configuration.GetSection("WhitelistSettings"));
 
 // Database
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
@@ -88,6 +89,31 @@ if (!string.IsNullOrEmpty(googleClientId) && !string.IsNullOrEmpty(googleClientS
             // Request profile picture claim
             options.Scope.Add("profile");
             options.ClaimActions.MapJsonKey("picture", "picture");
+            
+            // Validate user against whitelist during sign-in
+            options.Events.OnTicketReceived = async context =>
+            {
+                var email = context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+                if (string.IsNullOrEmpty(email))
+                {
+                    context.Fail("Email claim not found.");
+                    return;
+                }
+                
+                // Get AllowedUserService from DI - need to resolve from scope
+                var allowedUserService = context.HttpContext.RequestServices
+                    .GetRequiredService<IAllowedUserService>();
+                
+                if (!await allowedUserService.IsEmailAllowedAsync(email))
+                {
+                    // Redirect to access denied page instead of failing outright
+                    context.Response.Redirect("/Account/AccessDenied");
+                    context.HandleResponse(); // Prevents default processing
+                    return;
+                }
+                
+                // User is allowed, continue with sign-in
+            };
         });
 }
 else
@@ -110,6 +136,7 @@ builder.Services.AddSignalR();
 builder.Services.AddSingleton<IConnectionTracker, ConnectionTracker>();
 
 // Application Services
+builder.Services.AddScoped<IAllowedUserService, AllowedUserService>();
 builder.Services.AddScoped<IAppEventService, AppEventService>();
 builder.Services.AddScoped<ICampaignService, CampaignService>();
 builder.Services.AddScoped<ICharacterService, CharacterService>();

@@ -153,6 +153,38 @@ Use the Python automation:
 3.  **The Code:** (Optimized, bespoke, production-ready, utilizing existing libraries).
 
 
+## CRITICAL: Verification Before Commit Rule
+
+**NEVER commit code changes before the user has verified them!**
+
+A successful build (compile) does NOT equal working code. The workflow MUST be:
+
+1. **Implement** - Make the code changes
+2. **Build** - Run `python build.py` to verify compilation
+3. **Start App** - Run `python build.py start` to launch the application
+4. **User Verification** - Wait for the user to test and confirm the feature works
+5. **Commit** - ONLY after user explicitly confirms verification passed
+
+**Why this matters:**
+- Compiled code ≠ correct behavior
+- UI changes need visual verification
+- Business logic needs functional testing
+- Committing untested code pollutes git history with potential bugs
+
+**Exceptions (when you MAY commit without explicit user verification):**
+- **YOLO mode is enabled** - User has auto-approve on, implying trust in the workflow
+- **No user interaction expected** - Backend-only changes with no UI impact that can be verified by automated tests or build alone (e.g., refactoring, adding documentation, updating configs)
+
+**Bad pattern:**
+```
+build succeeds → git commit → "let me know if it works"  ❌
+```
+
+**Good pattern:**
+```
+build succeeds → start app → "Please verify at /admin/settings" → user confirms → git commit  ✅
+```
+
 ## Development Rules and Memory Aid Reminder
 
 - **Developer Rules**: `docs/developer_rules.md` — prescriptive guidelines

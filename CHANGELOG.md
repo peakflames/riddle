@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-01-01
+
+### Added
+- **User Whitelist Feature**
+  - Email-based user whitelist with enable/disable configuration
+  - `AllowedUser` model with Email, DisplayName, IsActive, CreatedAt, AddedBy fields
+  - `WhitelistSettings` configuration section in appsettings.json
+  - `IAllowedUserService`/`AllowedUserService` for whitelist CRUD operations
+  - Google OAuth `OnTicketReceived` event handler to enforce whitelist on sign-in
+  - `/Account/AccessDenied` page with configurable rejection message
+  - `/admin/settings` page for admins to manage whitelist (add/remove/toggle users)
+  - "Admin Settings" link in sidebar (visible only to admins)
+  - Admins bypass whitelist (always allowed to sign in)
+  - Admin emails displayed at top of whitelist table with purple "Admin" badge
+  - `GetAdminEmails()` method on `IAdminService` for retrieving configured admins
+
+### Changed
+- `AdminService` now uses `IOptionsMonitor<AdminSettings>` for hot-reload support
+- Admin email changes in appsettings.json take effect on page refresh (no app restart needed)
+- AGENT.md updated with "Verification Before Commit" rule (build ≠ verified)
+
+### Technical
+- EF Core migration `AddAllowedUsers` for AllowedUsers table
+- `@using Riddle.Web.Services` added to _Imports.razor for global service access
+- WhitelistSettings bound from configuration with `Enabled`, `AdminEmails`, `RejectionMessage`
+
 ## [0.22.0] - 2026-01-01
 
 ### Added
