@@ -22,4 +22,10 @@ public interface IAdminService
     /// <param name="user">The ClaimsPrincipal to check</param>
     /// <returns>True if the user's email is in the admin list</returns>
     bool IsAdmin(ClaimsPrincipal? user);
+    
+    /// <summary>
+    /// Get list of all admin emails (for display purposes).
+    /// </summary>
+    /// <returns>Collection of admin email addresses</returns>
+    IReadOnlyCollection<string> GetAdminEmails();
 }

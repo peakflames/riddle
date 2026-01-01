@@ -38,4 +38,7 @@ public class AdminService : IAdminService
         var email = user.FindFirst(ClaimTypes.Email)?.Value;
         return IsAdmin(email);
     }
+
+    /// <inheritdoc />
+    public IReadOnlyCollection<string> GetAdminEmails() => _adminEmails;
 }

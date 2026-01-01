@@ -70,52 +70,69 @@ else
                 </div>
                 
                 <!-- Users Table -->
-                @if (_allowedUsers.Count == 0)
+                <div class="overflow-x-auto">
+                    <Table>
+                        <TableHead>
+                            <TableHeadCell>Email</TableHeadCell>
+                            <TableHeadCell>Role</TableHeadCell>
+                            <TableHeadCell>Added</TableHeadCell>
+                            <TableHeadCell>Status</TableHeadCell>
+                            <TableHeadCell>Actions</TableHeadCell>
+                        </TableHead>
+                        <TableBody>
+                            @* Admin emails - always shown at top *@
+                            @foreach (var adminEmail in _adminEmails)
+                            {
+                                <TableRow Class="bg-purple-50 dark:bg-purple-900/20">
+                                    <TableCell>@adminEmail</TableCell>
+                                    <TableCell>
+                                        <Badge Color="BadgeColor.Purple">Admin</Badge>
+                                    </TableCell>
+                                    <TableCell class="text-gray-400">-</TableCell>
+                                    <TableCell>
+                                        <Badge Color="BadgeColor.Success">Always Allowed</Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                        <span class="text-gray-400 text-sm">N/A</span>
+                                    </TableCell>
+                                </TableRow>
+                            }
+                            @* Whitelisted users *@
+                            @foreach (var user in _allowedUsers)
+                            {
+                                <TableRow>
+                                    <TableCell>@user.Email</TableCell>
+                                    <TableCell>
+                                        <Badge Color="BadgeColor.Info">@(user.DisplayName ?? "User")</Badge>
+                                    </TableCell>
+                                    <TableCell>@user.CreatedAt.ToString("MMM dd, yyyy")</TableCell>
+                                    <TableCell>
+                                        <Badge Color="@(user.IsActive ? BadgeColor.Success : BadgeColor.Gray)">
+                                            @(user.IsActive ? "Active" : "Inactive")
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                        <div class="flex gap-2">
+                                            <Button Size="ButtonSize.Small" Color="ButtonColor.Gray" 
+                                                    OnClick="() => ToggleStatus(user)">
+                                                @(user.IsActive ? "Disable" : "Enable")
+                                            </Button>
+                                            <Button Size="ButtonSize.Small" Color="ButtonColor.Red" 
+                                                    OnClick="() => RemoveUser(user)">
+                                                Remove
+                                            </Button>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            }
+                        </TableBody>
+                    </Table>
+                </div>
+                
+                @if (_adminEmails.Count == 0 && _allowedUsers.Count == 0)
                 {
-                    <div class="text-center py-8 text-gray-500 dark:text-gray-400">
-                        <p class="text-lg mb-2">No users in whitelist</p>
-                        <p class="text-sm">Admins can always sign in regardless of whitelist status.</p>
-                    </div>
-                }
-                else
-                {
-                    <div class="overflow-x-auto">
-                        <Table>
-                            <TableHead>
-                                <TableHeadCell>Email</TableHeadCell>
-                                <TableHeadCell>Display Name</TableHeadCell>
-                                <TableHeadCell>Added</TableHeadCell>
-                                <TableHeadCell>Status</TableHeadCell>
-                                <TableHeadCell>Actions</TableHeadCell>
-                            </TableHead>
-                            <TableBody>
-                                @foreach (var user in _allowedUsers)
-                                {
-                                    <TableRow>
-                                        <TableCell>@user.Email</TableCell>
-                                        <TableCell>@(user.DisplayName ?? "-")</TableCell>
-                                        <TableCell>@user.CreatedAt.ToString("MMM dd, yyyy")</TableCell>
-                                        <TableCell>
-                                            <Badge Color="@(user.IsActive ? BadgeColor.Success : BadgeColor.Gray)">
-                                                @(user.IsActive ? "Active" : "Inactive")
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell>
-                                            <div class="flex gap-2">
-                                                <Button Size="ButtonSize.Small" Color="ButtonColor.Gray" 
-                                                        OnClick="() => ToggleStatus(user)">
-                                                    @(user.IsActive ? "Disable" : "Enable")
-                                                </Button>
-                                                <Button Size="ButtonSize.Small" Color="ButtonColor.Red" 
-                                                        OnClick="() => RemoveUser(user)">
-                                                    Remove
-                                                </Button>
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
-                                }
-                            </TableBody>
-                        </Table>
+                    <div class="text-center py-4 text-gray-500 dark:text-gray-400">
+                        <p class="text-sm">No admins or whitelisted users found.</p>
                     </div>
                 }
             </div>
@@ -127,6 +144,7 @@ else
     private bool _isAdmin;
     private string _currentUserId = string.Empty;
     private List<AllowedUser> _allowedUsers = new();
+    private IReadOnlyCollection<string> _adminEmails = [];
     private string _newEmail = string.Empty;
     private string _newDisplayName = string.Empty;
     private string? _errorMessage;
@@ -143,6 +161,7 @@ else
         
         if (_isAdmin)
         {
+            _adminEmails = AdminService.GetAdminEmails();
             await LoadAllowedUsers();
         }
     }
