@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-01-01
+
+### Added
+- **Sidebar Icon Improvements**
+  - `FlowbiteLogoIcon.razor` - Custom Flowbite logo icon for "Flowbite Blazor" sidebar link
+  - `RobotIcon.razor` - Robot icon for "LLM Tornado" sidebar link (homage to the LLM Tornado SDK)
+  - New sidebar entry linking to https://llmtornado.ai/
+
+### Changed
+- Flowbite Blazor sidebar link now uses official Flowbite logo icon instead of StarIcon
+- Robot icon stroke width reduced to 1 for thinner, more consistent appearance with other icons
+
+### Technical
+- Custom icons inherit from `Flowbite.Base.IconBase` for consistent sizing/styling
+- `FlowbiteLogoIcon` named to avoid conflict with existing `Flowbite.Icons.Extended.FlowbiteIcon`
+
 ## [0.25.0] - 2026-01-01
 
 ### Added

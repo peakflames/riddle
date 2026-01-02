@@ -1,6 +1,7 @@
 @using Microsoft.AspNetCore.Components.Routing
 @using System.Reflection
 @using System.Security.Claims
+@using Riddle.Web.Components.Shared
 @inject IAdminService AdminService
 @inject AuthenticationStateProvider AuthStateProvider
 
@@ -13,24 +14,9 @@
             Dashboard
         </SidebarItem>
 
-        <SidebarItem
-            Href="/sessions"
-            Icon="@(new LayersIcon())">
-            My Sessions
-        </SidebarItem>
-
-        <SidebarItem
-            Href="/sessions/new"
-            Icon="@(new PlusIcon())">
-            New Session
-        </SidebarItem>
 
         <SidebarItemGroup AdditionalClasses="mt-4 mb-4">
-            <SidebarItem
-                Href="/characters"
-                Icon="@(new UsersIcon())">
-                Characters
-            </SidebarItem>
+
 
             <SidebarItem
                 Href="/dm/templates"
@@ -38,11 +24,12 @@
                 Character Templates
             </SidebarItem>
 
-            <SidebarItem
+            @* TODO - DO NOT REMOVE *@
+            @* <SidebarItem
                 Href="/campaigns"
                 Icon="@(new BookOpenIcon())">
                 Campaigns
-            </SidebarItem>
+            </SidebarItem> *@
 
             <SidebarCollapse 
                 Label="Rules Reference"
@@ -79,8 +66,13 @@
             </SidebarItem>
             <SidebarItem
                 Href="https://flowbite-blazor.org"
-                Icon="@(new StarIcon())">
+                Icon="@(new FlowbiteLogoIcon())">
                 Flowbite Blazor
+            </SidebarItem>
+            <SidebarItem
+                Href="https://llmtornado.ai/"
+                Icon="@(new RobotIcon())">
+                LLM Tornado
             </SidebarItem>
             <SidebarItem
                 Href="https://github.com/peakflames/riddle/issues"
