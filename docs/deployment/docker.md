@@ -42,8 +42,9 @@ This guide covers deploying Project Riddle locally using Docker.
          - .env
        volumes:
          - ./data:/app/data
+         - ./appsettings.json:/app/appsettings.json:ro
        healthcheck:
-         test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+         test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
          interval: 30s
          timeout: 10s
          retries: 3
