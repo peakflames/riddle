@@ -198,4 +198,19 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
 ## License
 
-[MIT](LICENSE)
+This project is licensed under the [Creative Commons Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0)](LICENSE.md).
+
+### What This Means
+
+✅ **You CAN:**
+- View, study, and learn from the source code
+- Fork and modify the code for personal or educational use
+- Share your modifications with others (under the same license)
+- Use this project to run games with friends
+
+❌ **You CANNOT:**
+- Use this project for commercial purposes
+- Sell or monetize any derivative works
+- Offer this as a paid service
+
+If you're interested in commercial licensing, please reach out to discuss options.
