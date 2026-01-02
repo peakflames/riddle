@@ -22,10 +22,42 @@ This guide covers deploying Project Riddle locally using Docker.
    # .env
    GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
    GOOGLE_CLIENT_SECRET=your-client-secret
-   OPENROUTER_API_KEY=your-openrouter-api-key
+   OPENROUTER_API_KEY=sk-or-v1-your-openrouter-api-key
    ```
 
-3. **Create `docker-compose.yml`:**
+3. **Create `appsettings.json`** (required - the container needs this file):
+   ```json
+   {
+     "ConnectionStrings": {
+       "DefaultConnection": "Data Source=riddle.db"
+     },
+     "Logging": {
+       "LogLevel": {
+         "Default": "Information",
+         "Microsoft.AspNetCore": "Warning"
+       }
+     },
+     "AllowedHosts": "*",
+     "OpenRouter": {
+       "DefaultModel": "google/gemini-2.0-flash-001",
+       "SiteUrl": "https://your-site.example.com",
+       "SiteName": "Project Riddle"
+     },
+     "AdminSettings": {
+       "AdminEmails": [
+         "your-admin-email@example.com"
+       ]
+     },
+     "WhitelistSettings": {
+       "IsEnabled": false,
+       "RejectionMessage": "This application is currently in private beta. Contact the administrator for access."
+     }
+   }
+   ```
+
+   > **Important:** The `appsettings.json` file is required! The container will fail to start without it. The volume mount maps this file into the container.
+
+4. **Create `docker-compose.yml`:**
    ```yaml
    services:
      riddle:
@@ -44,28 +76,30 @@ This guide covers deploying Project Riddle locally using Docker.
          - ./data:/app/data
          - ./appsettings.json:/app/appsettings.json:ro
        healthcheck:
-         test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+         test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
          interval: 30s
          timeout: 10s
          retries: 3
          start_period: 15s
    ```
 
-4. **Start the container:**
+5. **Start the container:**
    ```bash
    docker compose up -d
    ```
 
-5. **Access the application:** Open http://localhost:1983
+6. **Access the application:** Open http://localhost:1983
 
 > **Why port 1983?** That's the year the Dungeons & Dragons animated TV series debuted!
 
-6. **Stop the container when done:**
+7. **Stop the container when done:**
    ```bash
    docker compose down
    ```
 
 ### Option 2: Docker Run
+
+> **Note:** You still need to create an `appsettings.json` file (see step 3 above) and mount it into the container.
 
 ```bash
 docker run -d \
@@ -78,6 +112,7 @@ docker run -d \
   -e GOOGLE_CLIENT_SECRET=your-client-secret \
   -e OPENROUTER_API_KEY=your-openrouter-api-key \
   -v riddle-data:/app/data \
+  -v ./appsettings.json:/app/appsettings.json:ro \
   peakflames/riddle:latest
 ```
 
@@ -117,10 +152,33 @@ For local development, you need to configure Google OAuth to allow your local ca
 |----------|----------|-------------|
 | `GOOGLE_CLIENT_ID` | Yes | Google OAuth Client ID |
 | `GOOGLE_CLIENT_SECRET` | Yes | Google OAuth Client Secret |
-| `OPENROUTER_API_KEY` | Yes | API key for LLM access |
+| `OPENROUTER_API_KEY` | Yes | API key for LLM access ([Get key](https://openrouter.ai/keys)) |
 | `ASPNETCORE_ENVIRONMENT` | No | Runtime environment (default: `Production`) |
 | `Kestrel__Endpoints__Http__Url` | Yes | Internal listen URL - use `http://+:8080` |
 | `ConnectionStrings__DefaultConnection` | Yes | SQLite database path - use `Data Source=/app/data/riddle.db` |
+
+## Application Settings (appsettings.json)
+
+The `appsettings.json` file is **required** for the container to start. It configures application-specific settings that aren't suitable for environment variables.
+
+| Setting | Description |
+|---------|-------------|
+| `OpenRouter.DefaultModel` | LLM model to use (e.g., `google/gemini-2.0-flash-001`, `anthropic/claude-3.5-sonnet`) |
+| `OpenRouter.SiteUrl` | Your site URL for OpenRouter analytics |
+| `OpenRouter.SiteName` | Display name in OpenRouter dashboard |
+| `AdminSettings.AdminEmails` | Array of email addresses with admin privileges |
+| `WhitelistSettings.IsEnabled` | Set `true` to require users to be whitelisted |
+| `WhitelistSettings.RejectionMessage` | Message shown to non-whitelisted users |
+
+### Available LLM Models
+
+Popular models available through OpenRouter:
+- `google/gemini-2.0-flash-001` - Fast, cost-effective (recommended for most use)
+- `google/gemini-2.5-flash` - Latest Gemini Flash
+- `anthropic/claude-3.5-sonnet` - High quality reasoning
+- `openai/gpt-4o` - OpenAI's latest
+
+See [OpenRouter Models](https://openrouter.ai/models) for the full list.
 
 ## Port Mapping
 
@@ -183,6 +241,7 @@ docker logs riddle
 ```
 
 Common issues:
+- **Missing appsettings.json:** The container requires an `appsettings.json` file mounted at `/app/appsettings.json`. Create one using the template in the Quick Start section.
 - **HTTPS certificate errors:** The container is HTTP-only. Do not configure HTTPS endpoints.
 - **Kestrel binding errors:** Ensure `Kestrel__Endpoints__Http__Url=http://+:8080` is set.
 
