@@ -857,3 +857,48 @@ _hubConnection.On<DeathSavePayload>(GameHubEvents.DeathSaveUpdated, async payloa
 ```
 
 **Key insight:** Any page or component that displays character state from `PartyState` must handle ALL relevant SignalR events that modify that state. There is NO automatic propagation - each SignalR subscriber must handle events independently.
+
+---
+
+## CRITICAL: SignalR Hub Requires [AllowAnonymous] Behind Reverse Proxies
+
+**Problem:** When running Blazor Server app behind a reverse proxy (Cloudflare tunnel, nginx, Traefik), SignalR client connections fail with `403 Forbidden` during negotiation phase.
+
+**Error in logs:**
+```
+System.Net.Http.HttpRequestException: Response status code does not indicate success: 403 (Forbidden).
+   at Microsoft.AspNetCore.Http.Connections.Client.HttpConnection.NegotiateAsync(...)
+```
+
+**Root cause:** SignalR client connections make a **separate HTTP request** for negotiation (POST to `/gamehub/negotiate`). This request:
+1. May not carry cookies correctly through the proxy
+2. May be blocked by anti-forgery middleware (which runs before auth)
+3. May be affected by CORS or other middleware
+
+**Symptom:** App works locally but crashes in Docker/production when navigating to campaign page.
+
+**Fix:** Add `[AllowAnonymous]` attribute to the SignalR Hub:
+
+```csharp
+using Microsoft.AspNetCore.Authorization;
+
+/// <remarks>
+/// AllowAnonymous is required because SignalR client connections make a separate
+/// HTTP request for negotiation that may not include auth cookies/tokens properly,
+/// especially when behind reverse proxies (Cloudflare tunnel).
+/// Authentication is handled at the application layer (Campaign page requires auth).
+/// </remarks>
+[AllowAnonymous]
+public class GameHub : Hub
+```
+
+**Why this is safe:** The pages that connect to the hub (Campaign.razor, Dashboard.razor) already require authentication via `<AuthorizeView>`. The hub itself doesn't need to enforce auth - it just needs to be reachable.
+
+**Alternative (not recommended):** Configure HubConnection with explicit credentials:
+```csharp
+.WithUrl(Navigation.ToAbsoluteUri("/gamehub"), options =>
+{
+    options.AccessTokenProvider = async () => { /* get JWT */ };
+})
+```
+This is more complex and requires switching to JWT-based auth instead of cookies.
