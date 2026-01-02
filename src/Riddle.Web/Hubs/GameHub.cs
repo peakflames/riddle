@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Riddle.Web.Services;
 
@@ -7,6 +8,13 @@ namespace Riddle.Web.Hubs;
 /// Main SignalR hub for real-time game events
 /// Handles campaign sessions, combat, player choices, and connection management
 /// </summary>
+/// <remarks>
+/// AllowAnonymous is required because SignalR client connections make a separate
+/// HTTP request for negotiation that may not include auth cookies/tokens properly,
+/// especially when behind reverse proxies (Cloudflare tunnel).
+/// Authentication is handled at the application layer (Campaign page requires auth).
+/// </remarks>
+[AllowAnonymous]
 public class GameHub : Hub
 {
     private readonly IConnectionTracker _connectionTracker;
