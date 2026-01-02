@@ -470,6 +470,19 @@
     
     // Player choices submitted (from players)
     private List<PlayerChoicePayload> _playerChoicesSubmitted = [];
+    
+    /// <summary>
+    /// Gets the SignalR hub URL. In server-side Blazor, HubConnection runs on the server,
+    /// so we must connect to the internal port (8080) not the external mapped port.
+    /// </summary>
+    private Uri GetSignalRHubUrl()
+    {
+        // Inside Docker/server-side, use internal localhost:8080
+        // The ASPNETCORE_URLS environment variable tells us the internal port
+        // Default to localhost:8080 if running in container
+        var internalUrl = Environment.GetEnvironmentVariable("ASPNETCORE_HTTP_PORTS") ?? "8080";
+        return new Uri($"http://localhost:{internalUrl}/gamehub");
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -576,8 +589,14 @@
     
     private async Task SetupSignalRAsync()
     {
+        // For SignalR connections, use relative path which works in all environments
+        // The HubConnectionBuilder needs an absolute URI, but inside Docker containers
+        // the Navigation.BaseUri might point to external URL (localhost:1983) that isn't reachable
+        // from inside the container. Using the internal Kestrel endpoint (8080) ensures connectivity.
+        var hubUrl = GetSignalRHubUrl();
+        
         _hubConnection = new HubConnectionBuilder()
-            .WithUrl(Navigation.ToAbsoluteUri("/gamehub"))
+            .WithUrl(hubUrl)
             .WithAutomaticReconnect()
             .Build();
         

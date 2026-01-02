@@ -902,3 +902,48 @@ public class GameHub : Hub
 })
 ```
 This is more complex and requires switching to JWT-based auth instead of cookies.
+
+---
+
+## CRITICAL: SignalR HubConnection URL in Docker Containers
+
+**Problem:** In Blazor Server, `HubConnectionBuilder` runs **on the server**, not in the browser. When using `Navigation.ToAbsoluteUri("/gamehub")`, it resolves to the external URL (e.g., `http://localhost:1983/gamehub`), which is:
+1. The Docker port mapping, not the internal container port
+2. Unreachable from inside the container (localhost points to the container itself)
+
+**Error in container logs:**
+```
+System.Net.Http.HttpRequestException: Connection refused (localhost:1983)
+   at Microsoft.AspNetCore.SignalR.Client.HubConnection.StartAsyncCore(...)
+```
+
+**Root cause:** Docker maps `1983:8080`, so:
+- External access: `localhost:1983` → works from host machine
+- Internal access: Container listens on port `8080` internally
+- `Navigation.BaseUri` returns `http://localhost:1983/` (external URL)
+- HubConnection tries to connect to `localhost:1983` from INSIDE container → fails
+
+**Fix:** Use internal port (8080) for SignalR connections:
+
+```csharp
+/// <summary>
+/// Gets the SignalR hub URL. In server-side Blazor, HubConnection runs on the server,
+/// so we must connect to the internal port (8080) not the external mapped port.
+/// </summary>
+private Uri GetSignalRHubUrl()
+{
+    var internalPort = Environment.GetEnvironmentVariable("ASPNETCORE_HTTP_PORTS") ?? "8080";
+    return new Uri($"http://localhost:{internalPort}/gamehub");
+}
+
+// Usage:
+var hubUrl = GetSignalRHubUrl();
+_hubConnection = new HubConnectionBuilder()
+    .WithUrl(hubUrl)
+    .WithAutomaticReconnect()
+    .Build();
+```
+
+**Apply to:** All pages with SignalR connections (Campaign.razor, Dashboard.razor, etc.)
+
+**Why `ASPNETCORE_HTTP_PORTS`:** This env var is set automatically by ASP.NET Core to indicate what port Kestrel listens on. Default is `8080` in Docker.

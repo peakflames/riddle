@@ -370,6 +370,16 @@
     private CancellationTokenSource? _atmospherePulseCts;
     private CancellationTokenSource? _groupInsightCts;
     
+    /// <summary>
+    /// Gets the SignalR hub URL. In server-side Blazor, HubConnection runs on the server,
+    /// so we must connect to the internal port (8080) not the external mapped port.
+    /// </summary>
+    private Uri GetSignalRHubUrl()
+    {
+        var internalPort = Environment.GetEnvironmentVariable("ASPNETCORE_HTTP_PORTS") ?? "8080";
+        return new Uri($"http://localhost:{internalPort}/gamehub");
+    }
+    
     protected override async Task OnInitializedAsync()
     {
         // Subscribe to campaign state changes for real-time updates (rolls, read-aloud, choices)
@@ -446,8 +456,11 @@
     
     private async Task SetupSignalRAsync()
     {
+        // Use internal port for SignalR in server-side Blazor (works in Docker)
+        var hubUrl = GetSignalRHubUrl();
+        
         _hubConnection = new HubConnectionBuilder()
-            .WithUrl(Navigation.ToAbsoluteUri("/gamehub"))
+            .WithUrl(hubUrl)
             .WithAutomaticReconnect()
             .Build();
         

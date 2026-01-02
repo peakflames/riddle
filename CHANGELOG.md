@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.27.1] - 2026-01-02
+
+### Fixed
+- **SignalR HubConnection fails in Docker containers**
+  - Root cause: `Navigation.ToAbsoluteUri("/gamehub")` resolved to external port (e.g., `localhost:1983`) which is unreachable from inside the container
+  - Container listens on port 8080 internally; Docker's port mapping only works from host
+  - Fix: Use `GetSignalRHubUrl()` helper that reads `ASPNETCORE_HTTP_PORTS` env var (default 8080)
+  - Applied to both `Campaign.razor` (DM) and `Player/Dashboard.razor`
+
 ## [0.27.0] - 2026-01-02
 
 ### Changed
