@@ -1,0 +1,270 @@
+@using Riddle.Web.Models
+@using Riddle.Web.Services
+@implements IDisposable
+@inject IAppEventService AppEventService
+
+<div class="h-full flex flex-col @Class">
+    @* Header *@
+    <div class="flex items-center justify-between pb-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+        <h3 class="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <GearIcon Class="mt-1 w-4 h-4" />
+            Event Log
+            <Badge Color="BadgeColor.Gray" Size="BadgeSize.ExtraSmall">@_events.Count</Badge>
+        </h3>
+        @if (_events.Count > 0)
+        {
+            <button type="button" @onclick="HandleClear"
+                class="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">
+                Clear
+            </button>
+        }
+    </div>
+
+    @* Event list (scrollable, full height) *@
+    <div class="flex-1 overflow-y-auto mt-3 min-h-0">
+        @if (_events.Count == 0)
+        {
+            <div class="flex flex-col items-center justify-center h-full text-center py-8">
+                <GearIcon Class="w-12 h-12 text-gray-300 dark:text-gray-600 mb-3" />
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                    No events yet
+                </p>
+                <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                    Send a message to see LLM activity
+                </p>
+            </div>
+        }
+        else
+        {
+            <div class="space-y-1">
+                @foreach (var evt in _events)
+                {
+                    <div class="@GetEventContainerClass(evt)">
+                        @* Row header - always visible *@
+                        <div class="flex items-center gap-2 cursor-pointer" @onclick="() => ToggleExpanded(evt.Id)">
+                            @* Expand indicator *@
+                            <div class="flex-shrink-0 w-4">
+                                @if (_expandedIds.Contains(evt.Id))
+                                {
+                                    <ChevronDownIcon Class="w-3 h-3 text-gray-400" />
+                                }
+                                else
+                                {
+                                    <ChevronRightIcon Class="w-3 h-3 text-gray-400" />
+                                }
+                            </div>
+                            
+                            @* Icon *@
+                            <div class="flex-shrink-0">
+                                @GetEventIcon(evt)
+                            </div>
+                            
+                            @* Type badge *@
+                            <Badge Color="@GetBadgeColor(evt)" Size="BadgeSize.ExtraSmall">
+                                @GetShortType(evt)
+                            </Badge>
+                            
+                            @* Tool name (prominent for tool events) *@
+                            @if (IsToolEvent(evt))
+                            {
+                                <span class="font-mono font-semibold text-xs @GetToolNameClass(evt)">
+                                    @(evt.ToolName ?? ExtractToolName(evt.Message))
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="text-xs text-gray-600 dark:text-gray-400 truncate flex-1">
+                                    @TruncateMessage(evt.Message, 60)
+                                </span>
+                            }
+                            
+                            @* Timestamp *@
+                            <span class="text-xs text-gray-400 dark:text-gray-500 ml-auto flex-shrink-0">
+                                @evt.Timestamp.ToString("HH:mm:ss")
+                            </span>
+                        </div>
+                        
+                        @* Expanded content *@
+                        @if (_expandedIds.Contains(evt.Id))
+                        {
+                            <div class="mt-2 pl-6 border-l-2 @GetBorderClass(evt)">
+                                @* Tool arguments (if tool event) *@
+                                @if (IsToolEvent(evt) && !string.IsNullOrEmpty(evt.ToolArgs))
+                                {
+                                    <div class="mb-2">
+                                        <span class="text-xs font-semibold text-gray-500 dark:text-gray-400">Arguments:</span>
+                                        <pre class="mt-1 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs overflow-x-auto text-gray-700 dark:text-gray-300 whitespace-pre-wrap">@FormatJson(evt.ToolArgs)</pre>
+                                    </div>
+                                }
+                                
+                                @* Message *@
+                                <div class="mb-2">
+                                    <span class="text-xs font-semibold text-gray-500 dark:text-gray-400">Message:</span>
+                                    <p class="@GetMessageClass(evt) text-xs mt-1">@evt.Message</p>
+                                </div>
+                                
+                                @* Details *@
+                                @if (!string.IsNullOrEmpty(evt.Details))
+                                {
+                                    <div>
+                                        <span class="text-xs font-semibold text-gray-500 dark:text-gray-400">Details:</span>
+                                        <pre class="mt-1 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs overflow-x-auto max-h-48 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">@FormatJson(evt.Details)</pre>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public bool Expanded { get; set; } = false;
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    private List<AppEvent> _events = [];
+    private HashSet<Guid> _expandedIds = [];
+
+    protected override void OnInitialized()
+    {
+        _events = AppEventService.GetEvents().ToList();
+        AppEventService.OnEventAdded += OnNewEvent;
+    }
+
+    private void HandleClear()
+    {
+        AppEventService.Clear();
+        _events.Clear();
+        _expandedIds.Clear();
+        StateHasChanged();
+    }
+
+    private void OnNewEvent(AppEvent evt)
+    {
+        InvokeAsync(() =>
+        {
+            _events = AppEventService.GetEvents().ToList();
+            StateHasChanged();
+        });
+    }
+
+    private void ToggleExpanded(Guid id)
+    {
+        if (_expandedIds.Contains(id))
+            _expandedIds.Remove(id);
+        else
+            _expandedIds.Add(id);
+    }
+
+    private bool IsToolEvent(AppEvent evt) => 
+        evt.Type is AppEventType.ToolCall or AppEventType.ToolResult;
+
+    private string ExtractToolName(string message)
+    {
+        // Try to extract tool name from message like "Calling tool: tool_name" or "Tool: tool_name"
+        if (message.Contains(':'))
+        {
+            var parts = message.Split(':');
+            if (parts.Length >= 2)
+                return parts[1].Trim().Split(' ')[0].Trim();
+        }
+        return message.Length > 30 ? message[..30] + "..." : message;
+    }
+
+    private string TruncateMessage(string message, int maxLength)
+    {
+        if (string.IsNullOrEmpty(message)) return "";
+        return message.Length > maxLength ? message[..maxLength] + "..." : message;
+    }
+
+    private string FormatJson(string? json)
+    {
+        if (string.IsNullOrEmpty(json)) return "";
+        try
+        {
+            // Try to pretty-print JSON
+            var obj = System.Text.Json.JsonDocument.Parse(json);
+            return System.Text.Json.JsonSerializer.Serialize(obj, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        }
+        catch
+        {
+            return json;
+        }
+    }
+
+    private string GetShortType(AppEvent evt) => evt.Type switch
+    {
+        AppEventType.LlmRequest => "REQ",
+        AppEventType.LlmResponse => "RES",
+        AppEventType.ToolCall => "TOOL",
+        AppEventType.ToolResult => "RESULT",
+        AppEventType.StateUpdate => "STATE",
+        AppEventType.TokenUsage => "TOKENS",
+        AppEventType.Error => "ERROR",
+        _ => evt.Type.ToString()
+    };
+
+    private RenderFragment GetEventIcon(AppEvent evt) => evt.Type switch
+    {
+        AppEventType.LlmRequest => @<ForwardIcon Class="w-4 h-4 text-blue-500" />,
+        AppEventType.LlmResponse => @<EnvelopeIcon Class="w-4 h-4 text-green-500" />,
+        AppEventType.ToolCall => @<GearIcon Class="w-4 h-4 text-purple-500" />,
+        AppEventType.ToolResult => @<CheckCircleIcon Class="w-4 h-4 text-teal-500" />,
+        AppEventType.StateUpdate => @<RefreshIcon Class="w-4 h-4 text-yellow-500" />,
+        AppEventType.TokenUsage => @<DollarIcon Class="w-4 h-4 text-orange-500" />,
+        AppEventType.Error => @<ExclamationTriangleIcon Class="w-4 h-4 text-red-500" />,
+        _ => @<InfoCircleIcon Class="w-4 h-4 text-gray-500" />
+    };
+
+    private BadgeColor GetBadgeColor(AppEvent evt) => evt.IsError ? BadgeColor.Pink : evt.Type switch
+    {
+        AppEventType.LlmRequest => BadgeColor.Info,
+        AppEventType.LlmResponse => BadgeColor.Success,
+        AppEventType.ToolCall => BadgeColor.Purple,
+        AppEventType.ToolResult => BadgeColor.Info,
+        AppEventType.StateUpdate => BadgeColor.Warning,
+        AppEventType.TokenUsage => BadgeColor.Warning,
+        AppEventType.Error => BadgeColor.Pink,
+        _ => BadgeColor.Gray
+    };
+
+    private string GetEventContainerClass(AppEvent evt) =>
+        evt.IsError
+            ? "p-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
+            : evt.Type switch
+            {
+                AppEventType.ToolCall => "p-2 rounded-lg bg-purple-50/50 dark:bg-purple-900/10 border border-purple-200/50 dark:border-purple-800/30",
+                AppEventType.ToolResult => "p-2 rounded-lg bg-teal-50/50 dark:bg-teal-900/10 border border-teal-200/50 dark:border-teal-800/30",
+                _ => "p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50"
+            };
+
+    private string GetBorderClass(AppEvent evt) => evt.Type switch
+    {
+        AppEventType.ToolCall => "border-purple-300 dark:border-purple-700",
+        AppEventType.ToolResult => "border-teal-300 dark:border-teal-700",
+        AppEventType.Error => "border-red-300 dark:border-red-700",
+        _ => "border-gray-300 dark:border-gray-600"
+    };
+
+    private string GetToolNameClass(AppEvent evt) => evt.Type switch
+    {
+        AppEventType.ToolCall => "text-purple-700 dark:text-purple-400",
+        AppEventType.ToolResult => "text-teal-700 dark:text-teal-400",
+        _ => "text-gray-700 dark:text-gray-300"
+    };
+
+    private string GetMessageClass(AppEvent evt) =>
+        evt.IsError
+            ? "text-red-700 dark:text-red-400"
+            : "text-gray-700 dark:text-gray-300";
+
+    public void Dispose()
+    {
+        AppEventService.OnEventAdded -= OnNewEvent;
+    }
+}
