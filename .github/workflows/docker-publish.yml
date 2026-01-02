@@ -63,10 +63,11 @@ jobs:
         run: |
           # Use ContainerImageTags (plural) to push all tags in single operation
           # .NET SDK container publish pushes directly to registry (no local image)
+          # Note: semicolon must be escaped to avoid bash interpretation
           dotnet publish src/Riddle.Web/Riddle.Web.csproj \
             --configuration Release \
             -r linux-x64 \
-            -p ContainerImageTags="${{ steps.tags.outputs.tags }}" \
+            "-p:ContainerImageTags=${{ steps.tags.outputs.tags }}" \
             /t:PublishContainer
 
       - name: Image digest
