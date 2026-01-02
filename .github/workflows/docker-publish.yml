@@ -44,13 +44,14 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Determine image tag
+      - name: Determine image tags
         id: tags
         run: |
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             # For main branch: latest + version tag from csproj
+            # ContainerImageTags uses semicolon-separated values
             VERSION=$(grep -oP '(?<=<Version>)[^<]+' src/Riddle.Web/Riddle.Web.csproj)
-            echo "tags=latest,v${VERSION}" >> $GITHUB_OUTPUT
+            echo "tags=latest;v${VERSION}" >> $GITHUB_OUTPUT
             echo "primary_tag=latest" >> $GITHUB_OUTPUT
           else
             # For develop branch: develop tag only
@@ -60,23 +61,14 @@ jobs:
 
       - name: Build and push container image
         run: |
-          IFS=',' read -ra TAGS <<< "${{ steps.tags.outputs.tags }}"
-          
-          # Build and push with first tag
+          # Use ContainerImageTags (plural) to push all tags in single operation
+          # .NET SDK container publish pushes directly to registry (no local image)
           dotnet publish src/Riddle.Web/Riddle.Web.csproj \
             --configuration Release \
             -r linux-x64 \
-            -p ContainerImageTag="${TAGS[0]}" \
+            -p ContainerImageTags="${{ steps.tags.outputs.tags }}" \
             /t:PublishContainer
-          
-          # Push additional tags if any
-          for i in "${!TAGS[@]}"; do
-            if [ $i -gt 0 ]; then
-              docker tag ${{ env.IMAGE_NAME }}:${TAGS[0]} ${{ env.IMAGE_NAME }}:${TAGS[$i]}
-              docker push ${{ env.IMAGE_NAME }}:${TAGS[$i]}
-            fi
-          done
 
       - name: Image digest
         run: |
-          echo "Image pushed: ${{ env.IMAGE_NAME }}:${{ steps.tags.outputs.primary_tag }}"
+          echo "Image pushed: ${{ env.IMAGE_NAME }} with tags: ${{ steps.tags.outputs.tags }}"
