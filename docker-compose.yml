@@ -1,11 +1,12 @@
 # Project Riddle - Local Docker Deployment
 # 
 # Usage:
-#   1. Copy this file or use it directly
-#   2. Set required environment variables (see .env.example)
-#   3. Run: docker-compose up -d
+#   1. Create a .env file with required credentials (see docs/deployment/docker.md)
+#   2. Run: docker compose up -d
+#   3. Access at: http://localhost:1983
 #
-# For more details, see docs/deployment/local-docker.md
+# Why port 1983? That's the year the D&D animated series debuted!
+# For more details, see docs/deployment/docker.md
 
 services:
   riddle:
@@ -13,30 +14,21 @@ services:
     container_name: riddle
     restart: unless-stopped
     ports:
-      - "5000:5000"
+      - "1983:8080"
     environment:
-      # Required: Google OAuth credentials
-      # Get from: https://console.cloud.google.com/apis/credentials
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      
-      # Required: OpenRouter API key for LLM access
-      # Get from: https://openrouter.ai/keys
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      
-      # Optional: Override default settings
-      # - ASPNETCORE_ENVIRONMENT=Production
-      # - ASPNETCORE_URLS=http://+:5000
+      - ASPNETCORE_ENVIRONMENT=Production
+      # Kestrel HTTP configuration (container is HTTP-only)
+      - Kestrel__Endpoints__Http__Url=http://+:8080
+      # Database connection - SQLite in mounted volume
+      - ConnectionStrings__DefaultConnection=Data Source=/app/data/riddle.db
+    env_file:
+      - .env
     volumes:
       # Persist SQLite database across container restarts
-      - riddle-data:/app
+      - ./data:/app/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
-
-volumes:
-  riddle-data:
-    driver: local
+      start_period: 15s
