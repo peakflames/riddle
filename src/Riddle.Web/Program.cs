@@ -150,6 +150,9 @@ builder.Services.AddScoped<ICombatService, CombatService>();
 // SignalR notification service for broadcasting events to campaign participants
 builder.Services.AddScoped<INotificationService, NotificationService>();
 
+// Health checks for container orchestration
+builder.Services.AddHealthChecks();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -182,6 +185,9 @@ if (!app.Environment.IsEnvironment("Testing"))
 
 // Map SignalR hub for real-time game events
 app.MapHub<GameHub>("/gamehub");
+
+// Health check endpoint for container orchestration (Docker, Kubernetes)
+app.MapHealthChecks("/health");
 
 // Ensure database is created (skip during integration testing to avoid provider conflicts)
 if (!app.Environment.IsEnvironment("Testing"))

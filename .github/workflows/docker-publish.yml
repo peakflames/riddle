@@ -65,6 +65,7 @@ jobs:
           # Build and push with first tag
           dotnet publish src/Riddle.Web/Riddle.Web.csproj \
             --configuration Release \
+            -r linux-x64 \
             -p ContainerImageTag="${TAGS[0]}" \
             /t:PublishContainer
           

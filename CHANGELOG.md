@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-01-01
+
+### Added
+- **Docker Container Health Check**
+  - `/health` endpoint for container orchestration (Docker, Kubernetes)
+  - ASP.NET Core health checks middleware integration
+  - Health check configuration in docker-compose.yml
+
+- **Docker Deployment Documentation**
+  - `docs/deployment/docker.md` comprehensive deployment guide
+  - Local Docker deployment with Docker Compose
+  - Docker Hub image: `peakflames/riddle:develop` (develop branch) and `peakflames/riddle:latest` (main branch)
+  - Environment variable configuration for Google OAuth and OpenRouter API
+
+### Changed
+- RuntimeIdentifier removed from csproj (now set via CLI `-r linux-x64` for container builds only)
+- GitHub Actions workflow updated to pass RuntimeIdentifier on container publish
+- Local development builds now target native platform (Windows on Windows)
+
+### Technical
+- GitHub Actions workflow `.github/workflows/docker-publish.yml` for automated Docker Hub publishing
+- MSBuild SDK container support (`Microsoft.NET.Build.Containers`)
+- Container exposes port 8080 internally, configurable external mapping
+
 ## [0.23.0] - 2026-01-01
 
 ### Added
