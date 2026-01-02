@@ -48,28 +48,72 @@ jobs:
         id: tags
         run: |
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            # For main branch: latest + version tag from csproj
-            # ContainerImageTags uses semicolon-separated values
+            # For main branch: latest + version tag
             VERSION=$(grep -oP '(?<=<Version>)[^<]+' src/Riddle.Web/Riddle.Web.csproj)
-            echo "tags=latest;v${VERSION}" >> $GITHUB_OUTPUT
             echo "primary_tag=latest" >> $GITHUB_OUTPUT
+            echo "version_tag=v${VERSION}" >> $GITHUB_OUTPUT
+            echo "has_version_tag=true" >> $GITHUB_OUTPUT
           else
             # For develop branch: develop tag only
-            echo "tags=develop" >> $GITHUB_OUTPUT
             echo "primary_tag=develop" >> $GITHUB_OUTPUT
+            echo "has_version_tag=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Build and push container image
+      - name: Build and push linux-x64 image
         run: |
-          # Use ContainerImageTags (plural) to push all tags in single operation
-          # .NET SDK container publish pushes directly to registry (no local image)
-          # Wrap in single quotes to prevent bash expansion, preserve double quotes for MSBuild
           dotnet publish src/Riddle.Web/Riddle.Web.csproj \
             --configuration Release \
             -r linux-x64 \
-            -p:ContainerImageTags='"${{ steps.tags.outputs.tags }}"' \
+            -p:ContainerImageTag="${{ steps.tags.outputs.primary_tag }}-amd64" \
             /t:PublishContainer
+
+      - name: Build and push linux-arm64 image
+        run: |
+          dotnet publish src/Riddle.Web/Riddle.Web.csproj \
+            --configuration Release \
+            -r linux-arm64 \
+            -p:ContainerImageTag="${{ steps.tags.outputs.primary_tag }}-arm64" \
+            /t:PublishContainer
+
+      - name: Create and push multi-arch manifest
+        run: |
+          PRIMARY_TAG="${{ steps.tags.outputs.primary_tag }}"
+          
+          # Create manifest for primary tag (latest or develop)
+          docker manifest create ${{ env.IMAGE_NAME }}:${PRIMARY_TAG} \
+            ${{ env.IMAGE_NAME }}:${PRIMARY_TAG}-amd64 \
+            ${{ env.IMAGE_NAME }}:${PRIMARY_TAG}-arm64
+          
+          # Annotate with platform info
+          docker manifest annotate ${{ env.IMAGE_NAME }}:${PRIMARY_TAG} \
+            ${{ env.IMAGE_NAME }}:${PRIMARY_TAG}-amd64 --os linux --arch amd64
+          docker manifest annotate ${{ env.IMAGE_NAME }}:${PRIMARY_TAG} \
+            ${{ env.IMAGE_NAME }}:${PRIMARY_TAG}-arm64 --os linux --arch arm64
+          
+          docker manifest push ${{ env.IMAGE_NAME }}:${PRIMARY_TAG}
+
+      - name: Create and push version tag manifest (main branch only)
+        if: steps.tags.outputs.has_version_tag == 'true'
+        run: |
+          PRIMARY_TAG="${{ steps.tags.outputs.primary_tag }}"
+          VERSION_TAG="${{ steps.tags.outputs.version_tag }}"
+          
+          # Create manifest for version tag
+          docker manifest create ${{ env.IMAGE_NAME }}:${VERSION_TAG} \
+            ${{ env.IMAGE_NAME }}:${PRIMARY_TAG}-amd64 \
+            ${{ env.IMAGE_NAME }}:${PRIMARY_TAG}-arm64
+          
+          docker manifest annotate ${{ env.IMAGE_NAME }}:${VERSION_TAG} \
+            ${{ env.IMAGE_NAME }}:${PRIMARY_TAG}-amd64 --os linux --arch amd64
+          docker manifest annotate ${{ env.IMAGE_NAME }}:${VERSION_TAG} \
+            ${{ env.IMAGE_NAME }}:${PRIMARY_TAG}-arm64 --os linux --arch arm64
+          
+          docker manifest push ${{ env.IMAGE_NAME }}:${VERSION_TAG}
 
       - name: Image digest
         run: |
-          echo "Image pushed: ${{ env.IMAGE_NAME }} with tags: ${{ steps.tags.outputs.tags }}"
+          echo "Images pushed for ${{ env.IMAGE_NAME }}:"
+          echo "  - ${{ steps.tags.outputs.primary_tag }} (multi-arch: amd64, arm64)"
+          if [[ "${{ steps.tags.outputs.has_version_tag }}" == "true" ]]; then
+            echo "  - ${{ steps.tags.outputs.version_tag }} (multi-arch: amd64, arm64)"
+          fi
