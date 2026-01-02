@@ -1,0 +1,42 @@
+# Project Riddle - Local Docker Deployment
+# 
+# Usage:
+#   1. Copy this file or use it directly
+#   2. Set required environment variables (see .env.example)
+#   3. Run: docker-compose up -d
+#
+# For more details, see docs/deployment/local-docker.md
+
+services:
+  riddle:
+    image: peakflames/riddle:latest
+    container_name: riddle
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      # Required: Google OAuth credentials
+      # Get from: https://console.cloud.google.com/apis/credentials
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      
+      # Required: OpenRouter API key for LLM access
+      # Get from: https://openrouter.ai/keys
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      
+      # Optional: Override default settings
+      # - ASPNETCORE_ENVIRONMENT=Production
+      # - ASPNETCORE_URLS=http://+:5000
+    volumes:
+      # Persist SQLite database across container restarts
+      - riddle-data:/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  riddle-data:
+    driver: local
