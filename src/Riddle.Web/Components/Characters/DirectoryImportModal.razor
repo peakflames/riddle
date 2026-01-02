@@ -1,0 +1,301 @@
+@using Riddle.Web.Models
+
+<Modal Show="@Show" ShowChanged="@ShowChanged" Size="ModalSize.Large">
+    <ModalHeader>
+        <h3>Import Multiple Templates</h3>
+    </ModalHeader>
+    <ModalBody>
+        <div class="space-y-4">
+            @* Visibility toggle *@
+            <div class="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h4 class="font-semibold text-gray-900 dark:text-white">Template Visibility</h4>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">All imported templates will have this visibility setting</p>
+                    </div>
+                    <ToggleSwitch @bind-Checked="_isPublic" Label="@(_isPublic ? "Public" : "Private")" />
+                </div>
+            </div>
+            
+            @* File selection *@
+            <div>
+                <Label For="fileInput" Value="Select JSON Files" Class="mb-2" />
+                <div class="flex items-center justify-center w-full">
+                    <label for="fileInput" class="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:hover:border-gray-500">
+                        <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                            <svg class="w-8 h-8 mb-3 text-gray-500 dark:text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
+                                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/>
+                            </svg>
+                            <p class="mb-2 text-sm text-gray-500 dark:text-gray-400">
+                                <span class="font-semibold">Click to select files</span> or drag and drop
+                            </p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">JSON files only (*.json)</p>
+                        </div>
+                        <InputFile id="fileInput" OnChange="@HandleFileSelection" multiple accept=".json" class="hidden" />
+                    </label>
+                </div>
+            </div>
+            
+            @* Selected files list *@
+            @if (_selectedFiles.Count > 0)
+            {
+                <div class="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                    <div class="flex items-center justify-between mb-2">
+                        <h4 class="font-semibold text-gray-900 dark:text-white">Selected Files (@_selectedFiles.Count)</h4>
+                        <Button Color="ButtonColor.Light" Size="ButtonSize.Small" OnClick="@ClearSelection">
+                            Clear
+                        </Button>
+                    </div>
+                    <div class="max-h-40 overflow-y-auto space-y-1">
+                        @foreach (var file in _selectedFiles)
+                        {
+                            <div class="flex items-center text-sm text-gray-600 dark:text-gray-300">
+                                <svg class="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                </svg>
+                                <span class="truncate">@file.Name</span>
+                                <span class="ml-2 text-gray-400">(@FormatFileSize(file.Size))</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            
+            @* Import progress *@
+            @if (_isImporting)
+            {
+                <div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                    <div class="flex items-center mb-2">
+                        <Spinner Size="SpinnerSize.Sm" Class="mr-2" />
+                        <span class="text-blue-700 dark:text-blue-300">Importing files... (@_importedCount / @_selectedFiles.Count)</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700">
+                        <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: @(_selectedFiles.Count > 0 ? (int)((double)_importedCount / _selectedFiles.Count * 100) : 0)%"></div>
+                    </div>
+                </div>
+            }
+            
+            @* Results summary *@
+            @if (_importComplete)
+            {
+                <div class="space-y-3">
+                    @if (_successCount > 0)
+                    {
+                        <Alert Color="AlertColor.Success" Icon="@(new CheckCircleIcon())">
+                            <CustomContent>
+                                <span><strong>@_successCount</strong> template(s) imported successfully</span>
+                            </CustomContent>
+                        </Alert>
+                    }
+                    
+                    @if (_failureCount > 0)
+                    {
+                        <Alert Color="AlertColor.Failure" Icon="@(new CloseCircleIcon())">
+                            <CustomContent>
+                                <span><strong>@_failureCount</strong> file(s) failed to import</span>
+                            </CustomContent>
+                            <AdditionalContent>
+                                @if (_errors.Count > 0)
+                                {
+                                    <div class="text-sm mt-2 space-y-1 max-h-32 overflow-y-auto">
+                                        @foreach (var error in _errors)
+                                        {
+                                            <div>• @error</div>
+                                        }
+                                    </div>
+                                }
+                            </AdditionalContent>
+                        </Alert>
+                    }
+                </div>
+            }
+            
+            @* Error message for file reading *@
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <Alert Color="AlertColor.Failure" Icon="@(new ExclamationTriangleIcon())" TextEmphasis="Error:" Text="@_errorMessage" />
+            }
+        </div>
+    </ModalBody>
+    <ModalFooter>
+        <div class="flex justify-end w-full gap-2">
+            <Button Color="ButtonColor.Gray" OnClick="@HandleClose">
+                @(_importComplete ? "Close" : "Cancel")
+            </Button>
+            @if (!_importComplete)
+            {
+                <Button Color="ButtonColor.Primary" OnClick="@HandleImport" Disabled="@(_isImporting || _selectedFiles.Count == 0)">
+                    @if (_isImporting)
+                    {
+                        <Spinner Size="SpinnerSize.Sm" Class="mr-2" />
+                        <span>Importing...</span>
+                    }
+                    else
+                    {
+                        <span>Import @(_selectedFiles.Count) File(s)</span>
+                    }
+                </Button>
+            }
+        </div>
+    </ModalFooter>
+</Modal>
+
+@code {
+    [Parameter] public bool Show { get; set; }
+    [Parameter] public EventCallback<bool> ShowChanged { get; set; }
+    [Parameter] public EventCallback<(IEnumerable<(string FileName, string Json)> Files, bool IsPublic)> OnImport { get; set; }
+    [Parameter] public EventCallback OnImportComplete { get; set; }
+    
+    private List<IBrowserFile> _selectedFiles = new();
+    private bool _isPublic = true;
+    private string? _errorMessage;
+    private bool _isImporting;
+    private bool _importComplete;
+    private int _importedCount;
+    private int _successCount;
+    private int _failureCount;
+    private List<string> _errors = new();
+    private bool _wasShown;
+    
+    // Max file size: 1MB (should be plenty for JSON character files)
+    private const long MaxFileSize = 1024 * 1024;
+    
+    protected override void OnParametersSet()
+    {
+        // Reset state when modal opens
+        if (Show && !_wasShown)
+        {
+            ResetState();
+        }
+        _wasShown = Show;
+    }
+    
+    private void ResetState()
+    {
+        _selectedFiles.Clear();
+        _isPublic = true;
+        _errorMessage = null;
+        _isImporting = false;
+        _importComplete = false;
+        _importedCount = 0;
+        _successCount = 0;
+        _failureCount = 0;
+        _errors.Clear();
+    }
+    
+    private void HandleFileSelection(InputFileChangeEventArgs e)
+    {
+        _errorMessage = null;
+        _selectedFiles.Clear();
+        
+        foreach (var file in e.GetMultipleFiles(100)) // Max 100 files
+        {
+            if (file.Name.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+            {
+                _selectedFiles.Add(file);
+            }
+        }
+        
+        if (_selectedFiles.Count == 0 && e.FileCount > 0)
+        {
+            _errorMessage = "No JSON files found in selection. Please select .json files.";
+        }
+    }
+    
+    private void ClearSelection()
+    {
+        _selectedFiles.Clear();
+        _errorMessage = null;
+    }
+    
+    private async Task HandleImport()
+    {
+        if (_selectedFiles.Count == 0)
+        {
+            _errorMessage = "Please select at least one JSON file.";
+            return;
+        }
+        
+        _errorMessage = null;
+        _isImporting = true;
+        _importedCount = 0;
+        StateHasChanged();
+        
+        try
+        {
+            // Read all files first
+            var files = new List<(string FileName, string Json)>();
+            
+            foreach (var file in _selectedFiles)
+            {
+                try
+                {
+                    using var stream = file.OpenReadStream(MaxFileSize);
+                    using var reader = new StreamReader(stream);
+                    var json = await reader.ReadToEndAsync();
+                    files.Add((file.Name, json));
+                    _importedCount++;
+                    StateHasChanged();
+                }
+                catch (Exception ex)
+                {
+                    _errors.Add($"{file.Name}: Failed to read file - {ex.Message}");
+                    _failureCount++;
+                }
+            }
+            
+            // Invoke the import callback - parent will handle the actual import
+            if (files.Count > 0)
+            {
+                await OnImport.InvokeAsync((files, _isPublic));
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Import failed: {ex.Message}";
+        }
+        finally
+        {
+            _isImporting = false;
+        }
+    }
+    
+    private void HandleClose()
+    {
+        if (_importComplete)
+        {
+            OnImportComplete.InvokeAsync();
+        }
+        ShowChanged.InvokeAsync(false);
+    }
+    
+    /// <summary>
+    /// Called by parent to report batch import results.
+    /// </summary>
+    public void SetResults(int successCount, int failureCount, List<string> errors)
+    {
+        _successCount = successCount;
+        _failureCount += failureCount;
+        _errors.AddRange(errors);
+        _importComplete = true;
+        _isImporting = false;
+        StateHasChanged();
+    }
+    
+    /// <summary>
+    /// Called by parent to show an error without closing the modal.
+    /// </summary>
+    public void ShowError(string message)
+    {
+        _errorMessage = message;
+        _isImporting = false;
+        StateHasChanged();
+    }
+    
+    private static string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes / (1024.0 * 1024.0):F1} MB";
+    }
+}

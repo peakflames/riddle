@@ -85,6 +85,20 @@ public interface ICharacterTemplateService
     /// <returns>Number of templates imported</returns>
     Task<int> ImportAllSystemTemplatesAsync(CancellationToken ct = default);
     
+    /// <summary>
+    /// Import multiple character templates from JSON strings (batch import).
+    /// Each file is processed individually, with failures not blocking other imports.
+    /// </summary>
+    /// <param name="files">Collection of (FileName, JsonContent) tuples</param>
+    /// <param name="ownerId">User ID of owner for all imported templates</param>
+    /// <param name="isPublic">Whether imported templates should be publicly visible</param>
+    /// <returns>Tuple of (SuccessCount, FailureCount, ErrorMessages)</returns>
+    Task<(int SuccessCount, int FailureCount, List<string> Errors)> ImportMultipleFromJsonAsync(
+        IEnumerable<(string FileName, string Json)> files, 
+        string ownerId, 
+        bool isPublic = true, 
+        CancellationToken ct = default);
+    
     // ========================================
     // CRUD Methods
     // ========================================

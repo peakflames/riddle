@@ -243,6 +243,43 @@ public class CharacterTemplateService : ICharacterTemplateService
         return importedCount;
     }
 
+    public async Task<(int SuccessCount, int FailureCount, List<string> Errors)> ImportMultipleFromJsonAsync(
+        IEnumerable<(string FileName, string Json)> files,
+        string ownerId,
+        bool isPublic = true,
+        CancellationToken ct = default)
+    {
+        var successCount = 0;
+        var failureCount = 0;
+        var errors = new List<string>();
+
+        foreach (var (fileName, json) in files)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var result = await ImportFromJsonStringAsync(json, ownerId, isPublic, ct);
+            
+            if (result.Success)
+            {
+                successCount++;
+                _logger.LogInformation("Batch import succeeded: {FileName} -> {TemplateName}", 
+                    fileName, result.Template?.Name);
+            }
+            else
+            {
+                failureCount++;
+                var errorMsg = $"{fileName}: {result.ErrorMessage}";
+                errors.Add(errorMsg);
+                _logger.LogWarning("Batch import failed: {Error}", errorMsg);
+            }
+        }
+
+        _logger.LogInformation("Batch import complete: {Success} succeeded, {Failed} failed", 
+            successCount, failureCount);
+        
+        return (successCount, failureCount, errors);
+    }
+
     // ========================================
     // CRUD Methods
     // ========================================

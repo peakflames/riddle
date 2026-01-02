@@ -33,6 +33,12 @@
                 </svg>
                 Import JSON
             </Button>
+            <Button Color="ButtonColor.Light" OnClick="@(() => _showDirectoryImportModal = true)">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+                </svg>
+                Import Files
+            </Button>
             <Button Color="ButtonColor.Primary" OnClick="@OpenCreateModal">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
@@ -187,6 +193,12 @@
                  OnImport="@HandleJsonImport"
                  OnViewSchema="@(() => _showSchemaModal = true)" />
 
+@* Directory Import Modal *@
+<DirectoryImportModal @bind-Show="_showDirectoryImportModal" 
+                      @ref="_directoryImportModalRef"
+                      OnImport="@HandleDirectoryImport"
+                      OnImportComplete="@HandleDirectoryImportComplete" />
+
 @* Schema Viewer Modal *@
 <SchemaViewerModal @bind-Show="_showSchemaModal" />
 
@@ -232,6 +244,10 @@
     // JSON Import modal
     private bool _showJsonImportModal;
     private JsonImportModal? _jsonImportModalRef;
+    
+    // Directory Import modal
+    private bool _showDirectoryImportModal;
+    private DirectoryImportModal? _directoryImportModalRef;
     
     // Schema viewer modal
     private bool _showSchemaModal;
@@ -432,6 +448,35 @@
         {
             _jsonImportModalRef?.ShowError(result.ErrorMessage ?? "Import failed.");
         }
+    }
+
+    private async Task HandleDirectoryImport((IEnumerable<(string FileName, string Json)> Files, bool IsPublic) data)
+    {
+        if (_currentUserId == null)
+        {
+            _directoryImportModalRef?.ShowError("User not authenticated.");
+            return;
+        }
+        
+        try
+        {
+            var (successCount, failureCount, errors) = await TemplateService.ImportMultipleFromJsonAsync(
+                data.Files, 
+                _currentUserId, 
+                data.IsPublic);
+            
+            _directoryImportModalRef?.SetResults(successCount, failureCount, errors);
+        }
+        catch (Exception ex)
+        {
+            _directoryImportModalRef?.ShowError($"Import failed: {ex.Message}");
+        }
+    }
+    
+    private async Task HandleDirectoryImportComplete()
+    {
+        // Refresh the templates list after import is complete
+        await LoadTemplatesAsync();
     }
 
     private void ConfirmDelete(CharacterTemplate template)

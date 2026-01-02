@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-01-01
+
+### Added
+- **Multi-File Template Import**
+  - "Import Files" button on Character Templates page for batch import
+  - `DirectoryImportModal.razor` component with drag-and-drop file picker UI
+  - Multi-file selection using Blazor `InputFile` with `multiple` attribute
+  - Public/Private visibility toggle for all imported templates
+  - File list preview with sizes and clear button
+  - Progress bar during import with success/failure count summary
+  - Error details for any failed imports
+  - `ImportMultipleFromJsonAsync` service method with batch processing
+  - Upsert pattern (creates or updates based on Name + OwnerId uniqueness)
+
+### Technical
+- `ICharacterTemplateService.ImportMultipleFromJsonAsync()` returns `BatchImportResult` record
+- `BatchImportResult` contains SuccessCount, FailureCount, and Errors list
+- Max 100 files per import, 1MB file size limit per file
+- JSON validation with detailed error messages per file
+
 ## [0.24.0] - 2026-01-01
 
 ### Added
