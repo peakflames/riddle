@@ -145,6 +145,40 @@ namespace Riddle.Web.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("Riddle.Web.Models.AllowedUser", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AddedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DisplayName")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique();
+
+                    b.HasIndex("IsActive");
+
+                    b.ToTable("AllowedUsers");
+                });
+
             modelBuilder.Entity("Riddle.Web.Models.ApplicationUser", b =>
                 {
                     b.Property<string>("Id")
@@ -344,6 +378,9 @@ namespace Riddle.Web.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsPublic")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int?>("Level")
                         .HasColumnType("INTEGER");

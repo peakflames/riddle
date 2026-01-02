@@ -1,0 +1,82 @@
+name: Build and Publish Docker Image
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+
+env:
+  REGISTRY: docker.io
+  IMAGE_NAME: peakflames/riddle
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install pip dependencies
+        run: pip install psutil
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build project with build.py
+        run: python build.py build
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Determine image tag
+        id: tags
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            # For main branch: latest + version tag from csproj
+            VERSION=$(grep -oP '(?<=<Version>)[^<]+' src/Riddle.Web/Riddle.Web.csproj)
+            echo "tags=latest,v${VERSION}" >> $GITHUB_OUTPUT
+            echo "primary_tag=latest" >> $GITHUB_OUTPUT
+          else
+            # For develop branch: develop tag only
+            echo "tags=develop" >> $GITHUB_OUTPUT
+            echo "primary_tag=develop" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build and push container image
+        run: |
+          IFS=',' read -ra TAGS <<< "${{ steps.tags.outputs.tags }}"
+          
+          # Build and push with first tag
+          dotnet publish src/Riddle.Web/Riddle.Web.csproj \
+            --configuration Release \
+            -r linux-x64 \
+            -p ContainerImageTag="${TAGS[0]}" \
+            /t:PublishContainer
+          
+          # Push additional tags if any
+          for i in "${!TAGS[@]}"; do
+            if [ $i -gt 0 ]; then
+              docker tag ${{ env.IMAGE_NAME }}:${TAGS[0]} ${{ env.IMAGE_NAME }}:${TAGS[$i]}
+              docker push ${{ env.IMAGE_NAME }}:${TAGS[$i]}
+            fi
+          done
+
+      - name: Image digest
+        run: |
+          echo "Image pushed: ${{ env.IMAGE_NAME }}:${{ steps.tags.outputs.primary_tag }}"

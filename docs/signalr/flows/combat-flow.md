@@ -106,9 +106,9 @@ sequenceDiagram
     
     Service->>Service: Increment CurrentTurnIndex<br/>Wrap to 0 if end of order<br/>Increment RoundNumber if wrapped
     
-    Service->>NS: NotifyTurnAdvancedAsync(<br/>campaignId, newIndex,<br/>currentCombatantId, roundNumber)
+    Service->>NS: NotifyTurnAdvancedAsync(<br/>campaignId, TurnAdvancedPayload)
     
-    NS->>Hub: Clients.Group("campaign_{id}_all")<br/>.SendAsync("TurnAdvanced",<br/>newIndex, combatantId, roundNumber)
+    NS->>Hub: Clients.Group("campaign_{id}_all")<br/>.SendAsync("TurnAdvanced", payload)
     
     par Broadcast to all clients
         Hub-->>DM: TurnAdvanced event
@@ -121,35 +121,41 @@ sequenceDiagram
     CT->>CT: Move highlight in turn order
 ```
 
-### TurnAdvanced Parameters
-
-Unlike other events, `TurnAdvanced` uses positional parameters instead of a payload record:
+### TurnAdvancedPayload
 
 ```csharp
-// Server sends:
+public record TurnAdvancedPayload(
+    int NewTurnIndex,           // 0-based position in turn order
+    string CurrentCombatantId,  // ID of combatant whose turn it is
+    int RoundNumber             // Current round number
+);
+```
+
+### Server-Side Sending
+
+```csharp
+// Server sends (NotificationService):
 await _hubContext.Clients.Group(AllGroup(campaignId))
     .SendAsync(GameHubEvents.TurnAdvanced, 
-        newTurnIndex,        // int: 0-based position in turn order
-        currentCombatantId,  // string: ID of combatant whose turn it is
-        roundNumber,         // int: current round number
+        new TurnAdvancedPayload(newTurnIndex, currentCombatantId, roundNumber),
         ct);
 ```
 
 ### Client-Side Handling
 
 ```csharp
-_hubConnection.On<int, string, int>(GameHubEvents.TurnAdvanced, 
-    async (newIndex, currentId, roundNumber) =>
+_hubConnection.On<TurnAdvancedPayload>(GameHubEvents.TurnAdvanced, 
+    async (payload) =>
 {
     if (_combatState != null)
     {
         _combatState = _combatState with 
         { 
-            CurrentTurnIndex = newIndex,
-            RoundNumber = roundNumber 
+            CurrentTurnIndex = payload.NewTurnIndex,
+            RoundNumber = payload.RoundNumber 
         };
     }
-    _currentTurnCombatantId = currentId;
+    _currentTurnCombatantId = payload.CurrentCombatantId;
     await InvokeAsync(StateHasChanged);
 });
 ```
@@ -269,7 +275,93 @@ _hubConnection.On(GameHubEvents.CombatEnded, async () =>
 });
 ```
 
-## 5. Initiative Setting
+## 5. Death Save Updates
+
+When a character at 0 HP makes a death saving throw:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant DM as DM Dashboard
+    participant Service as CombatService
+    participant NS as NotificationService
+    participant Hub as GameHub
+    participant Players as Player Dashboards
+    participant CT as CombatTracker
+
+    DM->>Service: RecordDeathSaveAsync(campaignId,<br/>characterId, success)
+    
+    Service->>Service: Update death save counters<br/>Check for stabilization (3 successes)<br/>Check for death (3 failures)
+    
+    Service->>NS: NotifyDeathSaveUpdatedAsync(<br/>campaignId, DeathSavePayload)
+    
+    NS->>Hub: Clients.Group("campaign_{id}_all")<br/>.SendAsync("DeathSaveUpdated", payload)
+    
+    par Broadcast to all clients
+        Hub-->>DM: DeathSaveUpdated event
+        Hub-->>Players: DeathSaveUpdated event
+        Hub-->>CT: DeathSaveUpdated event
+    end
+    
+    DM->>DM: Update death save indicators
+    Players->>Players: Show death save status<br/>Display dramatic UI if stabilized/dead
+    CT->>CT: Update combatant status
+```
+
+### DeathSavePayload
+
+```csharp
+public record DeathSavePayload(
+    string CharacterId,
+    string CharacterName,
+    int DeathSaveSuccesses,    // 0-3
+    int DeathSaveFailures,     // 0-3
+    bool IsStable,             // True if 3 successes reached
+    bool IsDead                // True if 3 failures reached
+);
+```
+
+### Death Save Rules
+
+Per D&D 5E rules:
+- A character at 0 HP is **unconscious** and must make death saving throws at the start of their turn
+- Rolling 10+ is a **success**, 9 or below is a **failure**
+- Rolling a **natural 20** grants 2 successes and the character regains 1 HP
+- Rolling a **natural 1** counts as 2 failures
+- **3 successes** → character stabilizes (no longer needs to roll)
+- **3 failures** → character dies
+- Taking damage at 0 HP adds a failure (or 2 on a critical hit)
+- Receiving healing resets death saves and restores consciousness
+
+### Client-Side Handling
+
+```csharp
+_hubConnection.On<DeathSavePayload>(GameHubEvents.DeathSaveUpdated, 
+    async (payload) =>
+{
+    // Update local character state
+    var character = _party.FirstOrDefault(c => c.Id == payload.CharacterId);
+    if (character != null)
+    {
+        character.DeathSaveSuccesses = payload.DeathSaveSuccesses;
+        character.DeathSaveFailures = payload.DeathSaveFailures;
+        
+        if (payload.IsStable)
+        {
+            // Show "Stabilized!" notification
+        }
+        else if (payload.IsDead)
+        {
+            // Show death notification with dramatic effect
+        }
+    }
+    await InvokeAsync(StateHasChanged);
+});
+```
+
+---
+
+## 6. Initiative Setting
 
 When initiative is manually set or re-rolled:
 
@@ -286,13 +378,22 @@ sequenceDiagram
     
     Service->>Service: Update initiative value<br/>Re-sort turn order
     
-    Service->>NS: NotifyInitiativeSetAsync(<br/>campaignId, characterId, initiative)
+    Service->>NS: NotifyInitiativeSetAsync(<br/>campaignId, InitiativeSetPayload)
     
-    NS->>Hub: Clients.Group("campaign_{id}_all")<br/>.SendAsync("InitiativeSet",<br/>characterId, initiative)
+    NS->>Hub: Clients.Group("campaign_{id}_all")<br/>.SendAsync("InitiativeSet", payload)
     
     Hub-->>All: InitiativeSet event
     
     All->>All: Update turn order display
+```
+
+### InitiativeSetPayload
+
+```csharp
+public record InitiativeSetPayload(
+    string CharacterId,
+    int Initiative
+);
 ```
 
 ## Full Combat Session Flow
@@ -345,9 +446,10 @@ sequenceDiagram
 | Event | Direction | Target | Payload | When |
 |-------|-----------|--------|---------|------|
 | `CombatStarted` | S→C | `_all` | `CombatStatePayload` | DM/LLM initiates combat |
-| `TurnAdvanced` | S→C | `_all` | `(int, string, int)` | Turn passes to next combatant |
+| `TurnAdvanced` | S→C | `_all` | `TurnAdvancedPayload` | Turn passes to next combatant |
 | `CharacterStateUpdated` | S→C | `_all` | `CharacterStatePayload` | HP/conditions change |
-| `InitiativeSet` | S→C | `_all` | `(string, int)` | Initiative value set |
+| `DeathSaveUpdated` | S→C | `_all` | `DeathSavePayload` | Death save recorded |
+| `InitiativeSet` | S→C | `_all` | `InitiativeSetPayload` | Initiative value set |
 | `CombatEnded` | S→C | `_all` | None | Combat concludes |
 
 ## Key Points

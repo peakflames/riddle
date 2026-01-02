@@ -382,7 +382,7 @@ public class RiddleLlmService : IRiddleLlmService
             - Explain the "why" behind mechanics briefly.
             - Be evocative and atmospheric in read-aloud text.
             - Adapt style based on PartyPreferences.
-            - Avoid table formatting
+            - Tables are supported! Use proper markdown table format with header separator: `| Header | Header |\n|--------|--------|\n| data | data |`
             - Never reveal story secrets to character players
             </tone_and_style>
 

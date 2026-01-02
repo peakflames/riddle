@@ -1,0 +1,148 @@
+@using Riddle.Web.Models
+
+<Modal Show="@Show" ShowChanged="@ShowChanged" Size="ModalSize.Large">
+    <ModalHeader>
+        <h3>Import Template from JSON</h3>
+    </ModalHeader>
+    <ModalBody>
+        <div class="space-y-4">
+            @* Visibility toggle *@
+            <div class="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h4 class="font-semibold text-gray-900 dark:text-white">Template Visibility</h4>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Public templates can be imported by all users</p>
+                    </div>
+                    <ToggleSwitch @bind-Checked="_isPublic" Label="@(_isPublic ? "Public" : "Private")" />
+                </div>
+            </div>
+            
+            @* JSON input *@
+            <div>
+                <div class="flex items-center justify-between mb-2">
+                    <Label For="jsonInput" Value="Character JSON" />
+                    <Button Color="ButtonColor.Light" Size="ButtonSize.Small" OnClick="@(() => OnViewSchema.InvokeAsync())">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        View Schema
+                    </Button>
+                </div>
+                <textarea 
+                    id="jsonInput"
+                    @bind="_jsonText"
+                    rows="15"
+                    class="block w-full p-2.5 text-sm font-mono text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500"
+                    placeholder='{"name": "Character Name", "race": "Human", "class": "Fighter", ...}'
+                ></textarea>
+            </div>
+            
+            @* Error message *@
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <Alert Color="AlertColor.Failure" TextEmphasis="Import Error:" Text="@_errorMessage" />
+            }
+            
+            @* Success message *@
+            @if (_importSuccess)
+            {
+                <Alert Color="AlertColor.Success" TextEmphasis="Success!" Text="Template imported successfully." />
+            }
+        </div>
+    </ModalBody>
+    <ModalFooter>
+        <div class="flex justify-end w-full gap-2">
+            <Button Color="ButtonColor.Gray" OnClick="@HandleCancel">Cancel</Button>
+            <Button Color="ButtonColor.Primary" OnClick="@HandleImport" Disabled="@_isImporting">
+                @if (_isImporting)
+                {
+                <Spinner Size="SpinnerSize.Sm" Class="mr-2" />
+                    <span>Importing...</span>
+                }
+                else
+                {
+                    <span>Import Template</span>
+                }
+            </Button>
+        </div>
+    </ModalFooter>
+</Modal>
+
+@code {
+    [Parameter] public bool Show { get; set; }
+    [Parameter] public EventCallback<bool> ShowChanged { get; set; }
+    [Parameter] public EventCallback<(string Json, bool IsPublic)> OnImport { get; set; }
+    [Parameter] public EventCallback OnViewSchema { get; set; }
+    
+    private string _jsonText = "";
+    private bool _isPublic = true;
+    private string? _errorMessage;
+    private bool _importSuccess;
+    private bool _isImporting;
+    private bool _wasShown;
+    
+    protected override void OnParametersSet()
+    {
+        // Reset state when modal opens
+        if (Show && !_wasShown)
+        {
+            _jsonText = "";
+            _isPublic = true;
+            _errorMessage = null;
+            _importSuccess = false;
+            _isImporting = false;
+        }
+        _wasShown = Show;
+    }
+    
+    private void HandleCancel() => ShowChanged.InvokeAsync(false);
+    
+    private async Task HandleImport()
+    {
+        _errorMessage = null;
+        _importSuccess = false;
+        
+        if (string.IsNullOrWhiteSpace(_jsonText))
+        {
+            _errorMessage = "Please enter JSON content.";
+            return;
+        }
+        
+        _isImporting = true;
+        StateHasChanged();
+        
+        try
+        {
+            await OnImport.InvokeAsync((_jsonText, _isPublic));
+            // Note: Parent component handles success/error and will close modal or set error
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _isImporting = false;
+        }
+    }
+    
+    /// <summary>
+    /// Called by parent to show an error message without closing the modal.
+    /// </summary>
+    public void ShowError(string message)
+    {
+        _errorMessage = message;
+        _importSuccess = false;
+        StateHasChanged();
+    }
+    
+    /// <summary>
+    /// Called by parent to show success and close modal.
+    /// </summary>
+    public void ShowSuccess()
+    {
+        _importSuccess = true;
+        _errorMessage = null;
+        StateHasChanged();
+    }
+}

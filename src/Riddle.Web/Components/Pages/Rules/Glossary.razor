@@ -1,0 +1,59 @@
+@page "/rules/glossary"
+@using Flowbite.Components.Markdown
+@inject IWebHostEnvironment Environment
+
+<PageTitle>Rules Glossary - Rules Reference - Riddle</PageTitle>
+
+<div class="max-w-4xl mx-auto">
+    @if (_isLoading)
+    {
+        <div class="flex items-center justify-center py-12">
+            <Spinner Size="SpinnerSize.Lg" />
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+            <p class="text-red-700 dark:text-red-300">@_errorMessage</p>
+        </div>
+    }
+    else
+    {
+        <MarkdownContent Markdown="@_markdownContent" Class="max-w-none" />
+    }
+</div>
+
+@code {
+    private string _markdownContent = "";
+    private string _errorMessage = "";
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadContent();
+    }
+
+    private async Task LoadContent()
+    {
+        try
+        {
+            var markdownPath = Path.Combine(Environment.WebRootPath, "docs", "rule_glossary.md");
+            if (File.Exists(markdownPath))
+            {
+                _markdownContent = await File.ReadAllTextAsync(markdownPath);
+            }
+            else
+            {
+                _errorMessage = "The glossary document could not be found.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Error loading glossary: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

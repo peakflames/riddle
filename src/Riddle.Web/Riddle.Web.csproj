@@ -6,11 +6,30 @@
     <ImplicitUsings>enable</ImplicitUsings>
     
     <!-- Version Information -->
-    <Version>0.20.0</Version>
-    <AssemblyVersion>0.20.0.0</AssemblyVersion>
-    <FileVersion>0.20.0.0</FileVersion>
-    <InformationalVersion>0.20.0</InformationalVersion>
+    <Version>0.26.0</Version>
+    <AssemblyVersion>0.26.0.0</AssemblyVersion>
+    <FileVersion>0.26.0.0</FileVersion>
+    <InformationalVersion>0.26.0</InformationalVersion>
+    
+    <!-- Container Configuration (MSBuild SDK Container Support) -->
+    <EnableSdkContainerSupport>true</EnableSdkContainerSupport>
+    <ContainerBaseImage>mcr.microsoft.com/dotnet/aspnet:10.0</ContainerBaseImage>
+    <ContainerRegistry>docker.io</ContainerRegistry>
+    <ContainerRepository>peakflames/riddle</ContainerRepository>
+    <!-- ContainerImageTag is set dynamically via CLI: -p ContainerImageTag=... -->
+    <!-- RuntimeIdentifier is set via CLI for container publish: -r linux-x64 -->
   </PropertyGroup>
+
+  <!-- Container Port Configuration -->
+  <ItemGroup>
+    <ContainerPort Include="5000" Type="tcp" />
+  </ItemGroup>
+
+  <!-- Default Container Environment Variables -->
+  <ItemGroup>
+    <ContainerEnvironmentVariable Include="ASPNETCORE_ENVIRONMENT" Value="Production" />
+    <ContainerEnvironmentVariable Include="ASPNETCORE_URLS" Value="http://+:5000" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="DotNetEnv" Version="3.1.1" />

@@ -487,6 +487,9 @@ $RECYCLE.BIN/
 
 tmp/
 
+# Database backups
+backups/
+
 # SQLite databases
 *.db
 *.db-shm

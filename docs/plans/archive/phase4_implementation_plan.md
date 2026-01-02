@@ -48,13 +48,13 @@ Phase 4 implements the full SignalR infrastructure for Project Riddle, enabling 
 **Scope:** Create SignalR hub with group management and event broadcasting
 **Estimated Effort:** Large
 **Files:** `Hubs/GameHub.cs`, `Program.cs`
-**Status:** Complete - See `docs/verification/phase4-obj1-checklist.md`
+**Status:** Complete - See `docs/plans/verification/phase4-obj1-checklist.md`
 
 ### Objective 2: Notification Service ✅ COMPLETE
 **Scope:** Service layer for broadcasting events to SignalR groups
 **Estimated Effort:** Medium
 **Files:** `Services/INotificationService.cs`, `Services/NotificationService.cs`
-**Status:** Complete - See `docs/verification/phase4-obj2-checklist.md`
+**Status:** Complete - See `docs/plans/verification/phase4-obj2-checklist.md`
 
 ### Objective 3: Combat Tracker Component ⚠️ SUPERSEDED BY OBJ 3.5
 **Scope:** Real-time turn order display with initiative management
@@ -67,7 +67,7 @@ Phase 4 implements the full SignalR infrastructure for Project Riddle, enabling 
 **Scope:** Transform Combat Tracker from manual DM entry to LLM-driven control via tool calls
 **Estimated Effort:** Medium
 **Files:** `Services/ToolExecutor.cs`, `Services/RiddleLlmService.cs`, `Components/Combat/CombatTracker.razor`, `Components/Combat/CombatantCard.razor`
-**Status:** Complete - See `docs/verification/phase4-obj3.5-checklist.md`
+**Status:** Complete - See `docs/plans/verification/phase4-obj3.5-checklist.md`
 
 **Summary:** LLM now manages combat lifecycle via `start_combat`, `end_combat`, `advance_turn`, `add_combatant`, and `remove_combatant` tools. Combat Tracker is display-only, reactive to SignalR events.
 
@@ -75,7 +75,7 @@ Phase 4 implements the full SignalR infrastructure for Project Riddle, enabling 
 **Scope:** Choice buttons to SignalR submission flow
 **Estimated Effort:** Medium
 **Files:** `Components/Player/PlayerChoicePad.razor`, Player Dashboard updates
-**Status:** Complete - See `docs/verification/phase4-obj4-checklist.md`
+**Status:** Complete - See `docs/plans/verification/phase4-obj4-checklist.md`
 
 ### Objective 5: Atmospheric Tools for Player Screens ⏳ PENDING
 **Scope:** Replace Scene Image with 3 atmospheric LLM tools for immersive player feedback via SignalR

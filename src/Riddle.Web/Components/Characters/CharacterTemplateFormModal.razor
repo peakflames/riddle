@@ -1,0 +1,470 @@
+@using Riddle.Web.Models
+@using Riddle.Web.Services
+@using System.ComponentModel.DataAnnotations
+
+<Modal Show="@Show" ShowChanged="@ShowChanged" Size="ModalSize.FourExtraLarge">
+    <ModalHeader>
+        <h3>@(IsEditing ? "Edit Template" : "Create Template")</h3>
+    </ModalHeader>
+    <ModalBody>
+        <EditForm Model="@_model" OnValidSubmit="@HandleSubmit" Context="editContext">
+            <DataAnnotationsValidator />
+            
+            @* Template-specific settings at the top *@
+            <div class="mb-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h4 class="font-semibold text-gray-900 dark:text-white">Template Visibility</h4>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Public templates can be imported by all users</p>
+                    </div>
+                    <ToggleSwitch @bind-Checked="_isPublic" Label="@(_isPublic ? "Public" : "Private")" />
+                </div>
+            </div>
+            
+            <Tabs Variant="TabVariant.Underline">
+                <TabListContent>
+                    <Tab Index="0">Core</Tab>
+                    <Tab Index="1">Combat</Tab>
+                    <Tab Index="2">Proficiencies</Tab>
+                    <Tab Index="3">Spells</Tab>
+                    <Tab Index="4">Equipment</Tab>
+                    <Tab Index="5">Roleplay</Tab>
+                </TabListContent>
+                <TabPanelsContent>
+                    <!-- Core Tab -->
+                    <TabPanel Index="0">
+                        <div class="space-y-4 py-4">
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div>
+                                    <Label For="name" Value="Name" Required="true" />
+                                    <TextInput TValue="string" Id="name" @bind-Value="_model.Name" />
+                                    <ValidationMessage For="@(() => _model.Name)" />
+                                </div>
+                                <div>
+                                    <Label For="type" Value="Type" />
+                                    <Select TValue="string" Id="type" @bind-Value="_model.Type">
+                                        <option value="PC">Player Character</option>
+                                        <option value="NPC">NPC</option>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <Label For="class" Value="Class" />
+                                    <Select TValue="string" Id="class" @bind-Value="_model.Class">
+                                        <option value="">Select</option>
+                                        @foreach (var cls in _classes) { <option value="@cls">@cls</option> }
+                                    </Select>
+                                </div>
+                                <div>
+                                    <Label For="race" Value="Race" />
+                                    <Select TValue="string" Id="race" @bind-Value="_model.Race">
+                                        <option value="">Select</option>
+                                        @foreach (var race in _races) { <option value="@race">@race</option> }
+                                    </Select>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-3 gap-4">
+                                <div>
+                                    <Label For="level" Value="Level" />
+                                    <TextInput TValue="int" Id="level" @bind-Value="_model.Level" Type="number" />
+                                </div>
+                                <div>
+                                    <Label For="background" Value="Background" />
+                                    <Select TValue="string" Id="background" @bind-Value="_model.Background">
+                                        <option value="">Select</option>
+                                        @foreach (var bg in _backgrounds) { <option value="@bg">@bg</option> }
+                                    </Select>
+                                </div>
+                                <div>
+                                    <Label For="alignment" Value="Alignment" />
+                                    <Select TValue="string" Id="alignment" @bind-Value="_model.Alignment">
+                                        <option value="">Select</option>
+                                        @foreach (var align in _alignments) { <option value="@align">@align</option> }
+                                    </Select>
+                                </div>
+                            </div>
+                            <h4 class="font-semibold text-gray-900 dark:text-white">Ability Scores</h4>
+                            <div class="grid grid-cols-6 gap-3">
+                                <div class="text-center">
+                                    <Label For="str" Value="STR" />
+                                    <TextInput TValue="int" Id="str" @bind-Value="_model.Strength" Type="number" Class="text-center" />
+                                    <span class="text-xs text-gray-500">(@FormatModifier(_model.Strength))</span>
+                                </div>
+                                <div class="text-center">
+                                    <Label For="dex" Value="DEX" />
+                                    <TextInput TValue="int" Id="dex" @bind-Value="_model.Dexterity" Type="number" Class="text-center" />
+                                    <span class="text-xs text-gray-500">(@FormatModifier(_model.Dexterity))</span>
+                                </div>
+                                <div class="text-center">
+                                    <Label For="con" Value="CON" />
+                                    <TextInput TValue="int" Id="con" @bind-Value="_model.Constitution" Type="number" Class="text-center" />
+                                    <span class="text-xs text-gray-500">(@FormatModifier(_model.Constitution))</span>
+                                </div>
+                                <div class="text-center">
+                                    <Label For="int" Value="INT" />
+                                    <TextInput TValue="int" Id="int" @bind-Value="_model.Intelligence" Type="number" Class="text-center" />
+                                    <span class="text-xs text-gray-500">(@FormatModifier(_model.Intelligence))</span>
+                                </div>
+                                <div class="text-center">
+                                    <Label For="wis" Value="WIS" />
+                                    <TextInput TValue="int" Id="wis" @bind-Value="_model.Wisdom" Type="number" Class="text-center" />
+                                    <span class="text-xs text-gray-500">(@FormatModifier(_model.Wisdom))</span>
+                                </div>
+                                <div class="text-center">
+                                    <Label For="cha" Value="CHA" />
+                                    <TextInput TValue="int" Id="cha" @bind-Value="_model.Charisma" Type="number" Class="text-center" />
+                                    <span class="text-xs text-gray-500">(@FormatModifier(_model.Charisma))</span>
+                                </div>
+                            </div>
+                        </div>
+                    </TabPanel>
+                    
+                    <!-- Combat Tab -->
+                    <TabPanel Index="1">
+                        <div class="space-y-4 py-4">
+                            <div class="grid grid-cols-4 gap-4">
+                                <div>
+                                    <Label For="maxHp" Value="Max HP" Required="true" />
+                                    <TextInput TValue="int" Id="maxHp" @bind-Value="_model.MaxHp" Type="number" />
+                                </div>
+                                <div>
+                                    <Label For="currentHp" Value="Current HP" />
+                                    <TextInput TValue="int" Id="currentHp" @bind-Value="_model.CurrentHp" Type="number" />
+                                </div>
+                                <div>
+                                    <Label For="tempHp" Value="Temp HP" />
+                                    <TextInput TValue="int" Id="tempHp" @bind-Value="_model.TemporaryHp" Type="number" />
+                                </div>
+                                <div>
+                                    <Label For="ac" Value="AC" Required="true" />
+                                    <TextInput TValue="int" Id="ac" @bind-Value="_model.ArmorClass" Type="number" />
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-3 gap-4">
+                                <div>
+                                    <Label For="initiative" Value="Initiative" />
+                                    <TextInput TValue="int" Id="initiative" @bind-Value="_model.Initiative" Type="number" />
+                                </div>
+                                <div>
+                                    <Label For="speed" Value="Speed" />
+                                    <TextInput TValue="string" Id="speed" @bind-Value="_model.Speed" Placeholder="30 ft" />
+                                </div>
+                                <div>
+                                    <Label For="passivePerception" Value="Passive Perception" />
+                                    <TextInput TValue="int" Id="passivePerception" @bind-Value="_model.PassivePerception" Type="number" />
+                                </div>
+                            </div>
+                        </div>
+                    </TabPanel>
+                    
+                    <!-- Proficiencies Tab -->
+                    <TabPanel Index="2">
+                        <div class="space-y-4 py-4">
+                            <div>
+                                <Label For="savingThrows" Value="Saving Throw Proficiencies" />
+                                <TextInput TValue="string" Id="savingThrows" @bind-Value="_savingThrowsText" Placeholder="Strength, Constitution" />
+                            </div>
+                            <div>
+                                <Label For="skills" Value="Skill Proficiencies" />
+                                <TextInput TValue="string" Id="skills" @bind-Value="_skillsText" Placeholder="Perception, Athletics" />
+                            </div>
+                            <div>
+                                <Label For="tools" Value="Tool Proficiencies" />
+                                <TextInput TValue="string" Id="tools" @bind-Value="_toolsText" Placeholder="Smith's Tools" />
+                            </div>
+                            <div>
+                                <Label For="languages" Value="Languages" />
+                                <TextInput TValue="string" Id="languages" @bind-Value="_languagesText" Placeholder="Common, Dwarvish" />
+                            </div>
+                        </div>
+                    </TabPanel>
+                    
+                    <!-- Spells Tab -->
+                    <TabPanel Index="3">
+                        <div class="space-y-4 py-4">
+                            <ToggleSwitch @bind-Checked="_model.IsSpellcaster" Label="Is Spellcaster" />
+                            @if (_model.IsSpellcaster)
+                            {
+                                <div class="grid grid-cols-3 gap-4">
+                                    <div>
+                                        <Label For="spellAbility" Value="Spellcasting Ability" />
+                                        <Select TValue="string" Id="spellAbility" @bind-Value="_model.SpellcastingAbility">
+                                            <option value="">Select</option>
+                                            <option value="Intelligence">Intelligence</option>
+                                            <option value="Wisdom">Wisdom</option>
+                                            <option value="Charisma">Charisma</option>
+                                        </Select>
+                                    </div>
+                                    <div>
+                                        <Label For="spellDc" Value="Spell Save DC" />
+                                        <TextInput TValue="int?" Id="spellDc" @bind-Value="_model.SpellSaveDC" Type="number" />
+                                    </div>
+                                    <div>
+                                        <Label For="spellAttack" Value="Spell Attack Bonus" />
+                                        <TextInput TValue="int?" Id="spellAttack" @bind-Value="_model.SpellAttackBonus" Type="number" />
+                                    </div>
+                                </div>
+                                <h4 class="font-semibold text-gray-900 dark:text-white">Spell Slots</h4>
+                                <div class="grid grid-cols-9 gap-2">
+                                    @for (int i = 1; i <= 9; i++)
+                                    {
+                                        var level = i;
+                                        <div class="text-center">
+                                            <Label For="@($"slot{level}")" Value="@($"L{level}")" />
+                                            <TextInput TValue="int" Id="@($"slot{level}")" @bind-Value="_spellSlots[level-1]" Type="number" Class="text-center text-sm" />
+                                        </div>
+                                    }
+                                </div>
+                                <div>
+                                    <Label For="cantrips" Value="Cantrips (comma-separated)" />
+                                    <TextInput TValue="string" Id="cantrips" @bind-Value="_cantripsText" Placeholder="Fire Bolt, Mage Hand" />
+                                </div>
+                                <div>
+                                    <Label For="spells" Value="Spells Known (comma-separated)" />
+                                    <Textarea Id="spells" @bind-Value="_spellsText" Rows="2" Placeholder="Magic Missile, Shield" />
+                                </div>
+                            }
+                        </div>
+                    </TabPanel>
+                    
+                    <!-- Equipment Tab -->
+                    <TabPanel Index="4">
+                        <div class="space-y-4 py-4">
+                            <h4 class="font-semibold text-gray-900 dark:text-white">Currency</h4>
+                            <div class="grid grid-cols-4 gap-4">
+                                <div>
+                                    <Label For="pp" Value="Platinum" />
+                                    <TextInput TValue="int" Id="pp" @bind-Value="_model.PlatinumPieces" Type="number" />
+                                </div>
+                                <div>
+                                    <Label For="gp" Value="Gold" />
+                                    <TextInput TValue="int" Id="gp" @bind-Value="_model.GoldPieces" Type="number" />
+                                </div>
+                                <div>
+                                    <Label For="sp" Value="Silver" />
+                                    <TextInput TValue="int" Id="sp" @bind-Value="_model.SilverPieces" Type="number" />
+                                </div>
+                                <div>
+                                    <Label For="cp" Value="Copper" />
+                                    <TextInput TValue="int" Id="cp" @bind-Value="_model.CopperPieces" Type="number" />
+                                </div>
+                            </div>
+                            <div>
+                                <Label For="weapons" Value="Weapons (comma-separated)" />
+                                <TextInput TValue="string" Id="weapons" @bind-Value="_weaponsText" Placeholder="Battleaxe, Handaxe" />
+                            </div>
+                            <div>
+                                <Label For="equipment" Value="Equipment (comma-separated)" />
+                                <Textarea Id="equipment" @bind-Value="_equipmentText" Rows="2" Placeholder="Backpack, Bedroll" />
+                            </div>
+                        </div>
+                    </TabPanel>
+                    
+                    <!-- Roleplay Tab -->
+                    <TabPanel Index="5">
+                        <div class="space-y-4 py-4">
+                            <div>
+                                <Label For="personality" Value="Personality Traits" />
+                                <Textarea Id="personality" @bind-Value="_model.PersonalityTraits" Rows="2" />
+                            </div>
+                            <div>
+                                <Label For="ideals" Value="Ideals" />
+                                <Textarea Id="ideals" @bind-Value="_model.Ideals" Rows="2" />
+                            </div>
+                            <div>
+                                <Label For="bonds" Value="Bonds" />
+                                <Textarea Id="bonds" @bind-Value="_model.Bonds" Rows="2" />
+                            </div>
+                            <div>
+                                <Label For="flaws" Value="Flaws" />
+                                <Textarea Id="flaws" @bind-Value="_model.Flaws" Rows="2" />
+                            </div>
+                            <div>
+                                <Label For="backstory" Value="Backstory" />
+                                <Textarea Id="backstory" @bind-Value="_model.Backstory" Rows="4" />
+                            </div>
+                        </div>
+                    </TabPanel>
+                </TabPanelsContent>
+            </Tabs>
+            <button type="submit" class="hidden" />
+        </EditForm>
+    </ModalBody>
+    <ModalFooter>
+        <div class="flex justify-end w-full gap-2">
+            <Button Color="ButtonColor.Gray" OnClick="@HandleCancel">Cancel</Button>
+            <Button Color="ButtonColor.Primary" OnClick="@HandleSubmitClick">@(IsEditing ? "Save Template" : "Create Template")</Button>
+        </div>
+    </ModalFooter>
+</Modal>
+
+@code {
+    [Parameter] public bool Show { get; set; }
+    [Parameter] public EventCallback<bool> ShowChanged { get; set; }
+    [Parameter] public CharacterTemplate? EditingTemplate { get; set; }
+    [Parameter] public EventCallback<(Character Character, bool IsPublic)> OnSave { get; set; }
+    
+    private bool IsEditing => EditingTemplate != null;
+    private CharacterFormModel _model = new();
+    private bool _isPublic = true;
+    
+    // Track initialization to prevent resetting model on re-renders
+    private string? _lastInitializedTemplateId;
+    private bool _wasShown;
+    
+    // Text fields for comma-separated lists
+    private string _languagesText = "Common";
+    private string _savingThrowsText = "";
+    private string _skillsText = "";
+    private string _toolsText = "";
+    private string _cantripsText = "";
+    private string _spellsText = "";
+    private string _weaponsText = "";
+    private string _equipmentText = "";
+    
+    // Spell slots arrays (levels 1-9)
+    private int[] _spellSlots = new int[9];
+    
+    private static readonly string[] _classes = ["Barbarian", "Bard", "Cleric", "Druid", "Fighter", "Monk", "Paladin", "Ranger", "Rogue", "Sorcerer", "Warlock", "Wizard"];
+    private static readonly string[] _races = ["Dragonborn", "Dwarf", "Elf", "Gnome", "Half-Elf", "Half-Orc", "Halfling", "Human", "Tiefling"];
+    private static readonly string[] _backgrounds = ["Acolyte", "Charlatan", "Criminal", "Entertainer", "Folk Hero", "Guild Artisan", "Hermit", "Noble", "Outlander", "Sage", "Sailor", "Soldier", "Urchin"];
+    private static readonly string[] _alignments = ["Lawful Good", "Neutral Good", "Chaotic Good", "Lawful Neutral", "True Neutral", "Chaotic Neutral", "Lawful Evil", "Neutral Evil", "Chaotic Evil"];
+    
+    protected override void OnParametersSet()
+    {
+        // Only initialize when modal opens fresh or template changes
+        var shouldInitialize = Show && !_wasShown;
+        var templateChanged = EditingTemplate?.Id != _lastInitializedTemplateId;
+        
+        if (Show && EditingTemplate != null && (shouldInitialize || templateChanged))
+        {
+            _lastInitializedTemplateId = EditingTemplate.Id;
+            _isPublic = EditingTemplate.IsPublic;
+            var character = EditingTemplate.Character;
+            
+            _model = new CharacterFormModel
+            {
+                Name = character.Name, Type = character.Type, Race = character.Race,
+                Class = character.Class, Level = character.Level, Background = character.Background,
+                Alignment = character.Alignment, Strength = character.Strength, Dexterity = character.Dexterity,
+                Constitution = character.Constitution, Intelligence = character.Intelligence,
+                Wisdom = character.Wisdom, Charisma = character.Charisma, ArmorClass = character.ArmorClass,
+                MaxHp = character.MaxHp, CurrentHp = character.CurrentHp, TemporaryHp = character.TemporaryHp,
+                Initiative = character.Initiative, Speed = character.Speed,
+                PassivePerception = character.PassivePerception, IsSpellcaster = character.IsSpellcaster,
+                SpellcastingAbility = character.SpellcastingAbility, SpellSaveDC = character.SpellSaveDC,
+                SpellAttackBonus = character.SpellAttackBonus,
+                PlatinumPieces = character.PlatinumPieces, GoldPieces = character.GoldPieces,
+                SilverPieces = character.SilverPieces, CopperPieces = character.CopperPieces,
+                PersonalityTraits = character.PersonalityTraits, Ideals = character.Ideals,
+                Bonds = character.Bonds, Flaws = character.Flaws, Backstory = character.Backstory
+            };
+            _languagesText = string.Join(", ", character.Languages);
+            _savingThrowsText = string.Join(", ", character.SavingThrowProficiencies);
+            _skillsText = string.Join(", ", character.SkillProficiencies);
+            _toolsText = string.Join(", ", character.ToolProficiencies);
+            _cantripsText = string.Join(", ", character.Cantrips);
+            _spellsText = string.Join(", ", character.SpellsKnown);
+            _weaponsText = string.Join(", ", character.Weapons);
+            _equipmentText = string.Join(", ", character.Equipment);
+            for (int i = 1; i <= 9; i++)
+            {
+                _spellSlots[i-1] = character.SpellSlots.GetValueOrDefault(i, 0);
+            }
+        }
+        else if (Show && EditingTemplate == null && (shouldInitialize || _lastInitializedTemplateId != null))
+        {
+            _lastInitializedTemplateId = null;
+            _isPublic = true;
+            _model = new CharacterFormModel();
+            _languagesText = "Common"; _savingThrowsText = ""; _skillsText = ""; _toolsText = "";
+            _cantripsText = ""; _spellsText = ""; _weaponsText = ""; _equipmentText = "";
+            _spellSlots = new int[9];
+        }
+        
+        // Track show state for next cycle
+        _wasShown = Show;
+    }
+    
+    private void HandleCancel() => ShowChanged.InvokeAsync(false);
+    private async Task HandleSubmitClick() => await HandleSubmit();
+    
+    private async Task HandleSubmit()
+    {
+        var character = new Character
+        {
+            Name = _model.Name, Type = _model.Type, Race = _model.Race,
+            Class = _model.Class, Level = _model.Level, Background = _model.Background,
+            Alignment = _model.Alignment, Strength = _model.Strength, Dexterity = _model.Dexterity,
+            Constitution = _model.Constitution, Intelligence = _model.Intelligence,
+            Wisdom = _model.Wisdom, Charisma = _model.Charisma, ArmorClass = _model.ArmorClass,
+            MaxHp = _model.MaxHp, CurrentHp = _model.CurrentHp > 0 ? _model.CurrentHp : _model.MaxHp,
+            TemporaryHp = _model.TemporaryHp, Initiative = _model.Initiative, Speed = _model.Speed,
+            PassivePerception = _model.PassivePerception, IsSpellcaster = _model.IsSpellcaster,
+            SpellcastingAbility = _model.SpellcastingAbility, SpellSaveDC = _model.SpellSaveDC,
+            SpellAttackBonus = _model.SpellAttackBonus,
+            PlatinumPieces = _model.PlatinumPieces, GoldPieces = _model.GoldPieces,
+            SilverPieces = _model.SilverPieces, CopperPieces = _model.CopperPieces,
+            PersonalityTraits = _model.PersonalityTraits, Ideals = _model.Ideals,
+            Bonds = _model.Bonds, Flaws = _model.Flaws, Backstory = _model.Backstory,
+            Languages = ParseList(_languagesText),
+            SavingThrowProficiencies = ParseList(_savingThrowsText),
+            SkillProficiencies = ParseList(_skillsText),
+            ToolProficiencies = ParseList(_toolsText),
+            Cantrips = ParseList(_cantripsText),
+            SpellsKnown = ParseList(_spellsText),
+            Weapons = ParseList(_weaponsText),
+            Equipment = ParseList(_equipmentText),
+            SpellSlots = new Dictionary<int, int>()
+        };
+        
+        for (int i = 1; i <= 9; i++)
+        {
+            if (_spellSlots[i-1] > 0) character.SpellSlots[i] = _spellSlots[i-1];
+        }
+        
+        await OnSave.InvokeAsync((character, _isPublic));
+        await ShowChanged.InvokeAsync(false);
+    }
+    
+    private static List<string> ParseList(string text) =>
+        text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+    
+    private static string FormatModifier(int score) { var mod = (score - 10) / 2; return mod >= 0 ? $"+{mod}" : mod.ToString(); }
+    
+    private class CharacterFormModel
+    {
+        [Required(ErrorMessage = "Name is required")] public string Name { get; set; } = "";
+        public string Type { get; set; } = "PC";
+        public string? Race { get; set; }
+        public string? Class { get; set; }
+        public int Level { get; set; } = 1;
+        public string? Background { get; set; }
+        public string? Alignment { get; set; }
+        public int Strength { get; set; } = 10;
+        public int Dexterity { get; set; } = 10;
+        public int Constitution { get; set; } = 10;
+        public int Intelligence { get; set; } = 10;
+        public int Wisdom { get; set; } = 10;
+        public int Charisma { get; set; } = 10;
+        public int ArmorClass { get; set; } = 10;
+        public int MaxHp { get; set; } = 10;
+        public int CurrentHp { get; set; }
+        public int TemporaryHp { get; set; }
+        public int Initiative { get; set; }
+        public string Speed { get; set; } = "30 ft";
+        public int PassivePerception { get; set; } = 10;
+        public bool IsSpellcaster { get; set; }
+        public string? SpellcastingAbility { get; set; }
+        public int? SpellSaveDC { get; set; }
+        public int? SpellAttackBonus { get; set; }
+        public int PlatinumPieces { get; set; }
+        public int GoldPieces { get; set; }
+        public int SilverPieces { get; set; }
+        public int CopperPieces { get; set; }
+        public string? PersonalityTraits { get; set; }
+        public string? Ideals { get; set; }
+        public string? Bonds { get; set; }
+        public string? Flaws { get; set; }
+        public string? Backstory { get; set; }
+    }
+}

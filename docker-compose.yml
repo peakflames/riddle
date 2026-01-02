@@ -1,0 +1,34 @@
+# Project Riddle - Local Docker Deployment
+# 
+# Usage:
+#   1. Create a .env file with required credentials (see docs/deployment/docker.md)
+#   2. Run: docker compose up -d
+#   3. Access at: http://localhost:1983
+#
+# Why port 1983? That's the year the D&D animated series debuted!
+# For more details, see docs/deployment/docker.md
+
+services:
+  riddle:
+    image: peakflames/riddle:latest
+    container_name: riddle
+    restart: unless-stopped
+    ports:
+      - "1983:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      # Kestrel HTTP configuration (container is HTTP-only)
+      - Kestrel__Endpoints__Http__Url=http://+:8080
+      # Database connection - SQLite in mounted volume
+      - ConnectionStrings__DefaultConnection=Data Source=/app/data/riddle.db
+    env_file:
+      - .env
+    volumes:
+      # Persist SQLite database across container restarts
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s

@@ -1,5 +1,9 @@
 @using Microsoft.AspNetCore.Components.Routing
 @using System.Reflection
+@using System.Security.Claims
+@using Riddle.Web.Components.Shared
+@inject IAdminService AdminService
+@inject AuthenticationStateProvider AuthStateProvider
 
 <div id="riddle-sidebar-outlet" class="h-full flex flex-col">
     <Sidebar class="h-full">
@@ -10,24 +14,9 @@
             Dashboard
         </SidebarItem>
 
-        <SidebarItem
-            Href="/sessions"
-            Icon="@(new LayersIcon())">
-            My Sessions
-        </SidebarItem>
-
-        <SidebarItem
-            Href="/sessions/new"
-            Icon="@(new PlusIcon())">
-            New Session
-        </SidebarItem>
 
         <SidebarItemGroup AdditionalClasses="mt-4 mb-4">
-            <SidebarItem
-                Href="/characters"
-                Icon="@(new UsersIcon())">
-                Characters
-            </SidebarItem>
+
 
             <SidebarItem
                 Href="/dm/templates"
@@ -35,27 +24,36 @@
                 Character Templates
             </SidebarItem>
 
-            <SidebarItem
+            @* TODO - DO NOT REMOVE *@
+            @* <SidebarItem
                 Href="/campaigns"
                 Icon="@(new BookOpenIcon())">
                 Campaigns
-            </SidebarItem>
+            </SidebarItem> *@
 
-            <SidebarItem
-                Href="/rules"
+            <SidebarCollapse 
+                Label="Rules Reference"
                 Icon="@(new ClipboardIcon())">
-                Rules Reference
-            </SidebarItem>
+                <SidebarItem Href="/rules/playing-the-game">
+                    Playing the Game
+                </SidebarItem>
+                <SidebarItem Href="/rules/glossary">
+                    Rules Glossary
+                </SidebarItem>
+            </SidebarCollapse>
         </SidebarItemGroup>
 
         <AuthorizeView>
             <Authorized>
                 <SidebarItemGroup AdditionalClasses="mb-4">
-                    <SidebarItem
-                        Href="/Account/Manage"
-                        Icon="@(new CogIcon())">
-                        Settings
-                    </SidebarItem>
+                    @if (_isAdmin)
+                    {
+                        <SidebarItem
+                            Href="/admin/settings"
+                            Icon="@(new CogIcon())">
+                            Admin Settings
+                        </SidebarItem>
+                    }
                 </SidebarItemGroup>
             </Authorized>
         </AuthorizeView>
@@ -68,8 +66,13 @@
             </SidebarItem>
             <SidebarItem
                 Href="https://flowbite-blazor.org"
-                Icon="@(new StarIcon())">
+                Icon="@(new FlowbiteLogoIcon())">
                 Flowbite Blazor
+            </SidebarItem>
+            <SidebarItem
+                Href="https://llmtornado.ai/"
+                Icon="@(new RobotIcon())">
+                LLM Tornado
             </SidebarItem>
             <SidebarItem
                 Href="https://github.com/peakflames/riddle/issues"
@@ -85,6 +88,14 @@
 </div>
 
 @code {
+    private bool _isAdmin;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _isAdmin = AdminService.IsAdmin(authState.User);
+    }
+
     private string AppVersion {
         get {
             var fullVersion = Assembly.GetEntryAssembly()

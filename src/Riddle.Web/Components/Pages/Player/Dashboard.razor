@@ -360,6 +360,7 @@
     private string? selectedChoice;
     
     private CombatStatePayload? _combatState;
+    private string? _currentTurnCombatantId;
     private HubConnection? _hubConnection;
     
     // Atmospheric state
@@ -460,15 +461,16 @@
             await InvokeAsync(StateHasChanged);
         });
         
-        _hubConnection.On<int, string, int>(GameHubEvents.TurnAdvanced, async (newIndex, currentId, roundNumber) =>
+        _hubConnection.On<TurnAdvancedPayload>(GameHubEvents.TurnAdvanced, async payload =>
         {
             if (_combatState != null)
             {
                 _combatState = _combatState with 
                 { 
-                    CurrentTurnIndex = newIndex,
-                    RoundNumber = roundNumber
+                    CurrentTurnIndex = payload.NewTurnIndex,
+                    RoundNumber = payload.RoundNumber
                 };
+                _currentTurnCombatantId = payload.CurrentCombatantId;
                 await InvokeAsync(StateHasChanged);
             }
         });

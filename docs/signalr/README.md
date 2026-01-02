@@ -99,7 +99,7 @@ _hubConnection.On<List<string>>(GameHubEvents.PlayerChoicesReceived, async choic
 | **Connection Events** | DM only | `PlayerConnected`, `PlayerDisconnected` |
 | **Game State Events** | Varies | `CharacterStateUpdated` (all), `ReadAloudTextReceived` (DM) |
 | **Player Interaction** | Varies | `PlayerChoicesReceived` (players), `PlayerChoiceSubmitted` (DM) |
-| **Combat Events** | All | `CombatStarted`, `TurnAdvanced`, `CombatEnded` |
+| **Combat Events** | All | `CombatStarted`, `TurnAdvanced`, `DeathSaveUpdated`, `CombatEnded` |
 | **Atmospheric Events** | Players only | `AtmospherePulseReceived`, `NarrativeAnchorUpdated`, `GroupInsightTriggered` |
 
 ## Connection Lifecycle

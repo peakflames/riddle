@@ -70,17 +70,25 @@ Use the Python automation:
 ### Database Commands (for verification)
 - `python build.py db tables` — list all database tables
 - `python build.py db campaigns` — show campaign instances with party state preview
-- `python build.py db characters` — show characters from most recent campaign (with PlayerId claim status)
-- `python build.py db characters <campaign-id>` — show characters from specific campaign
-- `python build.py db party` — show full PartyStateJson (pretty-printed) from most recent campaign
-- `python build.py db party <campaign-id>` — show full PartyStateJson for specific campaign
+- `python build.py db characters [campaign-id]` — show characters (with PlayerId claim status)
+- `python build.py db party [campaign-id]` — show full PartyStateJson (pretty-printed)
 - `python build.py db update "<name>" <property> "<value>"` — update a character property directly
 - `python build.py db create-character "@file.json"` — create a character from JSON file
 - `python build.py db delete-character "<name>"` — delete a character by name
 - `python build.py db character-template` — show JSON template for creating characters
 - `python build.py db templates` — show all character templates in CharacterTemplates table
-- `python build.py db import-templates` — import JSON files from SampleCharacters into CharacterTemplates table (upsert by name)
+- `python build.py db import-templates` — import JSON files from SampleCharacters into CharacterTemplates table
+- `python build.py db rolls [campaign-id]` — show recent dice rolls
+- `python build.py db clear-rolls [campaign-id]` — clear recent rolls
 - `python build.py db "SELECT * FROM CampaignInstances"` — execute custom SQL query
+
+### Database Backup Commands
+- `python build.py db backup [name]` — backup database (auto-timestamps if no name)
+- `python build.py db restore <name>` — restore database from backup
+- `python build.py db backups` — list all available backups
+- `python build.py db delete-backup <name>` — delete a backup
+
+**Backup behavior:** Auto-stops running app for clean backup/restore. Backups stored in `./backups/`.
 
 **When to use these commands:**
 - **log commands**: Use when debugging runtime issues, checking if operations succeeded, or investigating errors

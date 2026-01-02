@@ -27,6 +27,10 @@ if (!builder.Environment.IsDevelopment())
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+// Configuration bindings
+builder.Services.Configure<AdminSettings>(builder.Configuration.GetSection("AdminSettings"));
+builder.Services.Configure<WhitelistSettings>(builder.Configuration.GetSection("WhitelistSettings"));
+
 // Database
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
     ?? "Data Source=riddle.db";
@@ -85,6 +89,31 @@ if (!string.IsNullOrEmpty(googleClientId) && !string.IsNullOrEmpty(googleClientS
             // Request profile picture claim
             options.Scope.Add("profile");
             options.ClaimActions.MapJsonKey("picture", "picture");
+            
+            // Validate user against whitelist during sign-in
+            options.Events.OnTicketReceived = async context =>
+            {
+                var email = context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+                if (string.IsNullOrEmpty(email))
+                {
+                    context.Fail("Email claim not found.");
+                    return;
+                }
+                
+                // Get AllowedUserService from DI - need to resolve from scope
+                var allowedUserService = context.HttpContext.RequestServices
+                    .GetRequiredService<IAllowedUserService>();
+                
+                if (!await allowedUserService.IsEmailAllowedAsync(email))
+                {
+                    // Redirect to access denied page instead of failing outright
+                    context.Response.Redirect("/Account/AccessDenied");
+                    context.HandleResponse(); // Prevents default processing
+                    return;
+                }
+                
+                // User is allowed, continue with sign-in
+            };
         });
 }
 else
@@ -107,10 +136,12 @@ builder.Services.AddSignalR();
 builder.Services.AddSingleton<IConnectionTracker, ConnectionTracker>();
 
 // Application Services
+builder.Services.AddScoped<IAllowedUserService, AllowedUserService>();
 builder.Services.AddScoped<IAppEventService, AppEventService>();
 builder.Services.AddScoped<ICampaignService, CampaignService>();
 builder.Services.AddScoped<ICharacterService, CharacterService>();
 builder.Services.AddScoped<ICharacterTemplateService, CharacterTemplateService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IGameStateService, GameStateService>();
 builder.Services.AddScoped<IToolExecutor, ToolExecutor>();
 builder.Services.AddScoped<IRiddleLlmService, RiddleLlmService>();
@@ -118,6 +149,9 @@ builder.Services.AddScoped<ICombatService, CombatService>();
 
 // SignalR notification service for broadcasting events to campaign participants
 builder.Services.AddScoped<INotificationService, NotificationService>();
+
+// Health checks for container orchestration
+builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
@@ -151,6 +185,9 @@ if (!app.Environment.IsEnvironment("Testing"))
 
 // Map SignalR hub for real-time game events
 app.MapHub<GameHub>("/gamehub");
+
+// Health check endpoint for container orchestration (Docker, Kubernetes)
+app.MapHealthChecks("/health");
 
 // Ensure database is created (skip during integration testing to avoid provider conflicts)
 if (!app.Environment.IsEnvironment("Testing"))

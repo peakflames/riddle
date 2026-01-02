@@ -7,6 +7,151 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-01-01
+
+### Added
+- **Sidebar Icon Improvements**
+  - `FlowbiteLogoIcon.razor` - Custom Flowbite logo icon for "Flowbite Blazor" sidebar link
+  - `RobotIcon.razor` - Robot icon for "LLM Tornado" sidebar link (homage to the LLM Tornado SDK)
+  - New sidebar entry linking to https://llmtornado.ai/
+
+### Changed
+- Flowbite Blazor sidebar link now uses official Flowbite logo icon instead of StarIcon
+- Robot icon stroke width reduced to 1 for thinner, more consistent appearance with other icons
+
+### Technical
+- Custom icons inherit from `Flowbite.Base.IconBase` for consistent sizing/styling
+- `FlowbiteLogoIcon` named to avoid conflict with existing `Flowbite.Icons.Extended.FlowbiteIcon`
+
+## [0.25.0] - 2026-01-01
+
+### Added
+- **Multi-File Template Import**
+  - "Import Files" button on Character Templates page for batch import
+  - `DirectoryImportModal.razor` component with drag-and-drop file picker UI
+  - Multi-file selection using Blazor `InputFile` with `multiple` attribute
+  - Public/Private visibility toggle for all imported templates
+  - File list preview with sizes and clear button
+  - Progress bar during import with success/failure count summary
+  - Error details for any failed imports
+  - `ImportMultipleFromJsonAsync` service method with batch processing
+  - Upsert pattern (creates or updates based on Name + OwnerId uniqueness)
+
+### Technical
+- `ICharacterTemplateService.ImportMultipleFromJsonAsync()` returns `BatchImportResult` record
+- `BatchImportResult` contains SuccessCount, FailureCount, and Errors list
+- Max 100 files per import, 1MB file size limit per file
+- JSON validation with detailed error messages per file
+
+## [0.24.0] - 2026-01-01
+
+### Added
+- **Docker Container Health Check**
+  - `/health` endpoint for container orchestration (Docker, Kubernetes)
+  - ASP.NET Core health checks middleware integration
+  - Health check configuration in docker-compose.yml
+
+- **Docker Deployment Documentation**
+  - `docs/deployment/docker.md` comprehensive deployment guide
+  - Local Docker deployment with Docker Compose
+  - Docker Hub image: `peakflames/riddle:develop` (develop branch) and `peakflames/riddle:latest` (main branch)
+  - Environment variable configuration for Google OAuth and OpenRouter API
+
+### Changed
+- RuntimeIdentifier removed from csproj (now set via CLI `-r linux-x64` for container builds only)
+- GitHub Actions workflow updated to pass RuntimeIdentifier on container publish
+- Local development builds now target native platform (Windows on Windows)
+
+### Technical
+- GitHub Actions workflow `.github/workflows/docker-publish.yml` for automated Docker Hub publishing
+- MSBuild SDK container support (`Microsoft.NET.Build.Containers`)
+- Container exposes port 8080 internally, configurable external mapping
+
+## [0.23.0] - 2026-01-01
+
+### Added
+- **User Whitelist Feature**
+  - Email-based user whitelist with enable/disable configuration
+  - `AllowedUser` model with Email, DisplayName, IsActive, CreatedAt, AddedBy fields
+  - `WhitelistSettings` configuration section in appsettings.json
+  - `IAllowedUserService`/`AllowedUserService` for whitelist CRUD operations
+  - Google OAuth `OnTicketReceived` event handler to enforce whitelist on sign-in
+  - `/Account/AccessDenied` page with configurable rejection message
+  - `/admin/settings` page for admins to manage whitelist (add/remove/toggle users)
+  - "Admin Settings" link in sidebar (visible only to admins)
+  - Admins bypass whitelist (always allowed to sign in)
+  - Admin emails displayed at top of whitelist table with purple "Admin" badge
+  - `GetAdminEmails()` method on `IAdminService` for retrieving configured admins
+
+### Changed
+- `AdminService` now uses `IOptionsMonitor<AdminSettings>` for hot-reload support
+- Admin email changes in appsettings.json take effect on page refresh (no app restart needed)
+- AGENT.md updated with "Verification Before Commit" rule (build ≠ verified)
+
+### Technical
+- EF Core migration `AddAllowedUsers` for AllowedUsers table
+- `@using Riddle.Web.Services` added to _Imports.razor for global service access
+- WhitelistSettings bound from configuration with `Enabled`, `AdminEmails`, `RejectionMessage`
+
+## [0.22.0] - 2026-01-01
+
+### Added
+- **D&D 5e Rules Reference Pages**
+  - `/rules/playing-the-game` - Core game mechanics from D&D 5e SRD
+  - `/rules/glossary` - Rules glossary with terminology definitions
+  - Markdown content loaded from `wwwroot/docs/` and rendered with Markdig
+  - Sidebar navigation under "Game Reference" section with book and clipboard icons
+  - Header dropdown (`RulesHelpDropdown.razor`) for quick access from any page
+    - Custom dropdown with `right-0` positioning to prevent viewport overflow
+    - Available in navbar next to dark mode toggle
+
+### Changed
+- Sidebar reorganized with new "Game Reference" collapsible section
+- Rules pages use prose styling with `max-w-none` for full-width content
+
+## [0.21.0] - 2026-01-01
+
+### Added
+- **Character Template Management (Phase 5 Feature)**
+  - User-owned templates with `OwnerId` foreign key to AspNetUsers
+  - Public/Private visibility toggle (`IsPublic` boolean, default: true)
+  - Template filtering tabs: All Templates, My Templates, System Templates
+  - Create Template form modal with all D&D 5e character fields
+  - Edit Template functionality (owner or admin only)
+  - Delete Template with confirmation (owner or admin only)
+  - JSON Import modal with visibility selection (Public/Private toggle)
+  - Schema Viewer modal for character JSON documentation
+  - Admin role system via `AdminSettings:AdminEmails` in appsettings.json
+  - `IAdminService`/`AdminService` for permission checks by email list
+
+- **Debounced Search Bar**
+  - Search templates by name, race, class, or spell names
+  - 300ms debounce for responsive filtering
+  - Clear button to reset search
+  - Result count display ("Found X templates matching...")
+
+### Changed
+- Character Templates page UI refactored to use Flowbite Blazor components
+- Search bar uses `<TextInput>` with `SearchIcon` instead of raw HTML input
+- Template table shows Owner column ("System" badge vs user email)
+- Template table shows Visibility column ("Public"/"Private" badges)
+
+### Technical
+- EF Core migration `AddIsPublicToCharacterTemplates` for visibility column
+- `CharacterTemplateService` extended with ownership and visibility logic
+- Import rules: users can import Public templates OR their own Private templates
+- Edit/Delete permissions: creator OR admin can modify templates
+
+## [0.20.1] - 2026-01-01
+
+### Fixed
+- **Player Dashboard `TurnAdvanced` SignalR handler silent failure**
+  - Handler used wrong signature `On<int, string, int>` expecting 3 positional args
+  - Server sends `TurnAdvancedPayload` record (single arg)
+  - SignalR handlers silently ignore events when arg count doesn't match
+  - Players never saw turn advancement updates during combat
+  - Fixed to use `On<TurnAdvancedPayload>` matching CombatTracker.razor pattern
+
 ## [0.20.0] - 2025-12-31
 
 ### Fixed
@@ -733,5 +878,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SignalR integration for real-time updates (prepared for Phase 2)
 - Flowbite Blazor component library reference documentation
 - Incremental phase implementation workflow for development
-
-
