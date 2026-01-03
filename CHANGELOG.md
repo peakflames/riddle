@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.28.1] - 2026-01-03
+
+### Fixed
+- **Admin Settings TextInput keyboard lag** - Replaced Flowbite `TextInput` with native HTML inputs
+  - Flowbite TextInput causes laggy keyboard entry in Blazor Server InteractiveServer mode
+  - Filed upstream issue: https://github.com/themesberg/flowbite-blazor/issues/15
+  - Workaround: Use native `<input>` with Tailwind classes matching Flowbite styling
+
 ### Documentation
 - Clarified CharacterTemplates ownership pattern in memory_aid.md: user templates can be private (`OwnerId` only) OR public (`IsPublic = true`)
 
