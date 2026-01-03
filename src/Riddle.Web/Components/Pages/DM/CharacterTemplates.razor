@@ -275,7 +275,7 @@
         _loading = true;
         StateHasChanged();
         
-        _allTemplates = await TemplateService.GetAllAvailableTemplatesAsync(_currentUserId ?? string.Empty);
+        _allTemplates = await TemplateService.GetImportableTemplatesAsync(_currentUserId ?? string.Empty);
         ApplyFilter();
         
         _loading = false;

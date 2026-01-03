@@ -55,16 +55,6 @@ public class CharacterTemplateService : ICharacterTemplateService
             .ToListAsync(ct);
     }
 
-    public async Task<List<CharacterTemplate>> GetAllAvailableTemplatesAsync(string userId, CancellationToken ct = default)
-    {
-        return await _db.CharacterTemplates
-            .Include(t => t.Owner)
-            .Where(t => t.OwnerId == null || t.OwnerId == userId)
-            .OrderBy(t => t.OwnerId == null ? 0 : 1) // System templates first
-            .ThenBy(t => t.Name)
-            .ToListAsync(ct);
-    }
-
     public async Task<List<CharacterTemplate>> GetImportableTemplatesAsync(string userId, CancellationToken ct = default)
     {
         // Return all public templates + user's own templates (regardless of public flag)
