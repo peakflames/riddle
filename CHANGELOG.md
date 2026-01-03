@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.28.2] - 2026-01-03
+
+### Fixed
+- **Character Templates search bar keyboard lag** - Replaced Flowbite `TextInput` with native HTML input
+  - Same issue as Admin Settings (Flowbite TextInput laggy in Blazor Server InteractiveServer mode)
+  - Applied consistent workaround pattern established in 0.28.1
+
 ## [0.28.1] - 2026-01-03
 
 ### Fixed
