@@ -1,8 +1,9 @@
 @using Microsoft.AspNetCore.SignalR.Client
 @using Riddle.Web.Hubs
 @using Riddle.Web.Services
+@using Riddle.Web.Components.Shared
 @using Flowbite.Components
-@implements IAsyncDisposable
+@inherits RealtimeBaseComponent
 
 @* Display-only combat tracker - combat is controlled by LLM via tools *@
 <Card Size="CardSize.ExtraLarge" class="max-w-none" data-testid="combat-tracker">
@@ -70,13 +71,8 @@
     [Parameter]
     public List<Riddle.Web.Models.Character> PartyCharacters { get; set; } = [];
     
-    [Inject] 
-    private NavigationManager Navigation { get; set; } = null!;
-    
     [Inject]
-    private ILogger<CombatTracker> Logger { get; set; } = null!;
-    
-    private HubConnection? _hubConnection;
+    private ILogger<CombatTracker> ComponentLogger { get; set; } = null!;
 
     protected override async Task OnInitializedAsync()
     {
@@ -87,19 +83,12 @@
     {
         try
         {
-            _hubConnection = new HubConnectionBuilder()
-                .WithUrl(Navigation.ToAbsoluteUri("/gamehub"))
-                .WithAutomaticReconnect([
-                    TimeSpan.Zero, 
-                    TimeSpan.FromSeconds(2), 
-                    TimeSpan.FromSeconds(5),
-                    TimeSpan.FromSeconds(10)
-                ])
-                .Build();
+            // Use base class method to get Docker-aware SignalR URL
+            CreateHubConnection();
 
-            _hubConnection.On<CombatStatePayload>(GameHubEvents.CombatStarted, async payload =>
+            HubConnection!.On<CombatStatePayload>(GameHubEvents.CombatStarted, async payload =>
             {
-                Logger.LogWarning("[CombatTracker] CombatStarted SignalR event RECEIVED for campaign {CampaignId}", CampaignId);
+                ComponentLogger.LogWarning("[CombatTracker] CombatStarted SignalR event RECEIVED for campaign {CampaignId}", CampaignId);
                 // Don't modify Combat directly - it's a [Parameter] owned by parent
                 // Just invoke the callback to notify parent to update its state
                 await InvokeAsync(async () =>
@@ -108,9 +97,9 @@
                 });
             });
 
-            _hubConnection.On<TurnAdvancedPayload>(GameHubEvents.TurnAdvanced, async payload =>
+            HubConnection!.On<TurnAdvancedPayload>(GameHubEvents.TurnAdvanced, async payload =>
             {
-                Logger.LogDebug("[CombatTracker] TurnAdvanced SignalR event RECEIVED: Round={RoundNumber}, newIndex={NewIndex}", payload.RoundNumber, payload.NewTurnIndex);
+                ComponentLogger.LogDebug("[CombatTracker] TurnAdvanced SignalR event RECEIVED: Round={RoundNumber}, newIndex={NewIndex}", payload.RoundNumber, payload.NewTurnIndex);
                 if (Combat != null)
                 {
                     // Create updated state with both turn index and round number
@@ -122,10 +111,10 @@
                 }
             });
 
-            _hubConnection.On(GameHubEvents.CombatEnded, async () =>
+            HubConnection!.On(GameHubEvents.CombatEnded, async () =>
             {
-                Logger.LogWarning("[CombatTracker] CombatEnded SignalR event RECEIVED for campaign {CampaignId}", CampaignId);
-                Logger.LogWarning("[CombatTracker] Current Combat state before clear: IsActive={IsActive}, TurnOrder={TurnOrderCount}", 
+                ComponentLogger.LogWarning("[CombatTracker] CombatEnded SignalR event RECEIVED for campaign {CampaignId}", CampaignId);
+                ComponentLogger.LogWarning("[CombatTracker] Current Combat state before clear: IsActive={IsActive}, TurnOrder={TurnOrderCount}", 
                     Combat?.IsActive, Combat?.TurnOrder?.Count);
                 
                 // Don't modify Combat directly - it's a [Parameter] owned by parent
@@ -133,37 +122,37 @@
                 await InvokeAsync(async () =>
                 {
                     await CombatChanged.InvokeAsync(null);
-                    Logger.LogWarning("[CombatTracker] CombatChanged callback invoked successfully");
+                    ComponentLogger.LogWarning("[CombatTracker] CombatChanged callback invoked successfully");
                 });
             });
             
             // Subscribe to character state updates (HP changes during combat)
-            _hubConnection.On<CharacterStatePayload>(GameHubEvents.CharacterStateUpdated, async payload =>
+            HubConnection!.On<CharacterStatePayload>(GameHubEvents.CharacterStateUpdated, async payload =>
             {
                 await HandleCharacterStateUpdateAsync(payload);
             });
             
             // Subscribe to death save updates to refresh PC death save UI
-            _hubConnection.On<DeathSavePayload>(GameHubEvents.DeathSaveUpdated, async payload =>
+            HubConnection!.On<DeathSavePayload>(GameHubEvents.DeathSaveUpdated, async payload =>
             {
-                Logger.LogDebug("[CombatTracker] DeathSaveUpdated: {CharacterName} - S:{Successes}/F:{Failures}, Stable:{IsStable}, Dead:{IsDead}",
+                ComponentLogger.LogDebug("[CombatTracker] DeathSaveUpdated: {CharacterName} - S:{Successes}/F:{Failures}, Stable:{IsStable}, Dead:{IsDead}",
                     payload.CharacterName, payload.DeathSaveSuccesses, payload.DeathSaveFailures, payload.IsStable, payload.IsDead);
                 
                 // Trigger UI refresh - the parent component should have updated PartyCharacters
                 await InvokeAsync(StateHasChanged);
             });
 
-            await _hubConnection.StartAsync();
+            await HubConnection!.StartAsync();
             
             // Join campaign group to receive combat updates
             if (CampaignId != Guid.Empty)
             {
-                await _hubConnection.SendAsync("JoinCampaign", CampaignId, "", null, IsDm);
+                await HubConnection.SendAsync("JoinCampaign", CampaignId, "", null, IsDm);
             }
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to setup SignalR connection for CombatTracker");
+            ComponentLogger.LogError(ex, "Failed to setup SignalR connection for CombatTracker");
         }
     }
 
@@ -183,18 +172,18 @@
         
         if (combatantIndex < 0)
         {
-            Logger.LogDebug("[CombatTracker] CharacterStateUpdated: Character {CharacterId} not in combat turn order", payload.CharacterId);
+            ComponentLogger.LogDebug("[CombatTracker] CharacterStateUpdated: Character {CharacterId} not in combat turn order", payload.CharacterId);
             return;
         }
         
         // Parse the new HP value
         if (!int.TryParse(payload.Value?.ToString(), out var newHp))
         {
-            Logger.LogWarning("[CombatTracker] CharacterStateUpdated: Could not parse HP value '{Value}' for {CharacterId}", payload.Value, payload.CharacterId);
+            ComponentLogger.LogWarning("[CombatTracker] CharacterStateUpdated: Could not parse HP value '{Value}' for {CharacterId}", payload.Value, payload.CharacterId);
             return;
         }
         
-        Logger.LogDebug("[CombatTracker] CharacterStateUpdated: Updating {CharacterName} HP to {NewHp}", 
+        ComponentLogger.LogDebug("[CombatTracker] CharacterStateUpdated: Updating {CharacterName} HP to {NewHp}", 
             Combat.TurnOrder[combatantIndex].Name, newHp);
         
         // Create a new turn order list with the updated combatant
@@ -213,22 +202,24 @@
         });
     }
     
-    public async ValueTask DisposeAsync()
+    public override async ValueTask DisposeAsync()
     {
-        if (_hubConnection != null)
+        if (HubConnection != null)
         {
             try
             {
                 if (CampaignId != Guid.Empty)
                 {
-                    await _hubConnection.SendAsync("LeaveCampaign", CampaignId);
+                    await HubConnection.SendAsync("LeaveCampaign", CampaignId);
                 }
-                await _hubConnection.DisposeAsync();
             }
             catch (Exception ex)
             {
-                Logger.LogWarning(ex, "Error disposing SignalR connection");
+                ComponentLogger.LogWarning(ex, "Error leaving campaign group");
             }
         }
+        
+        // Call base to dispose the HubConnection
+        await base.DisposeAsync();
     }
 }

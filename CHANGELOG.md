@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-01-03
+
+### Added
+- **RealtimeBaseComponent Base Class**
+  - Centralized SignalR connection URL logic for Docker/local environment detection
+  - `GetSignalRHubUrl()` method detects `DOTNET_RUNNING_IN_CONTAINER` env var
+  - `CreateHubConnection()` factory method with automatic reconnect policy
+  - All SignalR-enabled components now inherit from this base class:
+    - `Campaign.razor` (DM Dashboard)
+    - `Dashboard.razor` (Player Dashboard)
+    - `CombatTracker.razor`
+    - `SignalRTest.razor`
+
+- **Docker Commands in build.py**
+  - `python build.py docker build` — build local Docker image
+  - `python build.py docker run` — run container on port 8080
+  - `python build.py docker stop` — stop and remove container
+  - `python build.py docker status` — show container status
+  - `python build.py docker logs` — show container logs
+  - `python build.py docker shell` — open shell in running container
+
+### Changed
+- Documented port strategy: dev=5000, local Docker=8080, production=1983
+- Updated AGENT.md, developer_rules.md, and memory_aid.md with Docker commands
+
+### Technical
+- `RealtimeBaseComponent.cs` in `Components/Shared/` directory
+- Uses `DOTNET_RUNNING_IN_CONTAINER` for reliable Docker detection
+- Falls back to `ASPNETCORE_HTTP_PORTS` (default 8080) for internal port
+
 ## [0.27.1] - 2026-01-02
 
 ### Fixed

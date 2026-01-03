@@ -923,27 +923,42 @@ System.Net.Http.HttpRequestException: Connection refused (localhost:1983)
 - `Navigation.BaseUri` returns `http://localhost:1983/` (external URL)
 - HubConnection tries to connect to `localhost:1983` from INSIDE container → fails
 
-**Fix:** Use internal port (8080) for SignalR connections:
+**Fix:** Inherit from `RealtimeBaseComponent` base class which centralizes the URL resolution:
 
 ```csharp
-/// <summary>
-/// Gets the SignalR hub URL. In server-side Blazor, HubConnection runs on the server,
-/// so we must connect to the internal port (8080) not the external mapped port.
-/// </summary>
-private Uri GetSignalRHubUrl()
-{
-    var internalPort = Environment.GetEnvironmentVariable("ASPNETCORE_HTTP_PORTS") ?? "8080";
-    return new Uri($"http://localhost:{internalPort}/gamehub");
-}
+// Components/Shared/RealtimeBaseComponent.cs provides:
+// - GetSignalRHubUrl() - detects Docker vs local and returns correct URL
+// - CreateHubConnection() - builds HubConnection with correct URL and reconnect policy
+// - DisposeAsync() - cleans up HubConnection
 
-// Usage:
-var hubUrl = GetSignalRHubUrl();
-_hubConnection = new HubConnectionBuilder()
-    .WithUrl(hubUrl)
-    .WithAutomaticReconnect()
-    .Build();
+// Usage in pages:
+@inherits RealtimeBaseComponent
+
+// In OnInitializedAsync:
+var hubConnection = CreateHubConnection();  // Uses internal port in Docker, NavigationManager locally
+await hubConnection.StartAsync();
 ```
 
-**Apply to:** All pages with SignalR connections (Campaign.razor, Dashboard.razor, etc.)
+**Implementation pattern:**
+```csharp
+protected string GetSignalRHubUrl()
+{
+    var isDocker = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
+    if (isDocker)
+    {
+        var port = Environment.GetEnvironmentVariable("ASPNETCORE_HTTP_PORTS") ?? "8080";
+        return $"http://localhost:{port}/gamehub";
+    }
+    return Navigation.ToAbsoluteUri("/gamehub").ToString();
+}
+```
 
-**Why `ASPNETCORE_HTTP_PORTS`:** This env var is set automatically by ASP.NET Core to indicate what port Kestrel listens on. Default is `8080` in Docker.
+**Apply to:** All pages with SignalR connections should inherit from `RealtimeBaseComponent`:
+- `Campaign.razor` (DM Dashboard)
+- `Dashboard.razor` (Player Dashboard) 
+- `CombatTracker.razor`
+- `SignalRTest.razor`
+
+**Why `DOTNET_RUNNING_IN_CONTAINER`:** This env var is automatically set to `"true"` by .NET SDK when running in a container. More reliable than checking ports.
+
+**Why `ASPNETCORE_HTTP_PORTS`:** This env var indicates what port Kestrel listens on internally. Default is `8080` in Docker.
