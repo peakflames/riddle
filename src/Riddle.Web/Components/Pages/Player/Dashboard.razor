@@ -371,13 +371,24 @@
     private CancellationTokenSource? _groupInsightCts;
     
     /// <summary>
-    /// Gets the SignalR hub URL. In server-side Blazor, HubConnection runs on the server,
-    /// so we must connect to the internal port (8080) not the external mapped port.
+    /// Gets the SignalR hub URL. In server-side Blazor, HubConnection runs on the server.
+    /// - In Docker: Use internal port (ASPNETCORE_HTTP_PORTS, typically 8080)
+    /// - Locally: Use the Navigation.BaseUri which matches the dev server port
     /// </summary>
     private Uri GetSignalRHubUrl()
     {
-        var internalPort = Environment.GetEnvironmentVariable("ASPNETCORE_HTTP_PORTS") ?? "8080";
-        return new Uri($"http://localhost:{internalPort}/gamehub");
+        // Check if running in Docker container (set by .NET SDK container builds)
+        var isDocker = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
+        
+        if (isDocker)
+        {
+            // Inside Docker, use internal port (not the external mapped port)
+            var internalPort = Environment.GetEnvironmentVariable("ASPNETCORE_HTTP_PORTS") ?? "8080";
+            return new Uri($"http://localhost:{internalPort}/gamehub");
+        }
+        
+        // Local development: use NavigationManager's base URI
+        return Navigation.ToAbsoluteUri("/gamehub");
     }
     
     protected override async Task OnInitializedAsync()
