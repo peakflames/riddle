@@ -11,14 +11,13 @@
 @using Riddle.Web.Components.Combat
 @using Riddle.Web.Hubs
 @using Microsoft.AspNetCore.SignalR.Client
-@implements IAsyncDisposable
+@inherits RealtimeBaseComponent
 @inject ICampaignService CampaignService
 @inject ICharacterService CharacterService
 @inject IGameStateService GameStateService
 @inject ICombatService CombatService
 @inject ICharacterTemplateService CharacterTemplateService
 @inject AuthenticationStateProvider AuthStateProvider
-@inject NavigationManager Navigation
 
 <PageTitle>@(campaign?.Name ?? "Campaign") - Riddle</PageTitle>
 
@@ -465,33 +464,9 @@
     // Combat state
     private CombatStatePayload? _combatState;
     
-    // SignalR connection for player events
-    private HubConnection? _hubConnection;
-    
     // Player choices submitted (from players)
     private List<PlayerChoicePayload> _playerChoicesSubmitted = [];
     
-    /// <summary>
-    /// Gets the SignalR hub URL. In server-side Blazor, HubConnection runs on the server.
-    /// - In Docker: Use internal port (ASPNETCORE_HTTP_PORTS, typically 8080)
-    /// - Locally: Use the Navigation.BaseUri which matches the dev server port
-    /// </summary>
-    private Uri GetSignalRHubUrl()
-    {
-        // Check if running in Docker container (set by .NET SDK container builds)
-        var isDocker = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
-        
-        if (isDocker)
-        {
-            // Inside Docker, use internal port (not the external mapped port)
-            var internalPort = Environment.GetEnvironmentVariable("ASPNETCORE_HTTP_PORTS") ?? "8080";
-            return new Uri($"http://localhost:{internalPort}/gamehub");
-        }
-        
-        // Local development: use NavigationManager's base URI
-        return Navigation.ToAbsoluteUri("/gamehub");
-    }
-
     protected override async Task OnInitializedAsync()
     {
         // Subscribe to campaign state changes for real-time updates
@@ -560,18 +535,18 @@
         });
     }
 
-    public async ValueTask DisposeAsync()
+    public override async ValueTask DisposeAsync()
     {
         GameStateService.OnCampaignChanged -= HandleCampaignChanged;
-        if (_hubConnection != null)
+        if (HubConnection != null)
         {
             try
             {
-                await _hubConnection.SendAsync("LeaveCampaign", CampaignId);
+                await HubConnection.SendAsync("LeaveCampaign", CampaignId);
             }
             catch { /* Ignore errors during cleanup */ }
-            await _hubConnection.DisposeAsync();
         }
+        await base.DisposeAsync();
     }
 
     private async Task LoadCampaignAsync()
@@ -597,19 +572,11 @@
     
     private async Task SetupSignalRAsync()
     {
-        // For SignalR connections, use relative path which works in all environments
-        // The HubConnectionBuilder needs an absolute URI, but inside Docker containers
-        // the Navigation.BaseUri might point to external URL (localhost:1983) that isn't reachable
-        // from inside the container. Using the internal Kestrel endpoint (8080) ensures connectivity.
-        var hubUrl = GetSignalRHubUrl();
-        
-        _hubConnection = new HubConnectionBuilder()
-            .WithUrl(hubUrl)
-            .WithAutomaticReconnect()
-            .Build();
+        // Use base class method to get Docker-aware SignalR URL and create the connection
+        CreateHubConnection();
         
         // Receive player choice submissions
-        _hubConnection.On<PlayerChoicePayload>(GameHubEvents.PlayerChoiceSubmitted, async payload =>
+        HubConnection!.On<PlayerChoicePayload>(GameHubEvents.PlayerChoiceSubmitted, async payload =>
         {
             // Add to list (remove old choices from same character)
             _playerChoicesSubmitted.RemoveAll(c => c.CharacterId == payload.CharacterId);
@@ -618,7 +585,7 @@
         });
         
         // Receive death save updates (must update PartyCharacters before CombatTracker calls StateHasChanged)
-        _hubConnection.On<DeathSavePayload>(GameHubEvents.DeathSaveUpdated, async payload =>
+        HubConnection.On<DeathSavePayload>(GameHubEvents.DeathSaveUpdated, async payload =>
         {
             if (campaign == null) return;
             
@@ -648,7 +615,7 @@
         });
         
         // Receive character state updates (HP changes, conditions, etc.)
-        _hubConnection.On<CharacterStatePayload>(GameHubEvents.CharacterStateUpdated, async payload =>
+        HubConnection.On<CharacterStatePayload>(GameHubEvents.CharacterStateUpdated, async payload =>
         {
             if (campaign == null) return;
             
@@ -727,10 +694,10 @@
             }
         });
         
-        await _hubConnection.StartAsync();
+        await HubConnection.StartAsync();
         
         // Join campaign as DM
-        await _hubConnection.SendAsync("JoinCampaign", CampaignId, currentUserId, null, true);
+        await HubConnection.SendAsync("JoinCampaign", CampaignId, currentUserId, null, true);
     }
 
     private string GetLocationDisplay()

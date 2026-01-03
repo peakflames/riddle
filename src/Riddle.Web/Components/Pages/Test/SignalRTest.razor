@@ -1,8 +1,9 @@
 @page "/test/signalr"
 @using Microsoft.AspNetCore.SignalR.Client
 @using Riddle.Web.Hubs
+@using Riddle.Web.Components.Shared
 @rendermode InteractiveServer
-@implements IAsyncDisposable
+@inherits RealtimeBaseComponent
 
 <PageTitle>SignalR Test - Riddle</PageTitle>
 
@@ -88,7 +89,6 @@
 </div>
 
 @code {
-    private HubConnection? _hubConnection;
     private bool _isConnected;
     private bool _isConnecting;
     private bool _hasJoined;
@@ -110,33 +110,32 @@
         try
         {
             _isConnecting = true;
-            Log("Connecting to /gamehub...");
+            var hubUrl = GetSignalRHubUrl();
+            Log($"Connecting to {hubUrl}...");
             
-            _hubConnection = new HubConnectionBuilder()
-                .WithUrl(Navigation.ToAbsoluteUri("/gamehub"))
-                .WithAutomaticReconnect()
-                .Build();
+            // Use base class method to get Docker-aware SignalR URL
+            CreateHubConnection();
 
             // Subscribe to events
-            _hubConnection.On<PlayerConnectionPayload>(GameHubEvents.PlayerConnected, payload =>
+            HubConnection!.On<PlayerConnectionPayload>(GameHubEvents.PlayerConnected, payload =>
             {
                 Log($"PlayerConnected: {payload.PlayerName} ({payload.CharacterId})");
                 InvokeAsync(StateHasChanged);
             });
 
-            _hubConnection.On<PlayerConnectionPayload>(GameHubEvents.PlayerDisconnected, payload =>
+            HubConnection.On<PlayerConnectionPayload>(GameHubEvents.PlayerDisconnected, payload =>
             {
                 Log($"PlayerDisconnected: {payload.PlayerName}");
                 InvokeAsync(StateHasChanged);
             });
 
-            _hubConnection.On<PlayerChoicePayload>(GameHubEvents.PlayerChoiceSubmitted, payload =>
+            HubConnection.On<PlayerChoicePayload>(GameHubEvents.PlayerChoiceSubmitted, payload =>
             {
                 Log($"PlayerChoiceSubmitted: {payload.CharacterName} chose '{payload.Choice}'");
                 InvokeAsync(StateHasChanged);
             });
 
-            _hubConnection.Reconnecting += error =>
+            HubConnection.Reconnecting += error =>
             {
                 _isConnected = false;
                 Log("Reconnecting...", isError: error != null);
@@ -144,7 +143,7 @@
                 return Task.CompletedTask;
             };
 
-            _hubConnection.Reconnected += connectionId =>
+            HubConnection.Reconnected += connectionId =>
             {
                 _isConnected = true;
                 _connectionId = connectionId;
@@ -153,7 +152,7 @@
                 return Task.CompletedTask;
             };
 
-            _hubConnection.Closed += error =>
+            HubConnection.Closed += error =>
             {
                 _isConnected = false;
                 _hasJoined = false;
@@ -162,9 +161,9 @@
                 return Task.CompletedTask;
             };
 
-            await _hubConnection.StartAsync();
+            await HubConnection.StartAsync();
             _isConnected = true;
-            _connectionId = _hubConnection.ConnectionId;
+            _connectionId = HubConnection.ConnectionId;
             Log($"Connected! Connection ID: {_connectionId}");
         }
         catch (Exception ex)
@@ -179,9 +178,9 @@
 
     private async Task DisconnectAsync()
     {
-        if (_hubConnection != null)
+        if (HubConnection != null)
         {
-            await _hubConnection.StopAsync();
+            await HubConnection.StopAsync();
             _isConnected = false;
             _hasJoined = false;
             _connectionId = null;
@@ -191,11 +190,11 @@
 
     private async Task JoinTestCampaign()
     {
-        if (_hubConnection != null)
+        if (HubConnection != null)
         {
             try
             {
-                await _hubConnection.SendAsync("JoinCampaign", _testCampaignId, _testUserId, _testCharacterId, false);
+                await HubConnection.SendAsync("JoinCampaign", _testCampaignId, _testUserId, _testCharacterId, false);
                 _hasJoined = true;
                 Log($"Joined campaign {_testCampaignId} as player");
             }
@@ -208,11 +207,11 @@
 
     private async Task LeaveTestCampaign()
     {
-        if (_hubConnection != null)
+        if (HubConnection != null)
         {
             try
             {
-                await _hubConnection.SendAsync("LeaveCampaign", _testCampaignId);
+                await HubConnection.SendAsync("LeaveCampaign", _testCampaignId);
                 _hasJoined = false;
                 Log($"Left campaign {_testCampaignId}");
             }
@@ -225,11 +224,11 @@
 
     private async Task SubmitTestChoice()
     {
-        if (_hubConnection != null)
+        if (HubConnection != null)
         {
             try
             {
-                await _hubConnection.SendAsync("SubmitChoice", _testCampaignId, _testCharacterId, "Test Character", "Attack");
+                await HubConnection.SendAsync("SubmitChoice", _testCampaignId, _testCharacterId, "Test Character", "Attack");
                 Log("Submitted choice: Attack");
             }
             catch (Exception ex)
@@ -246,16 +245,6 @@
     }
 
     private void ClearLog() => _eventLog.Clear();
-
-    [Inject] private NavigationManager Navigation { get; set; } = null!;
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_hubConnection != null)
-        {
-            await _hubConnection.DisposeAsync();
-        }
-    }
 
     private record LogEntry(DateTime Timestamp, string Message, bool IsError);
 }

@@ -11,13 +11,13 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.SignalR.Client
 @using System.Security.Claims
+@using Riddle.Web.Components.Shared
 
-@implements IAsyncDisposable
+@inherits RealtimeBaseComponent
 
 @inject ICampaignService CampaignService
 @inject ICombatService CombatService
 @inject IGameStateService GameStateService
-@inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
 
 <PageTitle>@(campaign?.Name ?? "Player Dashboard") - Riddle</PageTitle>
@@ -361,7 +361,6 @@
     
     private CombatStatePayload? _combatState;
     private string? _currentTurnCombatantId;
-    private HubConnection? _hubConnection;
     
     // Atmospheric state
     private AtmospherePulsePayload? _atmospherePulse;
@@ -369,27 +368,6 @@
     private GroupInsightPayload? _groupInsight;
     private CancellationTokenSource? _atmospherePulseCts;
     private CancellationTokenSource? _groupInsightCts;
-    
-    /// <summary>
-    /// Gets the SignalR hub URL. In server-side Blazor, HubConnection runs on the server.
-    /// - In Docker: Use internal port (ASPNETCORE_HTTP_PORTS, typically 8080)
-    /// - Locally: Use the Navigation.BaseUri which matches the dev server port
-    /// </summary>
-    private Uri GetSignalRHubUrl()
-    {
-        // Check if running in Docker container (set by .NET SDK container builds)
-        var isDocker = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
-        
-        if (isDocker)
-        {
-            // Inside Docker, use internal port (not the external mapped port)
-            var internalPort = Environment.GetEnvironmentVariable("ASPNETCORE_HTTP_PORTS") ?? "8080";
-            return new Uri($"http://localhost:{internalPort}/gamehub");
-        }
-        
-        // Local development: use NavigationManager's base URI
-        return Navigation.ToAbsoluteUri("/gamehub");
-    }
     
     protected override async Task OnInitializedAsync()
     {
@@ -451,14 +429,14 @@
     
     private async Task SelectChoice(string choice)
     {
-        if (selectedCharacter == null || _hubConnection == null) return;
+        if (selectedCharacter == null || HubConnection == null) return;
         
         // Mark choice as selected
         hasSelectedChoice = true;
         selectedChoice = choice;
         
         // Send choice to DM via SignalR
-        await _hubConnection.SendAsync("SubmitChoice", CampaignId, selectedCharacter.Id.ToString(), selectedCharacter.Name, choice);
+        await HubConnection.SendAsync("SubmitChoice", CampaignId, selectedCharacter.Id.ToString(), selectedCharacter.Name, choice);
     }
     
     private void GoHome() => Navigation.NavigateTo("/");
@@ -467,25 +445,20 @@
     
     private async Task SetupSignalRAsync()
     {
-        // Use internal port for SignalR in server-side Blazor (works in Docker)
-        var hubUrl = GetSignalRHubUrl();
-        
-        _hubConnection = new HubConnectionBuilder()
-            .WithUrl(hubUrl)
-            .WithAutomaticReconnect()
-            .Build();
+        // Use base class method to get Docker-aware SignalR URL and create connection
+        CreateHubConnection();
         
         // Handle reconnection - reload data from DB to restore state
-        _hubConnection.Reconnected += OnReconnectedAsync;
+        HubConnection!.Reconnected += OnReconnectedAsync;
         
         // Combat events
-        _hubConnection.On<CombatStatePayload>(GameHubEvents.CombatStarted, async payload =>
+        HubConnection.On<CombatStatePayload>(GameHubEvents.CombatStarted, async payload =>
         {
             _combatState = payload;
             await InvokeAsync(StateHasChanged);
         });
         
-        _hubConnection.On<TurnAdvancedPayload>(GameHubEvents.TurnAdvanced, async payload =>
+        HubConnection.On<TurnAdvancedPayload>(GameHubEvents.TurnAdvanced, async payload =>
         {
             if (_combatState != null)
             {
@@ -499,14 +472,14 @@
             }
         });
         
-        _hubConnection.On(GameHubEvents.CombatEnded, async () =>
+        HubConnection.On(GameHubEvents.CombatEnded, async () =>
         {
             _combatState = null;
             await InvokeAsync(StateHasChanged);
         });
         
         // Player choices received from DM/LLM
-        _hubConnection.On<List<string>>(GameHubEvents.PlayerChoicesReceived, async choices =>
+        HubConnection.On<List<string>>(GameHubEvents.PlayerChoicesReceived, async choices =>
         {
             if (campaign != null)
             {
@@ -518,7 +491,7 @@
         });
         
         // Character state updates (HP changes, conditions, etc.)
-        _hubConnection.On<CharacterStatePayload>(GameHubEvents.CharacterStateUpdated, async payload =>
+        HubConnection.On<CharacterStatePayload>(GameHubEvents.CharacterStateUpdated, async payload =>
         {
             if (campaign == null) return;
             
@@ -561,7 +534,7 @@
         });
         
         // Atmospheric events (Player-only)
-        _hubConnection.On<AtmospherePulsePayload>(GameHubEvents.AtmospherePulseReceived, async payload =>
+        HubConnection.On<AtmospherePulsePayload>(GameHubEvents.AtmospherePulseReceived, async payload =>
         {
             // Cancel any existing pulse timer
             _atmospherePulseCts?.Cancel();
@@ -574,14 +547,14 @@
             _ = DismissAtmospherePulseAfterDelayAsync(_atmospherePulseCts.Token);
         });
         
-        _hubConnection.On<NarrativeAnchorPayload>(GameHubEvents.NarrativeAnchorUpdated, payload =>
+        HubConnection.On<NarrativeAnchorPayload>(GameHubEvents.NarrativeAnchorUpdated, payload =>
         {
             // Use synchronous update with new reference to ensure Blazor detects change
             _narrativeAnchor = new NarrativeAnchorPayload(payload.ShortText, payload.MoodCategory);
             InvokeAsync(StateHasChanged);
         });
         
-        _hubConnection.On<GroupInsightPayload>(GameHubEvents.GroupInsightTriggered, async payload =>
+        HubConnection.On<GroupInsightPayload>(GameHubEvents.GroupInsightTriggered, async payload =>
         {
             // Cancel any existing insight timer
             _groupInsightCts?.Cancel();
@@ -596,7 +569,7 @@
         
         // Death save updates - CRITICAL: Must update PartyState BEFORE child components render
         // IMPORTANT: PartyState is a JSON-backed property - get list once, modify, set back
-        _hubConnection.On<DeathSavePayload>(GameHubEvents.DeathSaveUpdated, async payload =>
+        HubConnection.On<DeathSavePayload>(GameHubEvents.DeathSaveUpdated, async payload =>
         {
             if (campaign == null) return;
             
@@ -622,7 +595,7 @@
         });
         
         // Player roll logged - update dice rolls in real-time (SignalR broadcast from ToolExecutor)
-        _hubConnection.On<RollResultPayload>(GameHubEvents.PlayerRollLogged, async payload =>
+        HubConnection.On<RollResultPayload>(GameHubEvents.PlayerRollLogged, async payload =>
         {
             if (campaign == null) return;
             
@@ -654,10 +627,10 @@
             await InvokeAsync(StateHasChanged);
         });
         
-        await _hubConnection.StartAsync();
+        await HubConnection.StartAsync();
         
         // Join campaign group for real-time updates
-        await _hubConnection.SendAsync("JoinCampaign", CampaignId, currentUserId, selectedCharacter?.Id.ToString(), false);
+        await HubConnection.SendAsync("JoinCampaign", CampaignId, currentUserId, selectedCharacter?.Id.ToString(), false);
     }
     
     private async Task OnReconnectedAsync(string? connectionId)
@@ -686,7 +659,7 @@
             _combatState = await CombatService.GetCombatStateAsync(CampaignId);
             
             // Re-join campaign group after reconnection
-            await _hubConnection!.SendAsync("JoinCampaign", CampaignId, currentUserId, selectedCharacter?.Id.ToString(), false);
+            await HubConnection!.SendAsync("JoinCampaign", CampaignId, currentUserId, selectedCharacter?.Id.ToString(), false);
         }
         
         await InvokeAsync(StateHasChanged);
@@ -720,22 +693,22 @@
         catch (TaskCanceledException) { /* Expected when new insight arrives */ }
     }
     
-    public async ValueTask DisposeAsync()
+    public override async ValueTask DisposeAsync()
     {
         GameStateService.OnCampaignChanged -= HandleCampaignChanged;
         
         _atmospherePulseCts?.Cancel();
         _groupInsightCts?.Cancel();
         
-        if (_hubConnection != null)
+        if (HubConnection != null)
         {
             try
             {
-                await _hubConnection.SendAsync("LeaveCampaign", CampaignId);
+                await HubConnection.SendAsync("LeaveCampaign", CampaignId);
             }
             catch { /* Ignore errors during cleanup */ }
-            await _hubConnection.DisposeAsync();
         }
+        await base.DisposeAsync();
     }
     
     private void HandleCampaignChanged(CampaignChangedEventArgs args)
