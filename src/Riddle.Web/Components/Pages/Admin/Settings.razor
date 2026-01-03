@@ -58,8 +58,12 @@ else
                 
                 <!-- Add User Form -->
                 <div class="mb-6 flex flex-col gap-4 sm:flex-row">
-                    <TextInput @bind-Value="_newEmail" Placeholder="email@example.com" Class="flex-1" />
-                    <TextInput @bind-Value="_newDisplayName" Placeholder="Display Name (optional)" Class="sm:w-48" />
+                    <input type="email" @bind="_newEmail" @bind:event="oninput" 
+                           placeholder="email@example.com" 
+                           class="flex-1 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" />
+                    <input type="text" @bind="_newDisplayName" @bind:event="oninput" 
+                           placeholder="Display Name (optional)" 
+                           class="sm:w-48 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" />
                     <Button Color="ButtonColor.Primary" OnClick="AddUser" Disabled="@_isLoading">
                         @if (_isLoading)
                         {
