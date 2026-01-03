@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+- Clarified CharacterTemplates ownership pattern in memory_aid.md: user templates can be private (`OwnerId` only) OR public (`IsPublic = true`)
+
 ## [0.28.0] - 2026-01-03
 
 ### Added

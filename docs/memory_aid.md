@@ -418,7 +418,7 @@ private static (bool success, int value, string? error) ParseIntValue(JsonElemen
 **Key Design Decisions:**
 1. **Unique constraint**: `Name + OwnerId` (allows same-named characters for different owners)
 2. **System templates**: `OwnerId = NULL` (available to all DMs)
-3. **User templates**: `OwnerId = userId` (private to that DM)
+3. **User templates**: `OwnerId = userId` (private to that DM, OR public to all if `IsPublic = true`)
 4. **Shadow columns**: `Race`, `Class`, `Level` are denormalized from JSON for filtering/sorting
 5. **JSON import**: `build.py db import-templates` syncs `SampleCharacters/*.json` → database
 
