@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using LlmTornado;
 using LlmTornado.Chat;
 using LlmTornado.ChatFunctions;
@@ -276,6 +277,26 @@ public class RiddleLlmService : IRiddleLlmService
                 ToolCallCount: totalToolCalls,
                 DurationMs: stopwatch.ElapsedMilliseconds);
         }
+        catch (HttpRequestException httpEx)
+        {
+            stopwatch.Stop();
+            _logger.LogError(httpEx, "HTTP error from LLM provider");
+            
+            var friendlyMessage = ParseOpenRouterError(httpEx.Message);
+            
+            _appEventService.AddEvent(
+                AppEventType.Error, 
+                "LLM", 
+                "LLM API request failed",
+                friendlyMessage,
+                isError: true);
+            
+            return new DmChatResponse(
+                Content: string.Empty,
+                IsSuccess: false,
+                ErrorMessage: friendlyMessage,
+                DurationMs: stopwatch.ElapsedMilliseconds);
+        }
         catch (Exception ex)
         {
             stopwatch.Stop();
@@ -296,6 +317,49 @@ public class RiddleLlmService : IRiddleLlmService
         }
     }
 
+    /// <summary>
+    /// Parses OpenRouter error responses and returns user-friendly messages.
+    /// OpenRouter errors come as JSON: {"error":{"message":"...","code":...}}
+    /// </summary>
+    private string ParseOpenRouterError(string rawError)
+    {
+        try
+        {
+            // Try to extract JSON from the error message
+            var jsonStart = rawError.IndexOf('{');
+            if (jsonStart >= 0)
+            {
+                var jsonPart = rawError[jsonStart..];
+                using var doc = JsonDocument.Parse(jsonPart);
+                
+                if (doc.RootElement.TryGetProperty("error", out var errorObj))
+                {
+                    var code = errorObj.TryGetProperty("code", out var codeEl) 
+                        ? codeEl.GetInt32() 
+                        : 0;
+                    var message = errorObj.TryGetProperty("message", out var msgEl) 
+                        ? msgEl.GetString() ?? "Unknown error" 
+                        : "Unknown error";
+                    
+                    return code switch
+                    {
+                        401 => "Your OpenRouter API key is invalid or expired. Please verify your key at https://openrouter.ai/keys and update your .env file.",
+                        402 => "Insufficient OpenRouter credits. Please add funds to your account at https://openrouter.ai/credits",
+                        429 => "Rate limit exceeded. Please wait a moment and try again.",
+                        >= 500 and < 600 => $"OpenRouter service error ({code}). Please try again later.",
+                        _ => $"OpenRouter error ({code}): {message}"
+                    };
+                }
+            }
+        }
+        catch (JsonException)
+        {
+            // Not valid JSON, fall through to return raw error
+        }
+        
+        return $"API error: {rawError}";
+    }
+    
     private string BuildSystemPrompt(CampaignInstance campaign)
     {
         // Debug mode: allows DM to override system constraints when needed for testing
