@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-01-03
+
+### Changed
+- **Dashboard renamed to Campaigns** - Sidebar navigation now shows "Campaigns" instead of "Dashboard"
+- **Campaigns page redesigned with card-based layout**
+  - Removed stats grid (Active Campaigns, Characters, Last Activity) and Quick Actions section
+  - Campaign list now displays as responsive card grid (1 column mobile, 2 columns md, 3 columns xl)
+  - Each campaign card shows:
+    - Campaign name with location and time ago
+    - Party roster with character names, classes, and claim status badges
+    - Action buttons: Play, Edit (pencil), Delete (trash)
+  - Edit modal with tabbed interface for General settings and Preferences
+  - Delete confirmation modal with clear warning
+  - Matches Flowbite design system patterns from Character Templates page
+
 ## [0.28.4] - 2026-01-03
 
 ### Fixed
