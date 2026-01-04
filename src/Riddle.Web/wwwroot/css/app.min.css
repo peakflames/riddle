@@ -705,6 +705,10 @@ video {
   margin-left: 0.25rem;
 }
 
+.ml-11 {
+  margin-left: 2.75rem;
+}
+
 .ml-2 {
   margin-left: 0.5rem;
 }
@@ -3022,6 +3026,10 @@ video {
 }
 
 @media (min-width: 640px) {
+  .sm\:ml-0 {
+    margin-left: 0px;
+  }
+
   .sm\:h-64 {
     height: 16rem;
   }
@@ -3081,6 +3089,11 @@ video {
   .sm\:text-2xl {
     font-size: 1.5rem;
     line-height: 2rem;
+  }
+
+  .sm\:text-sm {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
   }
 }
 

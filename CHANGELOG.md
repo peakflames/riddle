@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **CharacterCard layout fix for claimed characters** - Player name/email badge now displays on its own row below the character name/class, preventing truncation of character names when claimed
+- **Mobile-responsive Campaign Header** - Title, Active badge, and Info toggle now stack vertically on mobile screens (below `sm` breakpoint) with appropriately sized text
 
 - **Mobile-first Import Templates page** (`/dm/campaign/{id}/import-templates`)
   - Replaced modal-based character template import with dedicated full-page route
