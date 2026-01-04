@@ -118,9 +118,9 @@ Use the Python automation:
 ## Development Rules and Memory Aid
 
 - **Developer Rules**: Read `docs/developer_rules.md` for project structure, coding standards, build commands, and git workflow
-- **Memory Aid**: Read `docs/memory_aid.md` for lessons learned, gotchas, and patterns discovered through development
+- **Memory Aid**: Read `docs/memory_aid.md` (index) + topic files in `docs/memory_aid/` for lessons learned & gotchas
 - PREFER to load and read both files prior to editing any source file
-- You MUST EDIT `docs/memory_aid.md` after learning a new pattern or gotcha
+- You MUST EDIT the appropriate file in `docs/memory_aid/` after learning a new pattern or gotcha
 
 
 ## SYSTEM ROLE & BEHAVIORAL PROTOCOLS
@@ -201,7 +201,7 @@ build succeeds → start app → "Please verify at /admin/settings" → user con
 ## Development Rules and Memory Aid Reminder
 
 - **Developer Rules**: `docs/developer_rules.md` — prescriptive guidelines
-- **Memory Aid**: `docs/memory_aid.md` — lessons learned & gotchas
+- **Memory Aid**: `docs/memory_aid.md` (index) + `docs/memory_aid/` (topic files) — lessons learned & gotchas
 - PREFER to load and read both files prior to editing any source file
-- You MUST EDIT `docs/memory_aid.md` after learning a new pattern or gotcha
+- You MUST EDIT the appropriate file in `docs/memory_aid/` after learning a new pattern or gotcha
 - PREFER to use the `build.py` for nearly all build, test, and database activities
