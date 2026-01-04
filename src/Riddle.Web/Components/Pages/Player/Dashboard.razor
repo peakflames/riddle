@@ -19,7 +19,6 @@
 @inject ICombatService CombatService
 @inject IGameStateService GameStateService
 @inject AuthenticationStateProvider AuthStateProvider
-@inject IJSRuntime JS
 
 <PageTitle>@(campaign?.Name ?? "Player Dashboard") - Riddle</PageTitle>
 
@@ -377,59 +376,44 @@
         
         try
         {
-            await JS.InvokeVoidAsync("console.log", "[Dashboard] OnInitializedAsync started");
-            
             // Get current user
             var authState = await AuthStateProvider.GetAuthenticationStateAsync();
             var user = authState.User;
             if (user.Identity?.IsAuthenticated != true)
             {
-                await JS.InvokeVoidAsync("console.log", "[Dashboard] User not authenticated, redirecting to login");
                 Navigation.NavigateTo($"/Account/Login?ReturnUrl=/play/{CampaignId}");
                 return;
             }
             
             currentUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            await JS.InvokeVoidAsync("console.log", $"[Dashboard] User authenticated: {currentUserId}");
             
             // Load campaign
-            await JS.InvokeVoidAsync("console.log", $"[Dashboard] Loading campaign: {CampaignId}");
             campaign = await CampaignService.GetCampaignAsync(CampaignId);
             if (campaign == null)
             {
-                await JS.InvokeVoidAsync("console.log", "[Dashboard] Campaign not found");
                 errorMessage = "Campaign not found.";
                 return;
             }
-            await JS.InvokeVoidAsync("console.log", $"[Dashboard] Campaign loaded: {campaign.Name}");
             
             // Find characters belonging to this player
             playerCharacters = campaign.PartyState
                 .Where(c => c.PlayerId == currentUserId && c.Type == "PC")
                 .ToList();
-            await JS.InvokeVoidAsync("console.log", $"[Dashboard] Found {playerCharacters.Count} player characters");
             
             // Auto-select if only one character
             if (playerCharacters.Count == 1)
             {
                 selectedCharacter = playerCharacters.First();
-                await JS.InvokeVoidAsync("console.log", $"[Dashboard] Auto-selected character: {selectedCharacter.Name}");
             }
             
             // Load current combat state if any
-            await JS.InvokeVoidAsync("console.log", "[Dashboard] Loading combat state");
             _combatState = await CombatService.GetCombatStateAsync(CampaignId);
-            await JS.InvokeVoidAsync("console.log", $"[Dashboard] Combat state loaded: {(_combatState != null ? "active" : "none")}");
             
             // Setup SignalR connection for real-time updates
-            await JS.InvokeVoidAsync("console.log", "[Dashboard] Setting up SignalR");
             await SetupSignalRAsync();
-            await JS.InvokeVoidAsync("console.log", "[Dashboard] SignalR setup complete");
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("console.error", $"[Dashboard] ERROR: {ex.GetType().Name}: {ex.Message}");
-            await JS.InvokeVoidAsync("console.error", $"[Dashboard] Stack: {ex.StackTrace}");
             errorMessage = $"Failed to load campaign: {ex.Message}";
         }
         finally
@@ -461,12 +445,8 @@
     
     private async Task SetupSignalRAsync()
     {
-        await JS.InvokeVoidAsync("console.log", "[Dashboard] SetupSignalRAsync - Creating hub connection");
-        
         // Use base class method to get Docker-aware SignalR URL and create connection
         CreateHubConnection();
-        
-        await JS.InvokeVoidAsync("console.log", $"[Dashboard] Hub URL: {HubConnection?.GetType().Name ?? "null"}");
         
         // Handle reconnection - reload data from DB to restore state
         HubConnection!.Reconnected += OnReconnectedAsync;
@@ -647,22 +627,10 @@
             await InvokeAsync(StateHasChanged);
         });
         
-        await JS.InvokeVoidAsync("console.log", "[Dashboard] Starting SignalR connection...");
-        try
-        {
-            await HubConnection.StartAsync();
-            await JS.InvokeVoidAsync("console.log", "[Dashboard] SignalR connection started successfully");
-        }
-        catch (Exception ex)
-        {
-            await JS.InvokeVoidAsync("console.error", $"[Dashboard] SignalR StartAsync FAILED: {ex.GetType().Name}: {ex.Message}");
-            throw;
-        }
+        await HubConnection.StartAsync();
         
         // Join campaign group for real-time updates
-        await JS.InvokeVoidAsync("console.log", "[Dashboard] Joining campaign group");
         await HubConnection.SendAsync("JoinCampaign", CampaignId, currentUserId, selectedCharacter?.Id.ToString(), false);
-        await JS.InvokeVoidAsync("console.log", "[Dashboard] Joined campaign group successfully");
     }
     
     private async Task OnReconnectedAsync(string? connectionId)

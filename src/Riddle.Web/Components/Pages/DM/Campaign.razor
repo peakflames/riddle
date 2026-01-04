@@ -18,6 +18,7 @@
 @inject ICombatService CombatService
 @inject ICharacterTemplateService CharacterTemplateService
 @inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
 
 <PageTitle>@(campaign?.Name ?? "Campaign") - Riddle</PageTitle>
 
@@ -53,26 +54,29 @@
         else
         {
             <div class="space-y-4">
-                <!-- Campaign Header -->
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-4">
-                        <Button Href="/" Color="ButtonColor.Light" Size="ButtonSize.Small">
+                <!-- Campaign Header - Mobile Responsive -->
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="flex items-center gap-3">
+                        <Button Href="/" Color="ButtonColor.Light" Size="ButtonSize.Small" class="flex-shrink-0">
                             <ChevronLeftIcon Class="h-4 w-4" />
                         </Button>
-                        <div>
-                            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+                        <div class="min-w-0">
+                            <h1 class="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white truncate">
                                 @campaign.Name
                             </h1>
-                            <p class="text-sm text-gray-500 dark:text-gray-400">
+                            <p class="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
                                 @GetLocationDisplay() • Chapter @campaign.CurrentChapterId.Replace("chapter_", "")
                             </p>
                         </div>
                     </div>
-                    <Badge Color="BadgeColor.Success">Active</Badge>
+                    <div class="flex items-center gap-3 ml-11 sm:ml-0">
+                        <Badge Color="BadgeColor.Success">Active</Badge>
+                        <ToggleSwitch @bind-Checked="_showInfoPanel" Label="Info" />
+                    </div>
                 </div>
                 
-                <!-- Main Content Area - 4 Column Layout -->
-                <div class="grid gap-4 lg:grid-cols-4 lg:h-full">
+                <!-- Main Content Area - Dynamic Column Layout (3 or 4 columns based on info panel state) -->
+                <div class="grid gap-4 @(_showInfoPanel ? "lg:grid-cols-4" : "lg:grid-cols-3") lg:h-full">
                     <!-- Column 1 - DM Chat (Full Height) -->
                     <div class="h-[calc(100vh-200px)] overflow-hidden">
                         <Card Size="CardSize.ExtraLarge" class="max-w-none h-full">
@@ -296,7 +300,9 @@
                         </Card>
                     </div>
                     
-                    <!-- Column 4 - Tabbed Panel (Info, Game Log, App Events) -->
+                    <!-- Column 4 - Tabbed Panel (Info, Game Log, App Events) - Collapsible -->
+                    @if (_showInfoPanel)
+                    {
                     <div class="h-[calc(100vh-200px)]">
                         <Tabs Class="w-full h-full">
                             <TabListContent>
@@ -414,6 +420,7 @@
                             </TabPanelsContent>
                         </Tabs>
                     </div>
+                    }
                 </div>
             </div>
             
@@ -460,6 +467,9 @@
     
     // Import templates modal state
     private bool _showImportModal;
+    
+    // Info panel visibility state (default to hidden for cleaner 3-column view)
+    private bool _showInfoPanel = false;
     
     // Combat state
     private CombatStatePayload? _combatState;
@@ -799,10 +809,10 @@
         StateHasChanged();
     }
     
-    // Import Templates Modal Methods
+    // Import Templates - Navigate to dedicated page
     private void OpenImportModal()
     {
-        _showImportModal = true;
+        NavigationManager.NavigateTo($"/dm/campaign/{CampaignId}/import-templates");
     }
     
     private async Task HandleImportTemplates(List<string> templateIds)

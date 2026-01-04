@@ -7,172 +7,104 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
 
-<PageTitle>Dashboard - Riddle</PageTitle>
+<PageTitle>Campaigns - Riddle</PageTitle>
 
 <AuthorizeView>
     <Authorized>
-        <div class="mt-px space-y-4">
-            <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                <Card Size="CardSize.ExtraLarge" class="max-w-none">
-                    <div class="flex items-center justify-between p-4">
-                        <div>
-                            <h5 class="text-2xl font-bold leading-none text-gray-900 dark:text-white">Active Campaigns</h5>
-                            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Your ongoing D&D campaigns</p>
-                        </div>
-                        <div class="flex items-center justify-center w-12 h-12 rounded-lg bg-primary-100 dark:bg-primary-900">
-                            <LayersIcon Class="w-6 h-6 text-primary-600 dark:text-primary-400" />
-                        </div>
-                    </div>
-                    <div class="p-4 pt-0">
-                        <p class="text-3xl font-bold text-gray-900 dark:text-white">@campaignCount</p>
-                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                            campaigns
-                        </p>
-                    </div>
-                </Card>
+        <div class="p-4 sm:p-6">
+            <div class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                    <Heading Tag="HeadingTag.H1" Size="TextSize.XXXL">Campaigns</Heading>
+                    <Paragraph CustomColor="text-gray-500 dark:text-gray-400">
+                        Manage your D&D campaigns.
+                    </Paragraph>
+                </div>
+                <div class="flex gap-2">
+                    <Button Href="/campaigns/new" Color="ButtonColor.Primary">
+                        <PlusIcon Class="w-4 h-4 mr-2" />
+                        Add
+                    </Button>
+                </div>
+            </div>
 
-                <Card Size="CardSize.ExtraLarge" class="max-w-none">
-                    <div class="flex items-center justify-between p-4">
-                        <div>
-                            <h5 class="text-2xl font-bold leading-none text-gray-900 dark:text-white">Characters</h5>
-                            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Party members across all campaigns</p>
-                        </div>
-                        <div class="flex items-center justify-center w-12 h-12 rounded-lg bg-purple-100 dark:bg-purple-900">
-                            <UsersIcon Class="w-6 h-6 text-purple-600 dark:text-purple-400" />
-                        </div>
-                    </div>
-                    <div class="p-4 pt-0">
-                        <p class="text-3xl font-bold text-gray-900 dark:text-white">@characterCount</p>
-                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                            total characters
-                        </p>
-                    </div>
-                </Card>
-
-                <Card Size="CardSize.ExtraLarge" class="max-w-none">
-                    <div class="flex items-center justify-between p-4">
-                        <div>
-                            <h5 class="text-2xl font-bold leading-none text-gray-900 dark:text-white">Last Activity</h5>
-                            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Most recent campaign activity</p>
-                        </div>
-                        <div class="flex items-center justify-center w-12 h-12 rounded-lg bg-green-100 dark:bg-green-900">
-                            <ClockIcon Class="w-6 h-6 text-green-600 dark:text-green-400" />
-                        </div>
-                    </div>
-                    <div class="p-4 pt-0">
-                        <p class="text-xl font-bold text-gray-900 dark:text-white">@lastActivityText</p>
-                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                            @lastCampaignName
-                        </p>
-                    </div>
-                </Card>
-            </section>
-
-            <section>
-                <Card Size="CardSize.ExtraLarge" class="max-w-none">
-                    <div class="p-4 sm:p-6">
-                        <div class="flex items-center justify-between mb-4">
-                            <h5 class="text-xl font-bold leading-none text-gray-900 dark:text-white">Campaigns</h5>
-                            @if (campaigns.Any())
-                            {
-                                <span class="text-sm text-gray-500 dark:text-gray-400">
-                                    @campaigns.Count campaign(s)
-                                </span>
-                            }
-                        </div>
-                        
-                        @if (isLoading)
-                        {
-                            <div class="flex items-center justify-center py-8">
-                                <Spinner Size="SpinnerSize.Lg" />
-                            </div>
-                        }
-                        else if (campaigns.Any())
-                        {
-                            <div class="flow-root">
-                                <ul class="divide-y divide-gray-200 dark:divide-gray-700">
-                                    @foreach (var campaign in campaigns)
+            @if (isLoading)
+            {
+                <div class="flex items-center justify-center p-8">
+                    <Spinner Size="SpinnerSize.Xl" />
+                </div>
+            }
+            else if (!campaigns.Any())
+            {
+                <Alert Color="AlertColor.Info" TextEmphasis="No campaigns found." 
+                       Text="Get started by creating a new campaign." />
+            }
+            else
+            {
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    @foreach (var campaign in campaigns)
+                    {
+                        <Card Size="CardSize.ExtraLarge" class="!max-w-none bg-gray-800 border-gray-700">
+                            <div class="p-4 flex flex-col h-full">
+                                @* Header *@
+                                <div class="mb-3">
+                                    <h5 class="text-xl font-bold tracking-tight text-gray-900 dark:text-white">
+                                        @campaign.Name
+                                    </h5>
+                                    <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                        <span>📍 @GetLocationDisplay(campaign)</span>
+                                        <span>•</span>
+                                        <span>🕐 @GetTimeAgo(campaign.LastActivityAt)</span>
+                                    </div>
+                                </div>
+                                
+                                @* Party Section *@
+                                <div class="flex-1 mb-4">
+                                    <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Party</p>
+                                    @if (campaign.PartyState.Any())
                                     {
-                                        <li class="py-3 sm:py-4">
-                                            <div class="flex items-center space-x-4">
-                                                <div class="flex-shrink-0">
-                                                    <div class="flex items-center justify-center w-10 h-10 rounded-lg bg-primary-100 dark:bg-primary-900">
-                                                        <BookOpenIcon Class="w-5 h-5 text-primary-600 dark:text-primary-400" />
-                                                    </div>
-                                                </div>
-                                                <div class="flex-1 min-w-0">
-                                                    <p class="text-sm font-medium text-gray-900 truncate dark:text-white">
-                                                        @campaign.Name
-                                                    </p>
-                                                    <p class="text-sm text-gray-500 truncate dark:text-gray-400">
-                                                        @GetLocationDisplay(campaign) • @GetTimeAgo(campaign.LastActivityAt)
-                                                    </p>
-                                                </div>
-                                                <div class="flex items-center gap-2">
-                                                    @if (campaign.PartyState.Any())
+                                        <div class="space-y-1">
+                                            @foreach (var character in campaign.PartyState)
+                                            {
+                                                <div class="flex items-center justify-between text-sm">
+                                                    <span class="text-gray-900 dark:text-white">
+                                                        @character.Name 
+                                                        <span class="text-gray-500 dark:text-gray-400">(@character.Class)</span>
+                                                    </span>
+                                                    @if (!string.IsNullOrEmpty(character.PlayerId))
                                                     {
-                                                        <span class="inline-flex items-center px-3 py-2.5 text-xs font-medium text-indigo-800 bg-indigo-100 rounded-lg dark:bg-indigo-900 dark:text-indigo-300">@campaign.PartyState.Count PCs</span>
+                                                        <Badge Color="BadgeColor.Success" class="text-xs">claimed</Badge>
                                                     }
-                                                    <Button Href="@($"/dm/{campaign.Id}")" Color="ButtonColor.Primary" Size="ButtonSize.Small">
-                                                        Play
-                                                    </Button>
-                                                    <Button Style="ButtonStyle.Outline" Color="ButtonColor.Dark" Size="ButtonSize.Small" Class="py-2.5"
-                                                            @onclick="() => ShowEditModal(campaign)">
-                                                        <EditIcon Class="w-4 h-4" />
-                                                    </Button>
-                                                    <Button Style="ButtonStyle.Outline" Color="ButtonColor.Dark" Size="ButtonSize.Small" Class="py-2.5"
-                                                            @onclick="() => ShowDeleteConfirmation(campaign)">
-                                                        <TrashBinIcon Class="w-4 h-4" />
-                                                    </Button>
+                                                    else
+                                                    {
+                                                        <span class="text-xs text-gray-400">unclaimed</span>
+                                                    }
                                                 </div>
-                                            </div>
-                                        </li>
+                                            }
+                                        </div>
                                     }
-                                </ul>
-                            </div>
-                        }
-                        else
-                        {
-                            <div class="text-center py-8">
-                                <BookOpenIcon Class="mx-auto h-12 w-12 text-gray-400" />
-                                <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">No campaigns yet</h3>
-                                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Get started by creating a new campaign.</p>
-                                <div class="mt-6">
-                                    <Button Href="/campaigns/new" Color="ButtonColor.Primary">
-                                        <PlusIcon Class="mr-2 h-4 w-4" />
-                                        New Campaign
+                                    else
+                                    {
+                                        <p class="text-sm text-gray-400 italic">No characters yet</p>
+                                    }
+                                </div>
+                                
+                                @* Action Buttons *@
+                                <div class="flex items-center gap-2 pt-3 border-t border-gray-200 dark:border-gray-700">
+                                    <Button Href="@($"/dm/{campaign.Id}")" Color="ButtonColor.Primary" Size="ButtonSize.Small" class="flex-1">
+                                        Play
+                                    </Button>
+                                    <Button Color="ButtonColor.Light" Size="ButtonSize.Small" @onclick="@(() => ShowEditModal(campaign))">
+                                        <PencilIcon Class="w-4 h-4" />
+                                    </Button>
+                                    <Button Color="ButtonColor.Light" Size="ButtonSize.Small" @onclick="@(() => ShowDeleteConfirmation(campaign))">
+                                        <TrashBinIcon Class="w-4 h-4 text-red-500" />
                                     </Button>
                                 </div>
                             </div>
-                        }
-                    </div>
-                </Card>
-            </section>
-
-            <section>
-                <Card Size="CardSize.ExtraLarge" class="max-w-none">
-                    <div class="p-4 sm:p-6">
-                        <div class="flex items-center justify-between mb-4">
-                            <h5 class="text-xl font-bold leading-none text-gray-900 dark:text-white">Quick Actions</h5>
-                        </div>
-                        
-                        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                            <Button Href="/campaigns/new" Color="ButtonColor.Primary" Class="w-full justify-center">
-                                <PlusIcon Class="mr-2 h-5 w-5" />
-                                Start New Campaign
-                            </Button>
-                            <Button Href="/test/data-model" Color="ButtonColor.Light" Class="w-full justify-center">
-                                <ClipboardIcon Class="mr-2 h-5 w-5" />
-                                Data Model Test
-                            </Button>
-                            <Button Color="ButtonColor.Light" Class="w-full justify-center" Disabled>
-                                <UsersIcon Class="mr-2 h-5 w-5" />
-                                Manage Characters (Coming Soon)
-                            </Button>
-                        </div>
-                    </div>
-                </Card>
-            </section>
+                        </Card>
+                    }
+                </div>
+            }
         </div>
     </Authorized>
     <NotAuthorized>
@@ -339,10 +271,6 @@
 @code {
     private List<CampaignInstance> campaigns = new();
     private bool isLoading = true;
-    private int campaignCount = 0;
-    private int characterCount = 0;
-    private string lastActivityText = "No activity";
-    private string lastCampaignName = "";
     private string? currentUserId;
     
     // Delete confirmation modal state
@@ -391,15 +319,6 @@
         if (string.IsNullOrEmpty(currentUserId)) return;
         
         campaigns = await CampaignService.GetCampaignsForUserAsync(currentUserId);
-        campaignCount = campaigns.Count;
-        characterCount = campaigns.Sum(c => c.PartyState.Count);
-        
-        var mostRecent = campaigns.FirstOrDefault();
-        if (mostRecent != null)
-        {
-            lastActivityText = GetTimeAgo(mostRecent.LastActivityAt);
-            lastCampaignName = mostRecent.Name;
-        }
     }
 
     private string GetLocationDisplay(CampaignInstance campaign)

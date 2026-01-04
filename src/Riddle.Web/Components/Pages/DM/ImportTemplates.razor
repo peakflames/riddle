@@ -1,0 +1,438 @@
+@page "/dm/campaign/{CampaignId:guid}/import-templates"
+@layout StackedLayout
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Components.Authorization
+@using Riddle.Web.Services
+@using Riddle.Web.Models
+@inject ICampaignService CampaignService
+@inject ICharacterTemplateService CharacterTemplateService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
+
+<PageTitle>Import Characters - Riddle</PageTitle>
+
+<AuthorizeView>
+    <Authorized>
+        <div>
+            @if (_isLoading)
+            {
+                <div class="flex items-center justify-center min-h-[60vh]">
+                    <div class="text-center">
+                        <Spinner Size="SpinnerSize.Xl" class="mx-auto" />
+                        <p class="mt-4 text-gray-500 dark:text-gray-400">Loading templates...</p>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="space-y-4">
+                    <!-- Page Header -->
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div class="flex items-center gap-3">
+                            <Button Href="@($"/dm/{CampaignId}")" Color="ButtonColor.Light" Size="ButtonSize.Small">
+                                <ChevronLeftIcon Class="h-4 w-4" />
+                            </Button>
+                            <div>
+                                <h1 class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
+                                    Import Characters
+                                </h1>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">
+                                    @_campaign?.Name
+                                </p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            @if (_selectedTemplateIds.Count > 0)
+                            {
+                                <Badge Color="BadgeColor.Primary" Size="BadgeSize.Small">
+                                    @_selectedTemplateIds.Count selected
+                                </Badge>
+                                <Button Color="ButtonColor.Primary" Size="ButtonSize.Small" OnClick="@HandleImport">
+                                    <FileImportIcon Class="w-4 h-4 mr-1" />
+                                    Import
+                                </Button>
+                            }
+                            else
+                            {
+                                <Badge Color="BadgeColor.Info" Size="BadgeSize.Small">
+                                    @_templates.Count templates available
+                                </Badge>
+                            }
+                        </div>
+                    </div>
+                    
+                    @* PROGRESS & SUCCESS - Inline between header and filters *@
+                    @if (_isImporting)
+                    {
+                        <div class="p-4 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
+                            <div class="flex items-center gap-3">
+                                <Spinner Size="SpinnerSize.Sm" Color="SpinnerColor.Info" />
+                                <div class="flex-1">
+                                    <div class="flex items-center justify-between">
+                                        <span class="font-medium text-blue-800 dark:text-blue-200">Importing @_currentImportName...</span>
+                                        <span class="text-sm text-blue-600 dark:text-blue-300">@_importProgress / @_importTotal</span>
+                                    </div>
+                                    <div class="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2 mt-2">
+                                        <div class="bg-blue-600 dark:bg-blue-400 rounded-full h-2 transition-all duration-300" 
+                                             style="width: @(_importTotal > 0 ? (_importProgress * 100 / _importTotal) : 0)%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    else if (_showSuccessBanner)
+                    {
+                        <div class="p-4 rounded-lg bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800">
+                            <div class="flex items-center justify-between flex-wrap gap-2">
+                                <div class="flex items-center gap-2">
+                                    <CheckCircleIcon Class="w-5 h-5 text-green-600 dark:text-green-400" />
+                                    <span class="text-green-800 dark:text-green-200">Imported @_lastImportCount character(s) to your party.</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <Button Color="ButtonColor.Green" Size="ButtonSize.Small" Href="@($"/dm/{CampaignId}")">
+                                        Return to Campaign
+                                    </Button>
+                                    <Button Color="ButtonColor.Light" Size="ButtonSize.Small" OnClick="@DismissSuccess">
+                                        <CloseIcon Class="w-4 h-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    
+                    <!-- Search & Filter Bar -->
+                    <Card Size="CardSize.ExtraLarge" class="max-w-none">
+                        <div class="p-3 sm:p-4">
+                            <div class="flex flex-col sm:flex-row gap-3">
+                                <!-- Search Input -->
+                                <div class="flex-1">
+                                    <div class="relative">
+                                        <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                            <SearchIcon Class="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                                        </div>
+                                        <input type="text" 
+                                               @bind="_searchQuery" 
+                                               @bind:event="oninput"
+                                               @bind:after="ApplyFilters"
+                                               placeholder="Search by name..."
+                                               class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full pl-10 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" />
+                                    </div>
+                                </div>
+                                
+                                <!-- Class Filter -->
+                                <div class="w-full sm:w-40">
+                                    <select @bind="_classFilter" @bind:after="ApplyFilters"
+                                            class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                        <option value="">All Classes</option>
+                                        @foreach (var cls in _availableClasses)
+                                        {
+                                            <option value="@cls">@cls</option>
+                                        }
+                                    </select>
+                                </div>
+                                
+                                <!-- Visibility Filter -->
+                                <div class="w-full sm:w-36">
+                                    <select @bind="_visibilityFilter" @bind:after="ApplyFilters"
+                                            class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                        <option value="">All</option>
+                                        <option value="public">Public</option>
+                                        <option value="mine">My Templates</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </Card>
+                    
+                    <!-- Templates Grid -->
+                    @if (!_filteredTemplates.Any())
+                    {
+                        <div class="text-center py-12">
+                            <UserCircleIcon Class="mx-auto h-12 w-12 text-gray-400" />
+                            <p class="mt-3 text-gray-500 dark:text-gray-400">No templates match your filters.</p>
+                            @if (!string.IsNullOrEmpty(_searchQuery) || !string.IsNullOrEmpty(_classFilter) || !string.IsNullOrEmpty(_visibilityFilter))
+                            {
+                                <Button Color="ButtonColor.Light" Size="ButtonSize.Small" OnClick="@ClearFilters" class="mt-3">
+                                    Clear Filters
+                                </Button>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <!-- Select All Row -->
+                        <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                            <label class="flex items-center gap-3 cursor-pointer">
+                                <input type="checkbox"
+                                       class="h-5 w-5 rounded border-gray-300 bg-gray-100 text-primary-600 focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 cursor-pointer"
+                                       checked="@IsAllSelected()"
+                                       @onchange="@ToggleSelectAll" />
+                                <span class="text-sm text-gray-700 dark:text-gray-300">
+                                    Select all (@_filteredTemplates.Count)
+                                </span>
+                            </label>
+                            @if (_selectedTemplateIds.Any())
+                            {
+                <Button Color="ButtonColor.Light" Size="ButtonSize.Small" OnClick="@ClearSelection">
+                                    Clear selection
+                                </Button>
+                            }
+                        </div>
+                        
+                        <!-- Responsive Card Grid: 1 col → 2 col (sm) → 3 col (lg) -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                            @foreach (var template in _filteredTemplates)
+                            {
+                                var isSelected = _selectedTemplateIds.Contains(template.Id);
+                                <div @onclick="@(() => ToggleSelection(template.Id))"
+                                     class="p-4 rounded-lg border-2 cursor-pointer transition-all @(isSelected ? "bg-primary-50 dark:bg-primary-900/30 border-primary-400 dark:border-primary-500 ring-2 ring-primary-200 dark:ring-primary-800" : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600")">
+                                    <div class="flex items-start gap-3">
+                                        <input type="checkbox"
+                                               checked="@isSelected"
+                                               @onclick:stopPropagation="true"
+                                               @onchange="@(() => ToggleSelection(template.Id))"
+                                               class="h-5 w-5 mt-0.5 rounded border-gray-300 bg-gray-100 text-primary-600 focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 cursor-pointer" />
+                                        <div class="flex-1 min-w-0">
+                                            <!-- Name & Level -->
+                                            <div class="flex items-center gap-2 flex-wrap">
+                                                <span class="font-semibold text-gray-900 dark:text-white">@template.Name</span>
+                                                <Badge Color="BadgeColor.Primary" Size="BadgeSize.ExtraSmall">Lvl @template.Level</Badge>
+                                            </div>
+                                            
+                                            <!-- Race & Class -->
+                                            <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                                @template.Race • @template.Class
+                                            </p>
+                                            
+                                            <!-- Tags Row -->
+                                            <div class="flex items-center gap-2 mt-2 flex-wrap">
+                                                @if (template.IsPublic)
+                                                {
+                                                    <Badge Color="BadgeColor.Success" Size="BadgeSize.ExtraSmall">Public</Badge>
+                                                }
+                                                else
+                                                {
+                                                    <Badge Color="BadgeColor.Gray" Size="BadgeSize.ExtraSmall">Private</Badge>
+                                                }
+                                                @if (template.IsSystemTemplate)
+                                                {
+                                                    <Badge Color="BadgeColor.Info" Size="BadgeSize.ExtraSmall">System</Badge>
+                                                }
+                                                else if (template.OwnerId == _currentUserId)
+                                                {
+                                                    <Badge Color="BadgeColor.Purple" Size="BadgeSize.ExtraSmall">Yours</Badge>
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+        
+    </Authorized>
+    <NotAuthorized>
+        <RedirectToLogin />
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    [Parameter]
+    public Guid CampaignId { get; set; }
+    
+    private CampaignInstance? _campaign;
+    private List<CharacterTemplate> _templates = [];
+    private List<CharacterTemplate> _filteredTemplates = [];
+    private HashSet<string> _selectedTemplateIds = [];
+    private string? _currentUserId;
+    private bool _isLoading = true;
+    
+    // Filter state
+    private string _searchQuery = "";
+    private string _classFilter = "";
+    private string _visibilityFilter = "";
+    private List<string> _availableClasses = [];
+    
+    // Import progress state
+    private bool _isImporting;
+    private int _importProgress;
+    private int _importTotal;
+    private string? _currentImportName;
+    
+    // Success banner
+    private bool _showSuccessBanner;
+    private int _lastImportCount;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            _currentUserId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            await LoadDataAsync();
+        }
+        
+        _isLoading = false;
+    }
+    
+    private async Task LoadDataAsync()
+    {
+        _campaign = await CampaignService.GetCampaignAsync(CampaignId);
+        
+        // Verify user owns this campaign
+        if (_campaign != null && _campaign.DmUserId != _currentUserId)
+        {
+            NavigationManager.NavigateTo("/");
+            return;
+        }
+        
+        // Load importable templates
+        _templates = await CharacterTemplateService.GetImportableTemplatesAsync(_currentUserId ?? string.Empty);
+        
+        // Extract unique classes for filter dropdown
+        _availableClasses = _templates
+            .Select(t => t.Class)
+            .Where(c => !string.IsNullOrEmpty(c))
+            .Distinct()
+            .OrderBy(c => c)
+            .Cast<string>()
+            .ToList();
+        
+        ApplyFilters();
+    }
+    
+    private void ApplyFilters()
+    {
+        var filtered = _templates.AsEnumerable();
+        
+        // Search by name
+        if (!string.IsNullOrWhiteSpace(_searchQuery))
+        {
+            filtered = filtered.Where(t => 
+                t.Name.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase));
+        }
+        
+        // Filter by class
+        if (!string.IsNullOrEmpty(_classFilter))
+        {
+            filtered = filtered.Where(t => 
+                string.Equals(t.Class, _classFilter, StringComparison.OrdinalIgnoreCase));
+        }
+        
+        // Filter by visibility
+        if (!string.IsNullOrEmpty(_visibilityFilter))
+        {
+            filtered = _visibilityFilter switch
+            {
+                "public" => filtered.Where(t => t.IsPublic),
+                "mine" => filtered.Where(t => t.OwnerId == _currentUserId),
+                _ => filtered
+            };
+        }
+        
+        _filteredTemplates = filtered.OrderBy(t => t.Name).ToList();
+    }
+    
+    private void ClearFilters()
+    {
+        _searchQuery = "";
+        _classFilter = "";
+        _visibilityFilter = "";
+        ApplyFilters();
+    }
+    
+    private void ToggleSelection(string templateId)
+    {
+        if (_selectedTemplateIds.Contains(templateId))
+        {
+            _selectedTemplateIds.Remove(templateId);
+        }
+        else
+        {
+            _selectedTemplateIds.Add(templateId);
+        }
+        StateHasChanged();
+    }
+    
+    private bool IsAllSelected()
+    {
+        return _filteredTemplates.Any() && _filteredTemplates.All(t => _selectedTemplateIds.Contains(t.Id));
+    }
+    
+    private void ToggleSelectAll()
+    {
+        if (IsAllSelected())
+        {
+            // Deselect all filtered templates
+            foreach (var t in _filteredTemplates)
+            {
+                _selectedTemplateIds.Remove(t.Id);
+            }
+        }
+        else
+        {
+            // Select all filtered templates
+            foreach (var t in _filteredTemplates)
+            {
+                _selectedTemplateIds.Add(t.Id);
+            }
+        }
+        StateHasChanged();
+    }
+    
+    private void ClearSelection()
+    {
+        _selectedTemplateIds.Clear();
+    }
+    
+    private async Task HandleImport()
+    {
+        if (_campaign == null || !_selectedTemplateIds.Any())
+            return;
+        
+        _isImporting = true;
+        _importProgress = 0;
+        _importTotal = _selectedTemplateIds.Count;
+        _showSuccessBanner = false;
+        StateHasChanged();
+        
+        var templateList = _selectedTemplateIds.ToList();
+        
+        foreach (var templateId in templateList)
+        {
+            // Get template name for display
+            var template = _templates.FirstOrDefault(t => t.Id == templateId);
+            _currentImportName = template?.Name ?? "character";
+            StateHasChanged();
+            
+            // Perform the import
+            await CharacterTemplateService.CopyToCampaignAsync(templateId, _campaign.Id.ToString());
+            
+            _importProgress++;
+            StateHasChanged();
+            
+            // Small delay so user can see progress
+            await Task.Delay(150);
+        }
+        
+        // Import complete
+        _lastImportCount = templateList.Count;
+        _isImporting = false;
+        _currentImportName = null;
+        _selectedTemplateIds.Clear();
+        _showSuccessBanner = true;
+        StateHasChanged();
+        
+    }
+    
+    private void DismissSuccess()
+    {
+        _showSuccessBanner = false;
+        StateHasChanged();
+    }
+}

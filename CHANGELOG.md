@@ -5,7 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+
+## [0.29.0] - 2026-01-04
+
+### Fixed
+- **DM Chat keyboard input lag resolved** - Updated Flowbite.Blazor to 0.1.3-beta which fixes `PromptInputTextarea` calling `StateHasChanged` on every keystroke, causing SignalR round-trip race conditions in Blazor Server mode
+  - Root cause analysis: https://github.com/themesberg/flowbite-blazor/issues/15#issuecomment-3707797217
+  - Fix in library: Added `_isLocalUpdate` flag to suppress `StateHasChanged` when text changes originate from local input
+
+### Added
+- **CharacterCard layout fix for claimed characters** - Player name/email badge now displays on its own row below the character name/class, preventing truncation of character names when claimed
+- **Mobile-responsive Campaign Header** - Title, Active badge, and Info toggle now stack vertically on mobile screens (below `sm` breakpoint) with appropriately sized text
+
+- **Mobile-first Import Templates page** (`/dm/campaign/{id}/import-templates`)
+  - Replaced modal-based character template import with dedicated full-page route
+  - Responsive card grid (1→2→3 columns) with touch-friendly checkboxes
+  - Search by name, filter by class and visibility (All/Public/My Templates)
+  - Select All / Clear selection controls
+  - Progress indicator during import with character name and count
+  - Success banner with "Return to Campaign" button
+
+### Changed
+- **System Prompt** - Remind LLM the important of calling the combat tools due to the fact they update ui for all players
+- **Dashboard renamed to Campaigns** - Sidebar navigation now shows "Campaigns" instead of "Dashboard"
+- **Campaigns page redesigned with card-based layout**
+  - Removed stats grid (Active Campaigns, Characters, Last Activity) and Quick Actions section
+  - Campaign list now displays as responsive card grid (1 column mobile, 2 columns md, 3 columns xl)
+  - Each campaign card shows:
+    - Campaign name with location and time ago
+    - Party roster with character names, classes, and claim status badges
+    - Action buttons: Play, Edit (pencil), Delete (trash)
+  - Edit modal with tabbed interface for General settings and Preferences
+  - Delete confirmation modal with clear warning
+  - Matches Flowbite design system patterns from Character Templates page
 
 ## [0.28.4] - 2026-01-03
 
