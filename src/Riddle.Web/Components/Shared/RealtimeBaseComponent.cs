@@ -51,7 +51,11 @@ public abstract class RealtimeBaseComponent : ComponentBase, IAsyncDisposable
         var url = GetSignalRHubUrl();
         
         HubConnection = new HubConnectionBuilder()
-            .WithUrl(url)
+            .WithUrl(url, options =>
+            {
+                // Include cookies/credentials for authentication behind reverse proxies (Cloudflare Tunnel)
+                options.UseDefaultCredentials = true;
+            })
             .WithAutomaticReconnect([
                 TimeSpan.Zero,
                 TimeSpan.FromSeconds(2),
