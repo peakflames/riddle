@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.29.0] - 2026-01-03
 
+### Fixed
+- **DM Chat keyboard input lag resolved** - Updated Flowbite.Blazor to 0.1.3-beta which fixes `PromptInputTextarea` calling `StateHasChanged` on every keystroke, causing SignalR round-trip race conditions in Blazor Server mode
+  - Root cause analysis: https://github.com/themesberg/flowbite-blazor/issues/15#issuecomment-3707797217
+  - Fix in library: Added `_isLocalUpdate` flag to suppress `StateHasChanged` when text changes originate from local input
+
 ### Added
 - **CharacterCard layout fix for claimed characters** - Player name/email badge now displays on its own row below the character name/class, preventing truncation of character names when claimed
 - **Mobile-responsive Campaign Header** - Title, Active badge, and Info toggle now stack vertically on mobile screens (below `sm` breakpoint) with appropriately sized text
