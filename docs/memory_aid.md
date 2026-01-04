@@ -962,3 +962,61 @@ protected string GetSignalRHubUrl()
 **Why `DOTNET_RUNNING_IN_CONTAINER`:** This env var is automatically set to `"true"` by .NET SDK when running in a container. More reliable than checking ports.
 
 **Why `ASPNETCORE_HTTP_PORTS`:** This env var indicates what port Kestrel listens on internally. Default is `8080` in Docker.
+
+---
+
+## CRITICAL: SignalR 403 Forbidden Through Cloudflare Tunnel (IServer Pattern)
+
+**Problem:** When users access the app through a Cloudflare tunnel (e.g., `riddle.peakflames.org`), player join redirects to dashboard but gets `403 Forbidden` error loading the campaign.
+
+**Root cause:** `NavigationManager.ToAbsoluteUri("/gamehub")` resolves to the **external** URL (`https://riddle.peakflames.org/gamehub`). The server-side `HubConnection` then tries to connect to Cloudflare, which blocks/rejects the WebSocket upgrade request with 403.
+
+**Key insight:** Server-side `HubConnection` must ALWAYS connect to **localhost** (internal connection), never the external URL. The connection happens entirely on the server - it never goes through the browser.
+
+**Fix:** Use `IServer.Features.Get<IServerAddressesFeature>()` to get Kestrel's actual bound port at runtime:
+
+```csharp
+@inject IServer Server
+
+protected string GetSignalRHubUrl()
+{
+    // Try to get bound address from Kestrel's IServerAddressesFeature
+    var serverAddresses = Server.Features.Get<IServerAddressesFeature>();
+    var address = serverAddresses?.Addresses.FirstOrDefault();
+    
+    if (!string.IsNullOrEmpty(address))
+    {
+        var uri = new Uri(address);
+        var host = uri.Host;
+        
+        // Normalize wildcard bindings to localhost
+        if (host == "*" || host == "+" || host == "0.0.0.0" || host == "[::]")
+            host = "localhost";
+        
+        return $"http://{host}:{uri.Port}/gamehub";
+    }
+    
+    // Fallback: Check ASPNETCORE_HTTP_PORTS or ASPNETCORE_URLS env vars
+    var httpPorts = Environment.GetEnvironmentVariable("ASPNETCORE_HTTP_PORTS");
+    if (!string.IsNullOrEmpty(httpPorts))
+    {
+        var port = httpPorts.Split(';')[0];
+        return $"http://localhost:{port}/gamehub";
+    }
+    
+    // Default fallback
+    return "http://localhost:5000/gamehub";
+}
+```
+
+**Why this works:**
+1. **IServerAddressesFeature** gives the actual port Kestrel bound to, regardless of how it was configured
+2. **Wildcard normalization** handles `http://*:5000`, `http://+:8080`, etc.
+3. **Always localhost** - server-side connections never need to go through external URLs
+
+**Symptom progression:**
+- Local dev: Works (NavigationManager resolves to `localhost:5000`)
+- Docker: Works (env var fallback returns internal port)
+- Cloudflare tunnel: **403 Forbidden** (NavigationManager resolves to external URL)
+
+**Don't use NavigationManager for server-side SignalR:** It's designed for browser navigation, not internal server connections.

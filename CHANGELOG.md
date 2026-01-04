@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.28.3] - 2026-01-03
+
+### Fixed
+- **SignalR 403 Forbidden for player joins via Cloudflare tunnel**
+  - Root cause: `NavigationManager.ToAbsoluteUri()` resolves to external URL (e.g., `riddle.peakflames.org`)
+  - Cloudflare proxies block WebSocket upgrade requests with 403 Forbidden
+  - Fix: Server-side `HubConnection` must ALWAYS connect to localhost (internal connection)
+
+### Changed
+- **Dynamic SignalR port detection** - `RealtimeBaseComponent.GetSignalRHubUrl()` improved:
+  - Primary: Uses `IServer.Features.Get<IServerAddressesFeature>()` to get Kestrel's actual bound port at runtime
+  - Fallback: `ASPNETCORE_HTTP_PORTS` or `ASPNETCORE_URLS` environment variables
+  - Works for ANY deployment: dev (5000), local Docker (8080), self-hosted (arbitrary port)
+  - No manual port configuration required
+
+### Technical
+- `RealtimeBaseComponent` now injects `IServer` from `Microsoft.AspNetCore.Hosting.Server`
+- Normalizes wildcard bindings (`*`, `+`, `0.0.0.0`, `[::]`) to `localhost`
+- Logging shows bound address source for debugging
+
 ## [0.28.2] - 2026-01-03
 
 ### Fixed
