@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.SignalR.Client;
 
 namespace Riddle.Web.Components.Shared;
@@ -53,8 +54,10 @@ public abstract class RealtimeBaseComponent : ComponentBase, IAsyncDisposable
         HubConnection = new HubConnectionBuilder()
             .WithUrl(url, options =>
             {
-                // Include cookies/credentials for authentication behind reverse proxies (Cloudflare Tunnel)
-                options.UseDefaultCredentials = true;
+                // Skip negotiate POST request and go directly to WebSocket
+                // This bypasses antiforgery validation issues with the negotiate endpoint
+                options.SkipNegotiation = true;
+                options.Transports = HttpTransportType.WebSockets;
             })
             .WithAutomaticReconnect([
                 TimeSpan.Zero,
@@ -64,7 +67,7 @@ public abstract class RealtimeBaseComponent : ComponentBase, IAsyncDisposable
             ])
             .Build();
         
-        Logger.LogInformation("Created SignalR HubConnection to {Url}", url);
+        Logger.LogInformation("Created SignalR HubConnection to {Url} (WebSocket direct, skip negotiate)", url);
         return HubConnection;
     }
 
