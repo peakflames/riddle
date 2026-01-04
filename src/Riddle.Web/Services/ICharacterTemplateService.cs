@@ -33,11 +33,6 @@ public interface ICharacterTemplateService
     Task<List<CharacterTemplate>> GetUserTemplatesAsync(string userId, CancellationToken ct = default);
     
     /// <summary>
-    /// Get all templates available to a user (system + user-owned).
-    /// </summary>
-    Task<List<CharacterTemplate>> GetAllAvailableTemplatesAsync(string userId, CancellationToken ct = default);
-    
-    /// <summary>
     /// Get templates that a user can import into their campaigns.
     /// Returns: all public templates + user's own templates (regardless of public flag).
     /// </summary>

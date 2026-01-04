@@ -418,7 +418,7 @@ private static (bool success, int value, string? error) ParseIntValue(JsonElemen
 **Key Design Decisions:**
 1. **Unique constraint**: `Name + OwnerId` (allows same-named characters for different owners)
 2. **System templates**: `OwnerId = NULL` (available to all DMs)
-3. **User templates**: `OwnerId = userId` (private to that DM)
+3. **User templates**: `OwnerId = userId` (private to that DM, OR public to all if `IsPublic = true`)
 4. **Shadow columns**: `Race`, `Class`, `Level` are denormalized from JSON for filtering/sorting
 5. **JSON import**: `build.py db import-templates` syncs `SampleCharacters/*.json` → database
 
@@ -902,3 +902,121 @@ public class GameHub : Hub
 })
 ```
 This is more complex and requires switching to JWT-based auth instead of cookies.
+
+---
+
+## CRITICAL: SignalR HubConnection URL in Docker Containers
+
+**Problem:** In Blazor Server, `HubConnectionBuilder` runs **on the server**, not in the browser. When using `Navigation.ToAbsoluteUri("/gamehub")`, it resolves to the external URL (e.g., `http://localhost:1983/gamehub`), which is:
+1. The Docker port mapping, not the internal container port
+2. Unreachable from inside the container (localhost points to the container itself)
+
+**Error in container logs:**
+```
+System.Net.Http.HttpRequestException: Connection refused (localhost:1983)
+   at Microsoft.AspNetCore.SignalR.Client.HubConnection.StartAsyncCore(...)
+```
+
+**Root cause:** Docker maps `1983:8080`, so:
+- External access: `localhost:1983` → works from host machine
+- Internal access: Container listens on port `8080` internally
+- `Navigation.BaseUri` returns `http://localhost:1983/` (external URL)
+- HubConnection tries to connect to `localhost:1983` from INSIDE container → fails
+
+**Fix:** Inherit from `RealtimeBaseComponent` base class which centralizes the URL resolution:
+
+```csharp
+// Components/Shared/RealtimeBaseComponent.cs provides:
+// - GetSignalRHubUrl() - detects Docker vs local and returns correct URL
+// - CreateHubConnection() - builds HubConnection with correct URL and reconnect policy
+// - DisposeAsync() - cleans up HubConnection
+
+// Usage in pages:
+@inherits RealtimeBaseComponent
+
+// In OnInitializedAsync:
+var hubConnection = CreateHubConnection();  // Uses internal port in Docker, NavigationManager locally
+await hubConnection.StartAsync();
+```
+
+**Implementation pattern:**
+```csharp
+protected string GetSignalRHubUrl()
+{
+    var isDocker = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
+    if (isDocker)
+    {
+        var port = Environment.GetEnvironmentVariable("ASPNETCORE_HTTP_PORTS") ?? "8080";
+        return $"http://localhost:{port}/gamehub";
+    }
+    return Navigation.ToAbsoluteUri("/gamehub").ToString();
+}
+```
+
+**Apply to:** All pages with SignalR connections should inherit from `RealtimeBaseComponent`:
+- `Campaign.razor` (DM Dashboard)
+- `Dashboard.razor` (Player Dashboard) 
+- `CombatTracker.razor`
+- `SignalRTest.razor`
+
+**Why `DOTNET_RUNNING_IN_CONTAINER`:** This env var is automatically set to `"true"` by .NET SDK when running in a container. More reliable than checking ports.
+
+**Why `ASPNETCORE_HTTP_PORTS`:** This env var indicates what port Kestrel listens on internally. Default is `8080` in Docker.
+
+---
+
+## CRITICAL: SignalR 403 Forbidden Through Cloudflare Tunnel (IServer Pattern)
+
+**Problem:** When users access the app through a Cloudflare tunnel (e.g., `riddle.peakflames.org`), player join redirects to dashboard but gets `403 Forbidden` error loading the campaign.
+
+**Root cause:** `NavigationManager.ToAbsoluteUri("/gamehub")` resolves to the **external** URL (`https://riddle.peakflames.org/gamehub`). The server-side `HubConnection` then tries to connect to Cloudflare, which blocks/rejects the WebSocket upgrade request with 403.
+
+**Key insight:** Server-side `HubConnection` must ALWAYS connect to **localhost** (internal connection), never the external URL. The connection happens entirely on the server - it never goes through the browser.
+
+**Fix:** Use `IServer.Features.Get<IServerAddressesFeature>()` to get Kestrel's actual bound port at runtime:
+
+```csharp
+@inject IServer Server
+
+protected string GetSignalRHubUrl()
+{
+    // Try to get bound address from Kestrel's IServerAddressesFeature
+    var serverAddresses = Server.Features.Get<IServerAddressesFeature>();
+    var address = serverAddresses?.Addresses.FirstOrDefault();
+    
+    if (!string.IsNullOrEmpty(address))
+    {
+        var uri = new Uri(address);
+        var host = uri.Host;
+        
+        // Normalize wildcard bindings to localhost
+        if (host == "*" || host == "+" || host == "0.0.0.0" || host == "[::]")
+            host = "localhost";
+        
+        return $"http://{host}:{uri.Port}/gamehub";
+    }
+    
+    // Fallback: Check ASPNETCORE_HTTP_PORTS or ASPNETCORE_URLS env vars
+    var httpPorts = Environment.GetEnvironmentVariable("ASPNETCORE_HTTP_PORTS");
+    if (!string.IsNullOrEmpty(httpPorts))
+    {
+        var port = httpPorts.Split(';')[0];
+        return $"http://localhost:{port}/gamehub";
+    }
+    
+    // Default fallback
+    return "http://localhost:5000/gamehub";
+}
+```
+
+**Why this works:**
+1. **IServerAddressesFeature** gives the actual port Kestrel bound to, regardless of how it was configured
+2. **Wildcard normalization** handles `http://*:5000`, `http://+:8080`, etc.
+3. **Always localhost** - server-side connections never need to go through external URLs
+
+**Symptom progression:**
+- Local dev: Works (NavigationManager resolves to `localhost:5000`)
+- Docker: Works (env var fallback returns internal port)
+- Cloudflare tunnel: **403 Forbidden** (NavigationManager resolves to external URL)
+
+**Don't use NavigationManager for server-side SignalR:** It's designed for browser navigation, not internal server connections.

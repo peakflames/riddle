@@ -11,14 +11,13 @@
 @using Riddle.Web.Components.Combat
 @using Riddle.Web.Hubs
 @using Microsoft.AspNetCore.SignalR.Client
-@implements IAsyncDisposable
+@inherits RealtimeBaseComponent
 @inject ICampaignService CampaignService
 @inject ICharacterService CharacterService
 @inject IGameStateService GameStateService
 @inject ICombatService CombatService
 @inject ICharacterTemplateService CharacterTemplateService
 @inject AuthenticationStateProvider AuthStateProvider
-@inject NavigationManager Navigation
 
 <PageTitle>@(campaign?.Name ?? "Campaign") - Riddle</PageTitle>
 
@@ -465,12 +464,9 @@
     // Combat state
     private CombatStatePayload? _combatState;
     
-    // SignalR connection for player events
-    private HubConnection? _hubConnection;
-    
     // Player choices submitted (from players)
     private List<PlayerChoicePayload> _playerChoicesSubmitted = [];
-
+    
     protected override async Task OnInitializedAsync()
     {
         // Subscribe to campaign state changes for real-time updates
@@ -539,18 +535,18 @@
         });
     }
 
-    public async ValueTask DisposeAsync()
+    public override async ValueTask DisposeAsync()
     {
         GameStateService.OnCampaignChanged -= HandleCampaignChanged;
-        if (_hubConnection != null)
+        if (HubConnection != null)
         {
             try
             {
-                await _hubConnection.SendAsync("LeaveCampaign", CampaignId);
+                await HubConnection.SendAsync("LeaveCampaign", CampaignId);
             }
             catch { /* Ignore errors during cleanup */ }
-            await _hubConnection.DisposeAsync();
         }
+        await base.DisposeAsync();
     }
 
     private async Task LoadCampaignAsync()
@@ -576,13 +572,11 @@
     
     private async Task SetupSignalRAsync()
     {
-        _hubConnection = new HubConnectionBuilder()
-            .WithUrl(Navigation.ToAbsoluteUri("/gamehub"))
-            .WithAutomaticReconnect()
-            .Build();
+        // Use base class method to get Docker-aware SignalR URL and create the connection
+        CreateHubConnection();
         
         // Receive player choice submissions
-        _hubConnection.On<PlayerChoicePayload>(GameHubEvents.PlayerChoiceSubmitted, async payload =>
+        HubConnection!.On<PlayerChoicePayload>(GameHubEvents.PlayerChoiceSubmitted, async payload =>
         {
             // Add to list (remove old choices from same character)
             _playerChoicesSubmitted.RemoveAll(c => c.CharacterId == payload.CharacterId);
@@ -591,7 +585,7 @@
         });
         
         // Receive death save updates (must update PartyCharacters before CombatTracker calls StateHasChanged)
-        _hubConnection.On<DeathSavePayload>(GameHubEvents.DeathSaveUpdated, async payload =>
+        HubConnection!.On<DeathSavePayload>(GameHubEvents.DeathSaveUpdated, async payload =>
         {
             if (campaign == null) return;
             
@@ -621,7 +615,7 @@
         });
         
         // Receive character state updates (HP changes, conditions, etc.)
-        _hubConnection.On<CharacterStatePayload>(GameHubEvents.CharacterStateUpdated, async payload =>
+        HubConnection!.On<CharacterStatePayload>(GameHubEvents.CharacterStateUpdated, async payload =>
         {
             if (campaign == null) return;
             
@@ -700,10 +694,10 @@
             }
         });
         
-        await _hubConnection.StartAsync();
+        await HubConnection!.StartAsync();
         
         // Join campaign as DM
-        await _hubConnection.SendAsync("JoinCampaign", CampaignId, currentUserId, null, true);
+        await HubConnection!.SendAsync("JoinCampaign", CampaignId, currentUserId, null, true);
     }
 
     private string GetLocationDisplay()

@@ -77,14 +77,23 @@ public class CharacterTemplate
     public string CharacterJson { get; set; } = "{}";
     
     /// <summary>
+    /// JSON serializer options for character data - uses camelCase and case-insensitive matching
+    /// </summary>
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+    
+    /// <summary>
     /// Computed accessor for deserializing/serializing the character data.
     /// Note: Each access to getter deserializes fresh - capture in local variable when modifying!
     /// </summary>
     [NotMapped]
     public Character Character
     {
-        get => JsonSerializer.Deserialize<Character>(CharacterJson) ?? new();
-        set => CharacterJson = JsonSerializer.Serialize(value);
+        get => JsonSerializer.Deserialize<Character>(CharacterJson, _jsonOptions) ?? new();
+        set => CharacterJson = JsonSerializer.Serialize(value, _jsonOptions);
     }
     
     // ========================================

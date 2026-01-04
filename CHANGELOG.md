@@ -7,6 +7,94 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.28.4] - 2026-01-03
+
+### Fixed
+- **User-friendly OpenRouter API error messages**
+  - Raw JSON errors like `{"error":{"message":"User not found.","code":401}}` now display as helpful messages
+  - Error code 401: "Your OpenRouter API key is invalid or expired. Please verify your key at https://openrouter.ai/keys and update your .env file."
+  - Error code 402: "Insufficient OpenRouter credits. Please add funds to your account at https://openrouter.ai/credits"
+  - Error code 429: "Rate limit exceeded. Please wait a moment and try again."
+  - 5xx errors: Generic service error message with retry suggestion
+  - Added `ParseOpenRouterError()` helper in `RiddleLlmService` with JSON parsing and switch expression
+
+## [0.28.3] - 2026-01-03
+
+### Fixed
+- **SignalR 403 Forbidden for player joins via Cloudflare tunnel**
+  - Root cause: `NavigationManager.ToAbsoluteUri()` resolves to external URL (e.g., `riddle.peakflames.org`)
+  - Cloudflare proxies block WebSocket upgrade requests with 403 Forbidden
+  - Fix: Server-side `HubConnection` must ALWAYS connect to localhost (internal connection)
+
+### Changed
+- **Dynamic SignalR port detection** - `RealtimeBaseComponent.GetSignalRHubUrl()` improved:
+  - Primary: Uses `IServer.Features.Get<IServerAddressesFeature>()` to get Kestrel's actual bound port at runtime
+  - Fallback: `ASPNETCORE_HTTP_PORTS` or `ASPNETCORE_URLS` environment variables
+  - Works for ANY deployment: dev (5000), local Docker (8080), self-hosted (arbitrary port)
+  - No manual port configuration required
+
+### Technical
+- `RealtimeBaseComponent` now injects `IServer` from `Microsoft.AspNetCore.Hosting.Server`
+- Normalizes wildcard bindings (`*`, `+`, `0.0.0.0`, `[::]`) to `localhost`
+- Logging shows bound address source for debugging
+
+## [0.28.2] - 2026-01-03
+
+### Fixed
+- **Character Templates search bar keyboard lag** - Replaced Flowbite `TextInput` with native HTML input
+  - Same issue as Admin Settings (Flowbite TextInput laggy in Blazor Server InteractiveServer mode)
+  - Applied consistent workaround pattern established in 0.28.1
+
+## [0.28.1] - 2026-01-03
+
+### Fixed
+- **Admin Settings TextInput keyboard lag** - Replaced Flowbite `TextInput` with native HTML inputs
+  - Flowbite TextInput causes laggy keyboard entry in Blazor Server InteractiveServer mode
+  - Filed upstream issue: https://github.com/themesberg/flowbite-blazor/issues/15
+  - Workaround: Use native `<input>` with Tailwind classes matching Flowbite styling
+
+### Documentation
+- Clarified CharacterTemplates ownership pattern in memory_aid.md: user templates can be private (`OwnerId` only) OR public (`IsPublic = true`)
+
+## [0.28.0] - 2026-01-03
+
+### Added
+- **RealtimeBaseComponent Base Class**
+  - Centralized SignalR connection URL logic for Docker/local environment detection
+  - `GetSignalRHubUrl()` method detects `DOTNET_RUNNING_IN_CONTAINER` env var
+  - `CreateHubConnection()` factory method with automatic reconnect policy
+  - All SignalR-enabled components now inherit from this base class:
+    - `Campaign.razor` (DM Dashboard)
+    - `Dashboard.razor` (Player Dashboard)
+    - `CombatTracker.razor`
+    - `SignalRTest.razor`
+
+- **Docker Commands in build.py**
+  - `python build.py docker build` — build local Docker image
+  - `python build.py docker run` — run container on port 8080
+  - `python build.py docker stop` — stop and remove container
+  - `python build.py docker status` — show container status
+  - `python build.py docker logs` — show container logs
+  - `python build.py docker shell` — open shell in running container
+
+### Changed
+- Documented port strategy: dev=5000, local Docker=8080, production=1983
+- Updated AGENT.md, developer_rules.md, and memory_aid.md with Docker commands
+
+### Technical
+- `RealtimeBaseComponent.cs` in `Components/Shared/` directory
+- Uses `DOTNET_RUNNING_IN_CONTAINER` for reliable Docker detection
+- Falls back to `ASPNETCORE_HTTP_PORTS` (default 8080) for internal port
+
+## [0.27.1] - 2026-01-02
+
+### Fixed
+- **SignalR HubConnection fails in Docker containers**
+  - Root cause: `Navigation.ToAbsoluteUri("/gamehub")` resolved to external port (e.g., `localhost:1983`) which is unreachable from inside the container
+  - Container listens on port 8080 internally; Docker's port mapping only works from host
+  - Fix: Use `GetSignalRHubUrl()` helper that reads `ASPNETCORE_HTTP_PORTS` env var (default 8080)
+  - Applied to both `Campaign.razor` (DM) and `Player/Dashboard.razor`
+
 ## [0.27.0] - 2026-01-02
 
 ### Changed

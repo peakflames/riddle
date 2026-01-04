@@ -29,6 +29,14 @@ LOG_FILE = Path("riddle.log")
 DB_PATH = Path("src/Riddle.Web/riddle.db")
 BACKUP_DIR = Path("backups")
 
+# Docker configuration
+DOCKER_IMAGE_NAME = "peakflames/riddle"
+DOCKER_LOCAL_TAG = "local"
+DOCKER_CONTAINER_NAME = "riddle-local"
+DOCKER_LOCAL_PORT = 8080
+DOCKER_ENV_FILE = Path("src/Riddle.Web/.env")
+DOCKER_DATA_DIR = Path("data-local")
+
 
 def get_os_info() -> Dict[str, str]:
     """Detect OS and return tailwindcss download info"""
@@ -1437,6 +1445,262 @@ def update_character(character_name: str, property_name: str, value: str, campai
         print(f"Error: {e}")
 
 
+# =============================================================================
+# Docker Commands
+# =============================================================================
+
+def docker_is_running() -> bool:
+    """Check if the local Docker container is running"""
+    try:
+        result = subprocess.run(
+            ["docker", "inspect", "-f", "{{.State.Running}}", DOCKER_CONTAINER_NAME],
+            capture_output=True,
+            text=True
+        )
+        return result.returncode == 0 and result.stdout.strip() == "true"
+    except FileNotFoundError:
+        print("Error: Docker is not installed or not in PATH")
+        sys.exit(1)
+
+
+def docker_container_exists() -> bool:
+    """Check if the local Docker container exists (running or stopped)"""
+    try:
+        result = subprocess.run(
+            ["docker", "inspect", DOCKER_CONTAINER_NAME],
+            capture_output=True,
+            text=True
+        )
+        return result.returncode == 0
+    except FileNotFoundError:
+        return False
+
+
+def docker_build() -> None:
+    """Build local Docker image using .NET SDK container support"""
+    print(f"Building Docker image: {DOCKER_IMAGE_NAME}:{DOCKER_LOCAL_TAG}")
+    print("This uses .NET SDK container support (no Dockerfile needed)")
+    print("")
+    
+    # Check dotnet is available
+    dotnet_path = check_dotnet()
+    if not dotnet_path:
+        print("Error: .NET SDK is required to build the container")
+        sys.exit(1)
+    
+    try:
+        # Build the container image using MSBuild SDK container support
+        # ContainerRegistry="" prevents pushing to docker.io, keeps image local
+        subprocess.run(
+            [
+                dotnet_path, "publish", PROJECT_PATH,
+                "/t:PublishContainer",
+                f"-p:ContainerImageTag={DOCKER_LOCAL_TAG}",
+                "-p:ContainerRegistry=",
+                "-r", "linux-x64",
+                "-c", "Release"
+            ],
+            check=True
+        )
+        print("")
+        print(f"✓ Docker image built: {DOCKER_IMAGE_NAME}:{DOCKER_LOCAL_TAG}")
+        print(f"  Run with: python build.py docker run")
+    
+    except subprocess.CalledProcessError:
+        print("Error: Failed to build Docker image")
+        sys.exit(1)
+
+
+def docker_run() -> None:
+    """Run the local Docker container"""
+    # Check if already running
+    if docker_is_running():
+        print(f"Container '{DOCKER_CONTAINER_NAME}' is already running")
+        print(f"  URL: http://localhost:{DOCKER_LOCAL_PORT}")
+        print(f"  Stop with: python build.py docker stop")
+        return
+    
+    # Remove existing stopped container if it exists
+    if docker_container_exists():
+        print(f"Removing stopped container '{DOCKER_CONTAINER_NAME}'...")
+        subprocess.run(["docker", "rm", DOCKER_CONTAINER_NAME], capture_output=True)
+    
+    # Check for .env file
+    if not DOCKER_ENV_FILE.exists():
+        print(f"Error: Environment file not found: {DOCKER_ENV_FILE}")
+        print("Create this file with your GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and OPENROUTER_API_KEY")
+        sys.exit(1)
+    
+    # Create data directory if it doesn't exist
+    DOCKER_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    
+    print(f"Starting container '{DOCKER_CONTAINER_NAME}'...")
+    
+    # Get absolute paths for volume mounts
+    data_dir_abs = DOCKER_DATA_DIR.absolute()
+    env_file_abs = DOCKER_ENV_FILE.absolute()
+    
+    try:
+        subprocess.run(
+            [
+                "docker", "run", "-d",
+                "--name", DOCKER_CONTAINER_NAME,
+                "-p", f"{DOCKER_LOCAL_PORT}:8080",
+                "-e", "ASPNETCORE_ENVIRONMENT=Production",
+                "-e", "Kestrel__Endpoints__Http__Url=http://+:8080",
+                "-e", "ConnectionStrings__DefaultConnection=Data Source=/app/data/riddle.db",
+                "--env-file", str(env_file_abs),
+                "-v", f"{data_dir_abs}:/app/data",
+                f"{DOCKER_IMAGE_NAME}:{DOCKER_LOCAL_TAG}"
+            ],
+            check=True
+        )
+        
+        # Wait a moment and check if it started
+        time.sleep(2)
+        
+        if docker_is_running():
+            print(f"✓ Container started: {DOCKER_CONTAINER_NAME}")
+            print(f"  URL: http://localhost:{DOCKER_LOCAL_PORT}")
+            print(f"  Data: {DOCKER_DATA_DIR.absolute()}")
+            print(f"  Logs: python build.py docker logs")
+            print(f"  Stop: python build.py docker stop")
+        else:
+            print("✗ Container failed to start. Check logs:")
+            print(f"  docker logs {DOCKER_CONTAINER_NAME}")
+    
+    except subprocess.CalledProcessError as e:
+        print(f"Error starting container: {e}")
+        sys.exit(1)
+
+
+def docker_stop() -> None:
+    """Stop and remove the local Docker container"""
+    if not docker_container_exists():
+        print(f"Container '{DOCKER_CONTAINER_NAME}' does not exist")
+        return
+    
+    print(f"Stopping container '{DOCKER_CONTAINER_NAME}'...")
+    
+    try:
+        if docker_is_running():
+            subprocess.run(["docker", "stop", DOCKER_CONTAINER_NAME], check=True, capture_output=True)
+        subprocess.run(["docker", "rm", DOCKER_CONTAINER_NAME], check=True, capture_output=True)
+        print(f"✓ Container stopped and removed: {DOCKER_CONTAINER_NAME}")
+    
+    except subprocess.CalledProcessError as e:
+        print(f"Error stopping container: {e}")
+
+
+def docker_status() -> None:
+    """Show status of the local Docker container"""
+    if docker_is_running():
+        print(f"✓ Container '{DOCKER_CONTAINER_NAME}' is running")
+        print(f"  URL: http://localhost:{DOCKER_LOCAL_PORT}")
+        print(f"  Data: {DOCKER_DATA_DIR.absolute()}")
+        
+        # Show container info
+        result = subprocess.run(
+            ["docker", "inspect", "-f", 
+             "{{.State.StartedAt}}", DOCKER_CONTAINER_NAME],
+            capture_output=True, text=True
+        )
+        if result.returncode == 0:
+            print(f"  Started: {result.stdout.strip()}")
+    
+    elif docker_container_exists():
+        print(f"✗ Container '{DOCKER_CONTAINER_NAME}' exists but is stopped")
+        print(f"  Start with: python build.py docker run")
+    
+    else:
+        print(f"✗ Container '{DOCKER_CONTAINER_NAME}' does not exist")
+        print(f"  Build with: python build.py docker build")
+        print(f"  Run with: python build.py docker run")
+
+
+def docker_logs(follow: bool = False, tail: int = 100) -> None:
+    """Show logs from the local Docker container
+    
+    Args:
+        follow: If True, follow the log output (like tail -f)
+        tail: Number of lines to show (default 100)
+    """
+    if not docker_container_exists():
+        print(f"Container '{DOCKER_CONTAINER_NAME}' does not exist")
+        return
+    
+    try:
+        cmd = ["docker", "logs", "--tail", str(tail)]
+        if follow:
+            cmd.append("-f")
+        cmd.append(DOCKER_CONTAINER_NAME)
+        
+        subprocess.run(cmd)
+    
+    except KeyboardInterrupt:
+        print("\n")  # Clean exit on Ctrl+C
+
+
+def docker_shell() -> None:
+    """Open a shell in the running Docker container"""
+    if not docker_is_running():
+        print(f"Container '{DOCKER_CONTAINER_NAME}' is not running")
+        return
+    
+    print(f"Opening shell in container '{DOCKER_CONTAINER_NAME}'...")
+    print("Type 'exit' to return to host")
+    
+    subprocess.run(["docker", "exec", "-it", DOCKER_CONTAINER_NAME, "/bin/bash"])
+
+
+def handle_docker_command() -> None:
+    """Handle docker subcommands"""
+    if len(sys.argv) < 3:
+        print("Usage: python build.py docker <subcommand>")
+        print("")
+        print("Docker Subcommands:")
+        print("  build    - Build local Docker image using .NET SDK")
+        print("  run      - Run container on port 8080")
+        print("  stop     - Stop and remove container")
+        print("  status   - Show container status")
+        print("  logs     - Show container logs")
+        print("  shell    - Open shell in running container")
+        print("")
+        print("Port Strategy:")
+        print("  Development (build.py start): http://localhost:5000")
+        print("  Local Docker (docker run):    http://localhost:8080")
+        print("  Production (docker compose):  http://localhost:1983")
+        sys.exit(1)
+    
+    subcommand = sys.argv[2]
+    
+    if subcommand == "build":
+        docker_build()
+    elif subcommand == "run":
+        docker_run()
+    elif subcommand == "stop":
+        docker_stop()
+    elif subcommand == "status":
+        docker_status()
+    elif subcommand == "logs":
+        # Parse optional flags
+        follow = "-f" in sys.argv or "--follow" in sys.argv
+        tail = 100
+        for i, arg in enumerate(sys.argv):
+            if arg == "--tail" and i + 1 < len(sys.argv):
+                try:
+                    tail = int(sys.argv[i + 1])
+                except ValueError:
+                    pass
+        docker_logs(follow=follow, tail=tail)
+    elif subcommand == "shell":
+        docker_shell()
+    else:
+        print(f"Unknown docker subcommand: {subcommand}")
+        print("Use 'python build.py docker' for help")
+        sys.exit(1)
+
+
 def print_usage() -> None:
     """Print usage information"""
     print("Usage: python build.py [command] [options]")
@@ -1446,10 +1710,23 @@ def print_usage() -> None:
     print("  publish      - Publish the project to ./dist")
     print("  watch        - Run with hot reload (foreground)")
     print("  run          - Run the project (foreground)")
-    print("  start        - Start the project in background")
+    print("  start        - Start the project in background (port 5000)")
     print("  stop         - Stop the background project")
     print("  status       - Check if project is running")
     print("  test [filter]- Run integration tests (filter by test name)")
+    print("")
+    print("Docker Commands:")
+    print("  docker build  - Build local Docker image using .NET SDK")
+    print("  docker run    - Run container on port 8080")
+    print("  docker stop   - Stop and remove container")
+    print("  docker status - Show container status")
+    print("  docker logs   - Show container logs (-f to follow, --tail N)")
+    print("  docker shell  - Open shell in running container")
+    print("")
+    print("Port Strategy:")
+    print("  Development (start):      http://localhost:5000")
+    print("  Local Docker (docker run): http://localhost:8080")
+    print("  Production (compose):     http://localhost:1983")
     print("")
     print("Log Commands:")
     print("  log                      - Show last 50 lines of log")
@@ -1630,6 +1907,11 @@ def main() -> None:
         else:
             # Treat as SQL query
             query_db(subcommand)
+        return
+    
+    # Docker command
+    if command == "docker":
+        handle_docker_command()
         return
     
     if command not in ["build", "publish", "watch", "run", "start", "test"]:

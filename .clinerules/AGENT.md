@@ -83,6 +83,19 @@ Use the Python automation:
 
 **Backup behavior:** Auto-stops running app for clean backup/restore. Backups stored in `./backups/`.
 
+### Docker Commands (for local container testing)
+- `python build.py docker build` — build local Docker image using .NET SDK container support
+- `python build.py docker run` — run container on port 8080
+- `python build.py docker stop` — stop and remove container
+- `python build.py docker status` — show container status
+- `python build.py docker logs` — show container logs (-f to follow, --tail N)
+- `python build.py docker shell` — open shell in running container
+
+**Port Strategy:**
+- Development (`python build.py start`): http://localhost:5000
+- Local Docker (`python build.py docker run`): http://localhost:8080
+- Production (`docker compose up`): http://localhost:1983
+
 **When to use:**
 - Use `log` commands when debugging runtime issues or checking if operations succeeded
 - Use `db campaigns` to verify database persistence after UI actions (e.g., check PartyDataLen after adding characters)

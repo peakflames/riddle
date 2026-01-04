@@ -184,7 +184,7 @@ if (!app.Environment.IsEnvironment("Testing"))
 }
 
 // Map SignalR hub for real-time game events
-app.MapHub<GameHub>("/gamehub");
+app.MapHub<GameHub>("/gamehub").AllowAnonymous();
 
 // Health check endpoint for container orchestration (Docker, Kubernetes)
 app.MapHealthChecks("/health");
