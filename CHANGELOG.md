@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.28.4] - 2026-01-03
+
+### Fixed
+- **User-friendly OpenRouter API error messages**
+  - Raw JSON errors like `{"error":{"message":"User not found.","code":401}}` now display as helpful messages
+  - Error code 401: "Your OpenRouter API key is invalid or expired. Please verify your key at https://openrouter.ai/keys and update your .env file."
+  - Error code 402: "Insufficient OpenRouter credits. Please add funds to your account at https://openrouter.ai/credits"
+  - Error code 429: "Rate limit exceeded. Please wait a moment and try again."
+  - 5xx errors: Generic service error message with retry suggestion
+  - Added `ParseOpenRouterError()` helper in `RiddleLlmService` with JSON parsing and switch expression
+
 ## [0.28.3] - 2026-01-03
 
 ### Fixed
