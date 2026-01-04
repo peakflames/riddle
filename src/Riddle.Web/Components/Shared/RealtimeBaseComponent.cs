@@ -22,25 +22,42 @@ public abstract class RealtimeBaseComponent : ComponentBase, IAsyncDisposable
     protected HubConnection? HubConnection { get; private set; }
 
     /// <summary>
-    /// Gets the appropriate SignalR hub URL based on the runtime environment.
-    /// In Docker: uses internal port (ASPNETCORE_HTTP_PORTS or default 8080)
-    /// Locally: uses NavigationManager to resolve the absolute URI
+    /// Gets the appropriate SignalR hub URL for server-side connections.
+    /// Always uses localhost since the HubConnection runs ON the server and must connect internally,
+    /// not through external proxies (e.g., Cloudflare) which may block WebSocket upgrades.
     /// </summary>
     protected string GetSignalRHubUrl()
     {
-        var isDocker = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
+        // The server-side HubConnection must ALWAYS connect to localhost
+        // NavigationManager returns the external URL (e.g., riddle.peakflames.org)
+        // but that goes through Cloudflare which blocks the WebSocket upgrade with 403
         
-        if (isDocker)
+        // Try to get the server's local listening port from various sources
+        var aspNetCoreUrls = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
+        var httpPorts = Environment.GetEnvironmentVariable("ASPNETCORE_HTTP_PORTS");
+        
+        string port;
+        if (!string.IsNullOrEmpty(httpPorts))
         {
-            var port = Environment.GetEnvironmentVariable("ASPNETCORE_HTTP_PORTS") ?? "8080";
-            var url = $"http://localhost:{port}/gamehub";
-            Logger.LogDebug("Docker environment detected. Using internal SignalR URL: {Url}", url);
-            return url;
+            // ASPNETCORE_HTTP_PORTS is set (modern .NET format)
+            port = httpPorts.Split(';')[0];
+        }
+        else if (!string.IsNullOrEmpty(aspNetCoreUrls))
+        {
+            // Parse from ASPNETCORE_URLS (e.g., "http://0.0.0.0:5000")
+            var uri = new Uri(aspNetCoreUrls.Split(';')[0]);
+            port = uri.Port.ToString();
+        }
+        else
+        {
+            // Fallback: check if Docker (8080) or local dev (5000)
+            var isDocker = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
+            port = isDocker ? "8080" : "5000";
         }
         
-        var absoluteUrl = Navigation.ToAbsoluteUri("/gamehub").ToString();
-        Logger.LogDebug("Local environment detected. Using SignalR URL: {Url}", absoluteUrl);
-        return absoluteUrl;
+        var url = $"http://localhost:{port}/gamehub";
+        Logger.LogInformation("Using internal SignalR URL: {Url} (server-side connections bypass external proxy)", url);
+        return url;
     }
 
     /// <summary>
