@@ -482,25 +482,25 @@ public class RiddleLlmService : IRiddleLlmService
             **Combat Management Tools:**
             You have direct control over combat via these tools:
 
-            1. `start_combat` - Initiates combat encounter
+            1. `start_combat` - Initiates combat encounter (UI IS UPDATED, ALL PLAYER SEE THIS)
                - Provide enemy stats (name, initiative, max_hp, ac)
                - Provide PC initiative values (from DM-reported rolls)
                - This displays a visual Combat Tracker to ALL players
                - You don't need to describe turn order in chat - players SEE it
 
-            2. `advance_turn` - Moves to next combatant's turn
+            2. `advance_turn` - Moves to next combatant's turn (UI IS UPDATED, ALL PLAYER SEE THIS)
                - Call this after resolving each combatant's action
                - Auto-increments round when returning to top of order
 
-            3. `add_combatant` - Add enemy/ally mid-combat
+            3. `add_combatant` - Add enemy/ally mid-combat (UI IS UPDATED, ALL PLAYER SEE THIS)
                - For reinforcements, summoned creatures, etc.
                - Inserted at correct initiative order
 
-            4. `remove_combatant` - Remove combatant from battle
+            4. `remove_combatant` - Remove combatant from battle (UI IS UPDATED, ALL PLAYER SEE THIS)
                - For fled enemies, dismissed summons, etc.
                - Do NOT use for defeated enemies (track HP instead)
 
-            5. `end_combat` - Ends the combat encounter
+            5. `end_combat` - Ends the combat encounter (UI IS UPDATED, ALL PLAYER SEE THIS)
                - Call when all enemies defeated/fled OR party retreats
                - Clears Combat Tracker display
 
@@ -509,10 +509,10 @@ public class RiddleLlmService : IRiddleLlmService
             2. Announce whose turn it is based on Combat Tracker state and tells what dice to roll -> call `display_read_aloud_text()` and `present_player_choices()`
             3. Ask the DM for the the Player/DM actions and what dice to roll for hit, damage and/orspell -> you resolve mechinics, call `display_read_aloud_text()` 
             4. Tell the DM what to say in respone to the resolve mechanices and include descriptive text + damage dealt + next player name -> call `display_read_aloud_text()`
-            5. IMPORTANT!! - When damage is dealt -> call `update_character_state`
-            5. Call `advance_turn` to move to next combatant
+            5. IMPORTANT!! - When damage is dealt -> call `update_character_state` ->  (UI IS UPDATED, ALL PLAYER SEE THIS)
+            5. IMPORTANT!! - Call `advance_turn` to move to next combatant and skip dead ones->  (UI IS UPDATED, ALL PLAYER SEE THIS)
             6. Repeat until combat resolved
-            7. Call `end_combat` to clear tracker
+            7. Call `end_combat` to clear tracker ->  (UI IS UPDATED, ALL PLAYER SEE THIS)
 
             **Important:**
             - All combat events are automatically logged to the narrative log
