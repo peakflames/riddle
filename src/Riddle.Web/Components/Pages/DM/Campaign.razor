@@ -18,6 +18,7 @@
 @inject ICombatService CombatService
 @inject ICharacterTemplateService CharacterTemplateService
 @inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
 
 <PageTitle>@(campaign?.Name ?? "Campaign") - Riddle</PageTitle>
 
@@ -799,10 +800,10 @@
         StateHasChanged();
     }
     
-    // Import Templates Modal Methods
+    // Import Templates - Navigate to dedicated page
     private void OpenImportModal()
     {
-        _showImportModal = true;
+        NavigationManager.NavigateTo($"/dm/campaign/{CampaignId}/import-templates");
     }
     
     private async Task HandleImportTemplates(List<string> templateIds)

@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.29.0] - 2026-01-03
 
+### Added
+- **Mobile-first Import Templates page** (`/dm/campaign/{id}/import-templates`)
+  - Replaced modal-based character template import with dedicated full-page route
+  - Responsive card grid (1→2→3 columns) with touch-friendly checkboxes
+  - Search by name, filter by class and visibility (All/Public/My Templates)
+  - Select All / Clear selection controls
+  - Progress indicator during import with character name and count
+  - Success banner with "Return to Campaign" button
+
 ### Changed
 - **Dashboard renamed to Campaigns** - Sidebar navigation now shows "Campaigns" instead of "Dashboard"
 - **Campaigns page redesigned with card-based layout**
