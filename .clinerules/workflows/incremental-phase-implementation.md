@@ -15,9 +15,7 @@ This workflow provides a repeatable process for implementing project phases incr
 
 1. **Check Git Status**
    ```bash
-   git status
-   git branch -a
-   git log --oneline -5
+   git status && git branch -a && git --no-pager log --oneline -10 # Prefer to use non-interactive mode of all CLI commands
    ```
 
 2. **Identify Current Phase and Version**
